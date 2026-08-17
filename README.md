@@ -1,6 +1,6 @@
-# _astro (nom provisoire)
+# astrolab
 
-**Statut** : stub — strate 1 (socle épuré) en cours.
+**Statut** : actif — strate 1 (socle épuré) en ligne. Nom stabilisé 2026-08-17 (ex-`_astro/`).
 
 **Intention** : Logiciel d'astrologie épuré avec deux enrichissements **distincts** — (a) calcul des **mi-points** entre corps, (b) intégration d'un large corpus d'**astéroïdes**. Visualisations soustractives (planètes×maisons sans signes ; aspects seuls, sans autre considération). Journal utilisateur pour indexer des événements vécus à des positions/moments.
 

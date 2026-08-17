@@ -1,4 +1,4 @@
-# CLAUDE.md — _astro
+# CLAUDE.md — astrolab
 
 Ce fichier oriente les sessions Claude ouvertes **depuis ce dossier**. Le `README.md` voisin décrit l'intention publique ; ici on collecte les décisions déjà prises, les arbitrages en attente et les pointeurs de contexte.
 
@@ -28,9 +28,9 @@ Logiciel d'astrologie épuré avec deux enrichissements distincts, visualisation
 - Pas de LLM analytique tant que la soustraction et le journal n'ont pas été éprouvés.
 
 ## Contexte transversal
-Stub issu de la salve de brassage du **2026-07-31**.
+Stub issu de la salve de brassage du **2026-07-31**. Nom stabilisé **astrolab** le 2026-08-17 (avant : `_astro/`). Repo public créé le même jour : `PerigGouanvic/astrolab`.
 
-**Mémoire auto de ce projet** — déplacée dans l'arborescence : lire `./memory/MEMORY.md` (et non le chemin canonique `~/.claude/projects/-home-perig-projects-_astro/memory/` qui ne contient plus qu'un pointeur).
+**Mémoire auto de ce projet** — déplacée dans l'arborescence : lire `./memory/MEMORY.md`. Le chemin canonique post-renommage serait `~/.claude/projects/-home-perig-projects-astrolab/memory/` (ancien : `-home-perig-projects-_astro/`).
 
 Pour hériter des préférences utilisateur transversales (langue, cadences, workflow mobile, etc.), lire aussi la mémoire racine des projets :
 
