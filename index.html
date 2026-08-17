@@ -7,13 +7,18 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>astrolab — carte natale</title>
-  <link rel="stylesheet" href="style.css?v=3">
+  <link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
   <main>
     <header>
-      <h1>Carte natale</h1>
+      <h1 id="chart-title">Maintenant</h1>
       <p id="chart-info" class="chart-info"></p>
+      <nav class="controls">
+        <button type="button" data-mode="now" class="active">maintenant</button>
+        <button type="button" data-mode="natal">natal (Perig)</button>
+        <label class="toggle"><input type="checkbox" id="show-midpoints"> mi-points</label>
+      </nav>
     </header>
     <div id="chart-container">
       <svg id="chart" viewBox="-500 -500 1000 1000" xmlns="http://www.w3.org/2000/svg"></svg>
@@ -21,6 +26,6 @@
     <section id="chart-data" class="chart-data"></section>
     <pre id="error-box" class="error-box" hidden></pre>
   </main>
-  <script type="module" src="app.js?v=3"></script>
+  <script type="module" src="app.js?v=4"></script>
 </body>
 </html>

@@ -1,5 +1,4 @@
-// astrolab — strate 1 : socle épuré
-// Erreurs affichées à l'écran (mobile-first, console peu accessible).
+// astrolab — strate 1+ : maintenant / natal + mi-points optionnels
 
 function showError(msg) {
   const box = document.getElementById('error-box');
@@ -14,29 +13,45 @@ window.addEventListener('unhandledrejection', e => {
   showError('unhandled promise: ' + (e.reason && (e.reason.stack || e.reason.message || e.reason)));
 });
 
-// Import dynamique avec fallback default/named
 async function loadLib() {
   const url = 'https://esm.sh/circular-natal-horoscope-js';
   const mod = await import(url);
   const Origin = mod.Origin || (mod.default && mod.default.Origin);
   const Horoscope = mod.Horoscope || (mod.default && mod.default.Horoscope);
-  if (!Origin || !Horoscope) {
-    throw new Error(
-      'Origin/Horoscope introuvables dans le module.\n' +
-      'Clés module: ' + Object.keys(mod).join(', ') +
-      (mod.default ? '\nClés default: ' + Object.keys(mod.default).join(', ') : '')
-    );
-  }
+  if (!Origin || !Horoscope) throw new Error('Origin/Horoscope introuvables. Clés: ' + Object.keys(mod).join(', '));
   return { Origin, Horoscope };
 }
 
-const NATAL = {
-  year: 1972, month: 0, date: 22,
-  hour: 7, minute: 25,
-  latitude: 45.5017, longitude: -73.5673,
-  label: '22 janvier 1972 · 07 h 25 · Montréal',
+// ---------- Lieux et modes ----------
+const MONTREAL = { latitude: 45.5017, longitude: -73.5673, tz: 'America/Montreal', label: 'Montréal' };
+
+const NATAL_PERIG = {
+  year: 1972, month: 0, date: 22, hour: 7, minute: 25,
+  latitude: MONTREAL.latitude, longitude: MONTREAL.longitude,
+  title: 'Natal — Perig',
+  info: '22 janvier 1972 · 07 h 25 · Montréal',
 };
 
+function nowAt(place) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: place.tz,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(new Date());
+  const g = {};
+  for (const p of parts) if (p.type !== 'literal') g[p.type] = p.value;
+  const hh = String(g.hour).padStart(2,'0');
+  const mm = String(g.minute).padStart(2,'0');
+  return {
+    year: +g.year, month: +g.month - 1, date: +g.day,
+    hour: +g.hour, minute: +g.minute,
+    latitude: place.latitude, longitude: place.longitude,
+    title: 'Maintenant',
+    info: `${g.day}/${g.month}/${g.year} · ${hh} h ${mm} · ${place.label}`,
+  };
+}
+
+// ---------- Glyphes ----------
 const SIGN_GLYPHS = ['♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓'];
 const PLANET_GLYPHS = {
   sun: '☉', moon: '☽', mercury: '☿', venus: '♀', mars: '♂',
@@ -45,22 +60,22 @@ const PLANET_GLYPHS = {
 };
 const PLANET_ORDER = ['sun','moon','mercury','venus','mars','jupiter','saturn','uranus','neptune','pluto'];
 
+// ---------- Géométrie ----------
 const R_ZODIAC_OUT = 440;
 const R_ZODIAC_IN  = 380;
 const R_HOUSE_TICK = 360;
+const R_MIDPOINT   = 350;
 const R_PLANET     = 320;
 const R_HOUSE_NUM  = 260;
 const R_INNER      = 60;
 const DEG = Math.PI / 180;
 
 function normDeg(d) { return ((d % 360) + 360) % 360; }
-
 function project(lon, ascLon, radius) {
   const rel = normDeg(lon - ascLon);
   const theta = (180 + rel) * DEG;
   return { x: radius * Math.cos(theta), y: -radius * Math.sin(theta) };
 }
-
 function svg(tag, attrs = {}, text = null) {
   const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
   for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
@@ -68,7 +83,6 @@ function svg(tag, attrs = {}, text = null) {
   return el;
 }
 
-// Extraction robuste : la lib nested ses propriétés dans plusieurs formes possibles
 function getDD(node) {
   if (node == null) return null;
   if (typeof node === 'number') return node;
@@ -77,9 +91,7 @@ function getDD(node) {
   if (node.ChartPosition) return getDD(node.ChartPosition);
   return null;
 }
-function getBodyLon(body) {
-  return getDD(body.ChartPosition) ?? getDD(body);
-}
+function getBodyLon(body) { return getDD(body.ChartPosition) ?? getDD(body); }
 function getHouseLon(house) {
   if (house.ChartPosition && house.ChartPosition.StartPosition) return getDD(house.ChartPosition.StartPosition);
   if (house.StartPosition) return getDD(house.StartPosition);
@@ -88,15 +100,40 @@ function getHouseLon(house) {
   return null;
 }
 
-function drawChart(horoscope) {
+// ---------- Mi-points ----------
+// Mi-point de A et B = (A + B) / 2, en prenant le plus court arc (les deux mi-points sont à 180° l'un de l'autre).
+// Convention : on garde le mi-point sur l'arc court.
+function midpoint(lonA, lonB) {
+  const a = normDeg(lonA);
+  const b = normDeg(lonB);
+  let diff = b - a;
+  if (diff > 180) diff -= 360;
+  else if (diff < -180) diff += 360;
+  return normDeg(a + diff / 2);
+}
+
+function computeMidpoints(bodies) {
+  const out = [];
+  for (let i = 0; i < bodies.length; i++) {
+    for (let j = i + 1; j < bodies.length; j++) {
+      out.push({
+        a: bodies[i].key, b: bodies[j].key,
+        lon: midpoint(bodies[i].lon, bodies[j].lon),
+      });
+    }
+  }
+  return out;
+}
+
+// ---------- Rendu ----------
+function drawChart(horoscope, opts = {}) {
   const container = document.getElementById('chart');
   container.innerHTML = '';
 
   const ascLon = getBodyLon(horoscope.Ascendant);
   const mcLon  = getBodyLon(horoscope.Midheaven);
   if (ascLon == null || mcLon == null) {
-    throw new Error('Ascendant/MC introuvables.\nhoroscope keys: ' + Object.keys(horoscope).join(', ') +
-                    '\nAscendant sample: ' + JSON.stringify(horoscope.Ascendant, null, 2).slice(0, 500));
+    throw new Error('Ascendant/MC introuvables.\nhoroscope keys: ' + Object.keys(horoscope).join(', '));
   }
 
   container.appendChild(svg('circle', { cx: 0, cy: 0, r: R_ZODIAC_OUT, class: 'zodiac-ring' }));
@@ -134,16 +171,15 @@ function drawChart(horoscope) {
   }
 
   const labels = [
-    { lon: ascLon,               text: 'ASC' },
-    { lon: mcLon,                text: 'MC'  },
-    { lon: normDeg(ascLon+180),  text: 'DSC' },
-    { lon: normDeg(mcLon+180),   text: 'IC'  },
+    { lon: ascLon, text: 'ASC' }, { lon: mcLon, text: 'MC' },
+    { lon: normDeg(ascLon+180), text: 'DSC' }, { lon: normDeg(mcLon+180), text: 'IC' },
   ];
   for (const l of labels) {
     const p = project(l.lon, ascLon, R_ZODIAC_OUT + 20);
     container.appendChild(svg('text', { x: p.x, y: p.y, class: 'angle-label' }, l.text));
   }
 
+  // Planètes
   const bodies = (horoscope.CelestialBodies && horoscope.CelestialBodies.all) || [];
   const placed = [];
   for (const b of bodies) {
@@ -155,6 +191,18 @@ function drawChart(horoscope) {
   }
   placed.sort((a, b) => normDeg(a.lon - ascLon) - normDeg(b.lon - ascLon));
 
+  // Mi-points (avant les planètes pour être en arrière-plan)
+  if (opts.showMidpoints) {
+    const mps = computeMidpoints(placed);
+    for (const m of mps) {
+      const t1 = project(m.lon, ascLon, R_MIDPOINT);
+      const t2 = project(m.lon, ascLon, R_MIDPOINT - 8);
+      container.appendChild(svg('line', {
+        x1: t1.x, y1: t1.y, x2: t2.x, y2: t2.y, class: 'midpoint-tick',
+      }));
+    }
+  }
+
   const MIN_SEP = 8;
   let lastLon = -999, ringOffset = 0;
   for (const p of placed) {
@@ -162,9 +210,9 @@ function drawChart(horoscope) {
     if (sep < MIN_SEP && lastLon > -999) ringOffset += 26; else ringOffset = 0;
     const r = R_PLANET - ringOffset;
     const pt = project(p.lon, ascLon, r);
-    const t1 = project(p.lon, ascLon, R_HOUSE_TICK);
-    const t2 = project(p.lon, ascLon, R_HOUSE_TICK - 12);
-    container.appendChild(svg('line', { x1: t1.x, y1: t1.y, x2: t2.x, y2: t2.y, class: 'planet-tick' }));
+    const tk1 = project(p.lon, ascLon, R_HOUSE_TICK);
+    const tk2 = project(p.lon, ascLon, R_HOUSE_TICK - 12);
+    container.appendChild(svg('line', { x1: tk1.x, y1: tk1.y, x2: tk2.x, y2: tk2.y, class: 'planet-tick' }));
     container.appendChild(svg('text', { x: pt.x, y: pt.y, class: 'planet-symbol' }, p.glyph));
     const degInSign = Math.floor(p.lon % 30);
     const dp = project(p.lon, ascLon, r - 22);
@@ -172,7 +220,7 @@ function drawChart(horoscope) {
     lastLon = p.lon;
   }
 
-  return { ascLon, mcLon };
+  return { ascLon, mcLon, placed };
 }
 
 function formatSign(lon) {
@@ -202,28 +250,47 @@ function drawDataTable(horoscope, ascLon, mcLon) {
   container.innerHTML = rows.join('');
 }
 
-async function main() {
-  document.getElementById('chart-info').textContent = NATAL.label;
+// ---------- État + bootstrap ----------
+let libPromise;
+let state = { mode: 'now', showMidpoints: false };
 
-  const { Origin, Horoscope } = await loadLib();
+async function render() {
+  const config = state.mode === 'natal' ? NATAL_PERIG : nowAt(MONTREAL);
+  document.getElementById('chart-title').textContent = config.title;
+  document.getElementById('chart-info').textContent = config.info;
 
+  const { Origin, Horoscope } = await libPromise;
   const origin = new Origin({
-    year: NATAL.year, month: NATAL.month, date: NATAL.date,
-    hour: NATAL.hour, minute: NATAL.minute,
-    latitude: NATAL.latitude, longitude: NATAL.longitude,
+    year: config.year, month: config.month, date: config.date,
+    hour: config.hour, minute: config.minute,
+    latitude: config.latitude, longitude: config.longitude,
   });
-
   const horoscope = new Horoscope({
-    origin: origin,
-    houseSystem: 'placidus',
-    zodiac: 'tropical',
-    aspectPoints: ['bodies'],
-    aspectWithPoints: ['bodies'],
-    language: 'en',
+    origin, houseSystem: 'placidus', zodiac: 'tropical',
+    aspectPoints: ['bodies'], aspectWithPoints: ['bodies'], language: 'en',
   });
-
-  const { ascLon, mcLon } = drawChart(horoscope);
+  const { ascLon, mcLon } = drawChart(horoscope, { showMidpoints: state.showMidpoints });
   drawDataTable(horoscope, ascLon, mcLon);
+}
+
+function wireControls() {
+  document.querySelectorAll('.controls button[data-mode]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.mode = btn.dataset.mode;
+      document.querySelectorAll('.controls button[data-mode]').forEach(b => b.classList.toggle('active', b === btn));
+      render().catch(e => showError('render error: ' + e.message));
+    });
+  });
+  document.getElementById('show-midpoints').addEventListener('change', e => {
+    state.showMidpoints = e.target.checked;
+    render().catch(err => showError('render error: ' + err.message));
+  });
+}
+
+async function main() {
+  libPromise = loadLib();
+  wireControls();
+  await render();
 }
 
 main().catch(e => showError('main() error: ' + (e.stack || e.message || e)));

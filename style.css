@@ -46,6 +46,49 @@ h1 {
   font-style: italic;
 }
 
+.controls {
+  margin-top: 0.8rem;
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+}
+
+.controls button {
+  background: transparent;
+  border: 1px solid var(--line-weak);
+  color: var(--line-medium);
+  padding: 0.3rem 0.7rem;
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+  transition: all 0.15s;
+}
+
+.controls button:hover {
+  border-color: var(--line-medium);
+  color: var(--ink);
+}
+
+.controls button.active {
+  border-color: var(--ink);
+  color: var(--ink);
+  background: rgba(0,0,0,0.03);
+}
+
+.controls .toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--line-medium);
+  cursor: pointer;
+  padding-left: 0.5rem;
+}
+
 #chart-container {
   width: 100%;
   aspect-ratio: 1 / 1;
@@ -133,6 +176,21 @@ h1 {
 .planet-tick {
   stroke: var(--planet);
   stroke-width: 1;
+}
+
+.midpoint-tick {
+  stroke: var(--line-medium);
+  stroke-width: 0.5;
+  opacity: 0.5;
+}
+
+.midpoint-symbol {
+  fill: var(--line-medium);
+  font-family: var(--font-serif);
+  font-size: 9px;
+  text-anchor: middle;
+  dominant-baseline: central;
+  opacity: 0.65;
 }
 
 .chart-data {
