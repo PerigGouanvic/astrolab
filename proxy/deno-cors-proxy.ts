@@ -1,16 +1,18 @@
 // astrolab — Proxy CORS pour Swiss Ephemeris asteroid files
 //
 // Déploie sur Deno Deploy : https://dash.deno.com/new
-// - Auth GitHub, choisir "Deploy from GitHub" et pointer sur ce fichier
-//   (ou copier-coller le contenu dans "Playground" pour un test rapide)
-// - Une fois déployé, tu obtiens une URL type https://astrolab-ephe.deno.dev
-// - Colle cette URL dans app.js à la constante PROXY_BASE (sans slash final).
+// - Auth GitHub, Playground, copier-coller ce fichier, Save & Deploy.
+// - URL obtenue type https://astrolab-ephe.deno.dev
+// - Dans astrolab, cliquer ⚙ et mettre : https://<ton-url>.deno.dev/
+//   (avec slash final)
 //
-// Sécurité : ce proxy ne relaie QUE les chemins /ephe/ast* — pas d'open proxy.
-// Le mirror upstream (ephe.scryr.io) est maintenu par Phillip McCabe et diffuse
-// les fichiers Swiss Ephemeris préparés par Astrodienst AG (AGPL / dual-license).
+// Format d'appel : https://<proxy>/https://ephe.scryr.io/ephe/astN/seNNNNNs.se1
+// (le path après le domaine du proxy = URL upstream complète)
+//
+// Sécurité : whitelist regex — n'accepte QUE les fichiers .se1 sur
+// ephe.scryr.io/ephe/astN/. Pas un open proxy.
 
-const UPSTREAM = "https://ephe.scryr.io";
+const ALLOWED = /^https:\/\/ephe\.scryr\.io\/ephe\/ast\d+\/se\d{5}s?\.se1$/i;
 const CORS_HEADERS: HeadersInit = {
   "access-control-allow-origin": "*",
   "access-control-allow-methods": "GET, HEAD, OPTIONS",
@@ -25,16 +27,17 @@ Deno.serve(async (req: Request) => {
     return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
 
-  // Whitelist : uniquement /ephe/astN/seNNNNN[s].se1
-  if (!/^\/ephe\/ast\d+\/se\d{5}s?\.se1$/i.test(url.pathname)) {
-    return new Response("Bad path — only /ephe/astN/seNNNNNs.se1 allowed", {
-      status: 400,
-      headers: CORS_HEADERS,
-    });
+  // Le path (sans le slash initial) est l'URL upstream complète.
+  const target = url.pathname.slice(1) + url.search;
+  if (!ALLOWED.test(target)) {
+    return new Response(
+      "Bad target — only https://ephe.scryr.io/ephe/astN/seNNNNNs.se1 allowed",
+      { status: 400, headers: CORS_HEADERS },
+    );
   }
 
   try {
-    const upstream = await fetch(UPSTREAM + url.pathname, { method: req.method });
+    const upstream = await fetch(target, { method: req.method });
     const headers = new Headers(upstream.headers);
     for (const [k, v] of Object.entries(CORS_HEADERS)) headers.set(k, v);
     return new Response(upstream.body, { status: upstream.status, headers });

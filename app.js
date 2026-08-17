@@ -6,9 +6,11 @@
 const SWE_URL = 'https://esm.sh/@kuntay/swisseph@0.2.2';
 
 // URL du proxy CORS pour les fichiers .se1 d'astéroïdes.
-// Voir proxy/README.md pour déployer et remplir cette constante.
-// Format attendu : https://<ton-proxy>.deno.dev  (sans slash final)
-const PROXY_BASE = localStorage.getItem('astrolab.proxyBase') || '';
+// Format attendu : préfixe auquel on concatène l'URL upstream complète.
+// - Défaut : proxy.cors.sh — service public, marche out of the box.
+// - Alternative : ton propre Deno Deploy — voir proxy/README.md.
+const PROXY_URL = localStorage.getItem('astrolab.proxyUrl') || 'https://proxy.cors.sh/';
+const UPSTREAM = 'https://ephe.scryr.io/ephe';
 
 const CATALOG_URL = 'asteroids.json';
 
@@ -116,13 +118,11 @@ function asteroidFileName(mpc) {
 
 async function mountAsteroid(mpc) {
   if (mountedAsteroids.has(mpc)) return true;
-  if (!PROXY_BASE) {
-    throw new Error('Proxy CORS non configuré. Voir proxy/README.md, puis :\nlocalStorage.setItem("astrolab.proxyBase", "https://...deno.dev")\net recharger.');
-  }
   const { folder, file } = asteroidFileName(mpc);
-  const url = `${PROXY_BASE}/ephe/${folder}/${file}`;
+  const upstream = `${UPSTREAM}/${folder}/${file}`;
+  const url = PROXY_URL + upstream;
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`Astéroïde ${mpc} introuvable (HTTP ${res.status})`);
+  if (!res.ok) throw new Error(`Astéroïde ${mpc} : HTTP ${res.status} via proxy ${PROXY_URL}`);
   const bytes = new Uint8Array(await res.arrayBuffer());
   swe.mountEphemeris({ [file]: bytes });
   mountedAsteroids.add(mpc);
@@ -437,17 +437,33 @@ function wireControls() {
     render().catch(err => showError('render error: ' + err.message));
   });
   wireAsteroidSearch();
+  wireProxySettings();
 }
 
 async function remountSavedAsteroids() {
   if (!state.asteroids.length) return;
-  if (!PROXY_BASE) {
-    showError('Proxy CORS non configuré — les astéroïdes sauvegardés ne peuvent être chargés.\nVoir proxy/README.md.');
-    return;
-  }
   await Promise.all(state.asteroids.map(([mpc, name]) =>
     mountAsteroid(mpc).catch(e => console.warn(`skip (${mpc}) ${name}:`, e.message))
   ));
+}
+
+function wireProxySettings() {
+  const btn = document.getElementById('proxy-settings');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    const current = localStorage.getItem('astrolab.proxyUrl') || PROXY_URL;
+    const next = prompt(
+      'URL du proxy CORS (préfixe auquel on concatène l\'URL upstream) :\n\n' +
+      '• Défaut : https://proxy.cors.sh/\n' +
+      '• Ton Deno Deploy : https://<toi>.deno.dev/\n\n' +
+      'Laisse vide pour restaurer le défaut.',
+      current
+    );
+    if (next === null) return;
+    if (next.trim() === '') localStorage.removeItem('astrolab.proxyUrl');
+    else localStorage.setItem('astrolab.proxyUrl', next.trim());
+    location.reload();
+  });
 }
 
 async function main() {

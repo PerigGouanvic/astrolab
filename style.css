@@ -89,6 +89,16 @@ h1 {
   padding-left: 0.5rem;
 }
 
+.controls .proxy-btn {
+  padding: 0.3rem 0.55rem;
+  font-size: 1rem;
+  opacity: 0.6;
+}
+
+.controls .proxy-btn:hover {
+  opacity: 1;
+}
+
 #chart-container {
   width: 100%;
   aspect-ratio: 1 / 1;
