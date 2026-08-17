@@ -24,6 +24,11 @@ Logiciel d'astrologie épuré avec deux enrichissements distincts, visualisation
 - Fonctionnalités « vraiment nouvelles » : à énumérer.
 - Format d'entrée du journal (structure d'un événement, champs, tags).
 
+## Features à venir (capté 2026-08-17)
+- **Zoom sur une région du cercle** — nécessaire dès la strate 2 quand la densification (mi-points + astéroïdes) dégrade la lisibilité globale. SVG `viewBox` suffit techniquement, pas besoin de canvas.
+- **Mode « lab »** — dans ce mode, ce qui apparaît dans le cercle ce sont les souvenirs, images, etc. déposés à des positions données. Cristallise la strate 3 : le cercle astrologique devient l'interface d'accès et de composition d'un journal intime spatialisé. « Mode lab » = nommage émergent, à laisser mûrir.
+- Détails et ancrages : voir `florilege-perig/astrolab/manifeste/features-a-venir.md` (carnet de bord).
+
 ## Anti-scope
 - Pas de LLM analytique tant que la soustraction et le journal n'ont pas été éprouvés.
 
