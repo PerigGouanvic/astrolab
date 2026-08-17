@@ -1,0 +1,166 @@
+:root {
+  --bg: #faf7f0;
+  --ink: #1a1a1a;
+  --line-strong: #333;
+  --line-medium: #666;
+  --line-weak: #ccc;
+  --sign-symbol: #9a9a9a;
+  --planet: #111;
+  --accent: #7a4a2a;
+  --font-serif: Georgia, 'Times New Roman', serif;
+  --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 1rem;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-serif);
+  line-height: 1.5;
+}
+
+main {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+h1 {
+  font-weight: 400;
+  font-size: 1.4rem;
+  margin: 0.5rem 0 0.2rem;
+  letter-spacing: 0.02em;
+}
+
+.chart-info {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--line-medium);
+  font-style: italic;
+}
+
+#chart-container {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+#chart {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* SVG element styles */
+.zodiac-ring {
+  fill: none;
+  stroke: var(--line-medium);
+  stroke-width: 1;
+}
+
+.zodiac-inner {
+  fill: none;
+  stroke: var(--line-weak);
+  stroke-width: 0.5;
+}
+
+.zodiac-divider {
+  stroke: var(--line-weak);
+  stroke-width: 0.5;
+}
+
+.sign-symbol {
+  fill: var(--sign-symbol);
+  font-family: var(--font-serif);
+  font-size: 22px;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.house-cusp {
+  stroke: var(--line-medium);
+  stroke-width: 0.5;
+  stroke-dasharray: 2 3;
+}
+
+.house-cusp-angle {
+  stroke: var(--line-strong);
+  stroke-width: 1.2;
+  stroke-dasharray: none;
+}
+
+.house-number {
+  fill: var(--line-medium);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.angle-label {
+  fill: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.planet-symbol {
+  fill: var(--planet);
+  font-family: var(--font-serif);
+  font-size: 26px;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.planet-degree {
+  fill: var(--line-medium);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.planet-tick {
+  stroke: var(--planet);
+  stroke-width: 1;
+}
+
+.chart-data {
+  margin-top: 2rem;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--line-medium);
+}
+
+.chart-data table {
+  border-collapse: collapse;
+  margin: 0 auto;
+}
+
+.chart-data td {
+  padding: 0.15rem 0.7rem;
+}
+
+.chart-data .glyph {
+  font-family: var(--font-serif);
+  font-size: 1.1rem;
+  color: var(--ink);
+}
+
+@media (max-width: 600px) {
+  body { padding: 0.5rem; }
+  .sign-symbol { font-size: 26px; }
+  .planet-symbol { font-size: 30px; }
+  .house-number { font-size: 13px; }
+  .planet-degree { font-size: 11px; }
+}
