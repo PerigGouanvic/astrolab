@@ -3,7 +3,9 @@
 //   - Astéroïdes MPC arbitraires (fetch à la demande via proxy CORS)
 //   - Modes maintenant / natal + toggle mi-points + rétrogrades ℞
 
-const SWE_URL = 'https://esm.sh/@kuntay/swisseph@0.2.2';
+// jsDelivr +esm : bundle self-contained avec process.browser=true.
+// esm.sh polyfille process.versions.node truthy → swisseph tente createRequire() → boom.
+const SWE_URL = 'https://cdn.jsdelivr.net/npm/@kuntay/swisseph@0.2.2/+esm';
 
 // URL du proxy CORS pour les fichiers .se1 d'astéroïdes.
 // Format attendu : préfixe auquel on concatène l'URL upstream complète.
