@@ -8,7 +8,7 @@
 
 ## App
 
-`app/` — version web statique, HTML+SVG+JS pur, pas de build. Ouvrir `app/index.html` en local ou consulter la version déployée (GitHub Pages, lien à venir).
+Fichiers à la racine du repo (contrainte GitHub Pages) : `index.html`, `style.css`, `app.js`. Version web statique HTML+SVG+JS pur, pas de build. Ouvrir `index.html` en local ou consulter la version déployée : https://periggouanvic.github.io/astrolab/
 
 Lib de calcul : [`circular-natal-horoscope-js`](https://github.com/0xStarcat/CircularNatalHoroscopeJS) chargée via ESM CDN (planètes majeures + Placidus tropical, suffisant pour la strate 1). Migration vers Swiss Ephemeris (WASM) prévue à la strate 2 pour astéroïdes + mi-points fins.
 
