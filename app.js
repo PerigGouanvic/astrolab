@@ -1,9 +1,16 @@
-// astrolab — strate 2 (début) : Swiss Ephemeris via @kuntay/swisseph
+// astrolab — strate 2 : Swiss Ephemeris + astéroïdes à la demande
 //   - Sun→Pluto + Chiron + Ceres/Pallas/Juno/Vesta
-//   - Modes maintenant / natal + toggle mi-points
-//   - Marqueur rétrograde (℞)
+//   - Astéroïdes MPC arbitraires (fetch à la demande via proxy CORS)
+//   - Modes maintenant / natal + toggle mi-points + rétrogrades ℞
 
 const SWE_URL = 'https://esm.sh/@kuntay/swisseph@0.2.2';
+
+// URL du proxy CORS pour les fichiers .se1 d'astéroïdes.
+// Voir proxy/README.md pour déployer et remplir cette constante.
+// Format attendu : https://<ton-proxy>.deno.dev  (sans slash final)
+const PROXY_BASE = localStorage.getItem('astrolab.proxyBase') || '';
+
+const CATALOG_URL = 'asteroids.json';
 
 // ---------- Erreurs à l'écran ----------
 function showError(msg) {
@@ -31,7 +38,7 @@ async function initSwe() {
       console.warn('éphémérides manquantes (fallback Moshier):', res.missing);
     }
   } catch (e) {
-    console.warn('loadEphemeris a échoué — fallback Moshier pour Sun→Pluto, Chiron+astéroïdes indisponibles :', e.message);
+    console.warn('loadEphemeris a échoué — fallback Moshier :', e.message);
   }
   return swe;
 }
@@ -39,7 +46,6 @@ async function initSwe() {
 // ---------- Lieux et modes ----------
 const MONTREAL = { latitude: 45.5017, longitude: -73.5673, tz: 'America/Montreal', label: 'Montréal' };
 
-// Perig — 22 janvier 1972, 07 h 25 heure locale Montréal (UTC-5 en janvier) → 12 h 25 UT
 const NATAL_PERIG = {
   yearUT: 1972, monthUT: 1, dayUT: 22, hourUT: 12 + 25 / 60,
   latitude: MONTREAL.latitude, longitude: MONTREAL.longitude,
@@ -72,7 +78,6 @@ function natalConfig() {
 }
 
 // ---------- Corps ----------
-// Indices tirés de Body enum : Sun:0..Pluto:9, Chiron:15, Ceres:17..Vesta:20.
 const PLANETS = [
   { key: 'sun',     idx: 0,  glyph: '☉' },
   { key: 'moon',    idx: 1,  glyph: '☽' },
@@ -94,12 +99,43 @@ const EXTENDED = [
 ];
 const SIGN_GLYPHS = ['♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓'];
 
+// ---------- Astéroïdes : catalogue + fetch/mount à la demande ----------
+let catalogPromise;
+async function loadCatalog() {
+  if (!catalogPromise) {
+    catalogPromise = fetch(CATALOG_URL).then(r => r.ok ? r.json() : []);
+  }
+  return catalogPromise;
+}
+
+const mountedAsteroids = new Set();
+
+function asteroidFileName(mpc) {
+  return { folder: `ast${Math.floor(mpc / 1000)}`, file: `se${String(mpc).padStart(5, '0')}s.se1` };
+}
+
+async function mountAsteroid(mpc) {
+  if (mountedAsteroids.has(mpc)) return true;
+  if (!PROXY_BASE) {
+    throw new Error('Proxy CORS non configuré. Voir proxy/README.md, puis :\nlocalStorage.setItem("astrolab.proxyBase", "https://...deno.dev")\net recharger.');
+  }
+  const { folder, file } = asteroidFileName(mpc);
+  const url = `${PROXY_BASE}/ephe/${folder}/${file}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Astéroïde ${mpc} introuvable (HTTP ${res.status})`);
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  swe.mountEphemeris({ [file]: bytes });
+  mountedAsteroids.add(mpc);
+  return true;
+}
+
 // ---------- Géométrie ----------
 const R_ZODIAC_OUT = 440;
 const R_ZODIAC_IN  = 380;
 const R_HOUSE_TICK = 360;
 const R_MIDPOINT   = 350;
 const R_PLANET     = 320;
+const R_ASTEROID   = 300;
 const R_HOUSE_NUM  = 260;
 const R_INNER      = 60;
 const DEG = Math.PI / 180;
@@ -117,7 +153,7 @@ function svg(tag, attrs = {}, text = null) {
   return el;
 }
 
-// ---------- Mi-points ----------
+// ---------- Mi-points (uniquement entre planètes majeures) ----------
 function midpoint(lonA, lonB) {
   const a = normDeg(lonA);
   const b = normDeg(lonB);
@@ -137,7 +173,7 @@ function computeMidpoints(bodies) {
 }
 
 // ---------- Rendu SVG ----------
-function drawChart({ cusps, ascendant, midheaven, bodies }, opts = {}) {
+function drawChart({ cusps, ascendant, midheaven, bodies, asteroids }, opts = {}) {
   const container = document.getElementById('chart');
   container.innerHTML = '';
   const ascLon = ascendant;
@@ -146,7 +182,6 @@ function drawChart({ cusps, ascendant, midheaven, bodies }, opts = {}) {
   container.appendChild(svg('circle', { cx: 0, cy: 0, r: R_ZODIAC_IN,  class: 'zodiac-ring' }));
   container.appendChild(svg('circle', { cx: 0, cy: 0, r: R_INNER,      class: 'zodiac-inner' }));
 
-  // Signes
   for (let i = 0; i < 12; i++) {
     const lon = i * 30;
     const p1 = project(lon, ascLon, R_ZODIAC_IN);
@@ -156,7 +191,6 @@ function drawChart({ cusps, ascendant, midheaven, bodies }, opts = {}) {
     container.appendChild(svg('text', { x: gp.x, y: gp.y, class: 'sign-symbol' }, SIGN_GLYPHS[i]));
   }
 
-  // Maisons
   for (let i = 0; i < 12; i++) {
     const lon = cusps[i];
     if (lon == null) continue;
@@ -176,7 +210,6 @@ function drawChart({ cusps, ascendant, midheaven, bodies }, opts = {}) {
     }
   }
 
-  // ASC/MC/DSC/IC
   const labels = [
     { lon: ascLon, text: 'ASC' }, { lon: midheaven, text: 'MC' },
     { lon: normDeg(ascLon + 180), text: 'DSC' }, { lon: normDeg(midheaven + 180), text: 'IC' },
@@ -186,7 +219,6 @@ function drawChart({ cusps, ascendant, midheaven, bodies }, opts = {}) {
     container.appendChild(svg('text', { x: p.x, y: p.y, class: 'angle-label' }, l.text));
   }
 
-  // Mi-points (fond)
   if (opts.showMidpoints) {
     for (const m of computeMidpoints(bodies)) {
       const t1 = project(m.lon, ascLon, R_MIDPOINT);
@@ -195,7 +227,17 @@ function drawChart({ cusps, ascendant, midheaven, bodies }, opts = {}) {
     }
   }
 
-  // Planètes (triées par longitude relative à l'ASC, écartement anti-collision)
+  // Astéroïdes personnalisés : petits points + label court, sur un rayon distinct
+  for (const a of asteroids) {
+    const tk1 = project(a.lon, ascLon, R_HOUSE_TICK - 2);
+    const tk2 = project(a.lon, ascLon, R_HOUSE_TICK - 10);
+    container.appendChild(svg('line', { x1: tk1.x, y1: tk1.y, x2: tk2.x, y2: tk2.y, class: 'asteroid-tick' }));
+    const pt = project(a.lon, ascLon, R_ASTEROID);
+    container.appendChild(svg('circle', { cx: pt.x, cy: pt.y, r: 3, class: 'asteroid-dot' }));
+    const lp = project(a.lon, ascLon, R_ASTEROID - 14);
+    container.appendChild(svg('text', { x: lp.x, y: lp.y, class: 'asteroid-label' }, a.name.slice(0, 6)));
+  }
+
   const sorted = [...bodies].sort((a, b) => normDeg(a.lon - ascLon) - normDeg(b.lon - ascLon));
   const MIN_SEP = 8;
   let lastLon = -999, ringOffset = 0;
@@ -222,7 +264,7 @@ function formatSign(lon) {
   const min = Math.floor((lon % 1) * 60);
   return `${deg}° ${SIGN_GLYPHS[idx]} ${String(min).padStart(2, '0')}'`;
 }
-function drawDataTable({ ascendant, midheaven }, bodies) {
+function drawDataTable({ ascendant, midheaven }, bodies, asteroids) {
   const container = document.getElementById('chart-data');
   const rows = [];
   rows.push('<h2 style="text-align:center;font-weight:400;font-size:1rem;margin-top:0;">Positions</h2>');
@@ -233,12 +275,27 @@ function drawDataTable({ ascendant, midheaven }, bodies) {
     const suffix = b.retro ? ' <span style="opacity:.7">℞</span>' : '';
     rows.push(`<tr><td class="glyph">${b.glyph}</td><td>${formatSign(b.lon)}${suffix}</td></tr>`);
   }
+  if (asteroids.length) {
+    rows.push('<tr><td colspan="2" style="padding-top:1rem;font-style:italic;text-align:center;">Astéroïdes</td></tr>');
+    for (const a of asteroids) {
+      const suffix = a.retro ? ' <span style="opacity:.7">℞</span>' : '';
+      rows.push(`<tr><td class="glyph" style="font-size:.9rem;">(${a.mpc}) ${a.name}</td><td>${formatSign(a.lon)}${suffix}</td></tr>`);
+    }
+  }
   rows.push('</table>');
   container.innerHTML = rows.join('');
 }
 
-// ---------- État + boucle ----------
-let state = { mode: 'now', showMidpoints: false };
+// ---------- État + persistance ----------
+const STORAGE_KEY = 'astrolab.asteroids';
+let state = {
+  mode: 'now',
+  showMidpoints: false,
+  asteroids: JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'), // array of [mpc, name]
+};
+function saveAsteroids() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.asteroids));
+}
 
 function computeBodies(jd) {
   const out = [];
@@ -253,6 +310,20 @@ function computeBodies(jd) {
   return out;
 }
 
+function computeAsteroids(jd) {
+  const out = [];
+  for (const [mpc, name] of state.asteroids) {
+    if (!mountedAsteroids.has(mpc)) continue;
+    try {
+      const r = swe.calc(jd, sweMod.asteroidBody(mpc));
+      out.push({ mpc, name, lon: r.longitude, retro: r.longitudeSpeed < 0 });
+    } catch (e) {
+      console.warn(`astéroïde (${mpc}) ${name} :`, e.message);
+    }
+  }
+  return out;
+}
+
 async function render() {
   const config = state.mode === 'natal' ? natalConfig() : nowConfig(MONTREAL);
   document.getElementById('chart-title').textContent = config.title;
@@ -260,9 +331,97 @@ async function render() {
 
   const H = swe.houses(config.jd, config.latitude, config.longitude, sweMod.HouseSystem.Placidus);
   const bodies = computeBodies(config.jd);
-  drawChart({ cusps: H.cusps, ascendant: H.ascendant, midheaven: H.midheaven, bodies },
-            { showMidpoints: state.showMidpoints });
-  drawDataTable({ ascendant: H.ascendant, midheaven: H.midheaven }, bodies);
+  const asteroids = computeAsteroids(config.jd);
+  drawChart(
+    { cusps: H.cusps, ascendant: H.ascendant, midheaven: H.midheaven, bodies, asteroids },
+    { showMidpoints: state.showMidpoints },
+  );
+  drawDataTable({ ascendant: H.ascendant, midheaven: H.midheaven }, bodies, asteroids);
+  renderAsteroidChips();
+}
+
+// ---------- UI astéroïdes ----------
+function renderAsteroidChips() {
+  const box = document.getElementById('asteroid-chips');
+  if (!box) return;
+  box.innerHTML = '';
+  for (const [mpc, name] of state.asteroids) {
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.innerHTML = `<span>(${mpc}) ${name}</span><button title="Retirer" data-mpc="${mpc}">×</button>`;
+    chip.querySelector('button').addEventListener('click', () => removeAsteroid(mpc));
+    box.appendChild(chip);
+  }
+}
+
+async function addAsteroid(mpc, name) {
+  if (state.asteroids.some(([m]) => m === mpc)) return;
+  try {
+    await mountAsteroid(mpc);
+    state.asteroids.push([mpc, name]);
+    saveAsteroids();
+    await render();
+  } catch (e) {
+    showError(`Impossible d'ajouter (${mpc}) ${name} : ${e.message}`);
+  }
+}
+
+async function removeAsteroid(mpc) {
+  state.asteroids = state.asteroids.filter(([m]) => m !== mpc);
+  saveAsteroids();
+  await render();
+}
+
+async function wireAsteroidSearch() {
+  const input = document.getElementById('asteroid-search');
+  const dropdown = document.getElementById('asteroid-dropdown');
+  if (!input || !dropdown) return;
+
+  let catalog;
+  let debounceTimer;
+
+  async function ensureCatalog() {
+    if (!catalog) catalog = await loadCatalog();
+    return catalog;
+  }
+
+  function updateDropdown(q) {
+    if (!catalog || !q) { dropdown.hidden = true; dropdown.innerHTML = ''; return; }
+    const term = q.trim().toLowerCase();
+    const isNumeric = /^\d+$/.test(term);
+    const matches = [];
+    const limit = 20;
+    if (isNumeric) {
+      const n = parseInt(term, 10);
+      for (const [mpc, name] of catalog) {
+        if (String(mpc).startsWith(term)) matches.push([mpc, name]);
+        if (matches.length >= limit) break;
+      }
+    } else {
+      for (const [mpc, name] of catalog) {
+        if (name.toLowerCase().startsWith(term)) matches.push([mpc, name]);
+        if (matches.length >= limit) break;
+      }
+    }
+    dropdown.innerHTML = matches.length
+      ? matches.map(([m, n]) => `<div class="option" data-mpc="${m}" data-name="${n.replace(/"/g,'&quot;')}"><b>(${m})</b> ${n}</div>`).join('')
+      : '<div class="option empty">Aucun résultat</div>';
+    dropdown.hidden = false;
+    dropdown.querySelectorAll('.option[data-mpc]').forEach(el => {
+      el.addEventListener('click', () => {
+        addAsteroid(+el.dataset.mpc, el.dataset.name);
+        input.value = '';
+        dropdown.hidden = true;
+      });
+    });
+  }
+
+  input.addEventListener('focus', () => { ensureCatalog().then(() => updateDropdown(input.value)); });
+  input.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => ensureCatalog().then(() => updateDropdown(input.value)), 120);
+  });
+  input.addEventListener('blur', () => { setTimeout(() => dropdown.hidden = true, 200); });
 }
 
 function wireControls() {
@@ -277,11 +436,24 @@ function wireControls() {
     state.showMidpoints = e.target.checked;
     render().catch(err => showError('render error: ' + err.message));
   });
+  wireAsteroidSearch();
+}
+
+async function remountSavedAsteroids() {
+  if (!state.asteroids.length) return;
+  if (!PROXY_BASE) {
+    showError('Proxy CORS non configuré — les astéroïdes sauvegardés ne peuvent être chargés.\nVoir proxy/README.md.');
+    return;
+  }
+  await Promise.all(state.asteroids.map(([mpc, name]) =>
+    mountAsteroid(mpc).catch(e => console.warn(`skip (${mpc}) ${name}:`, e.message))
+  ));
 }
 
 async function main() {
   await initSwe();
   wireControls();
+  await remountSavedAsteroids();
   await render();
 }
 
