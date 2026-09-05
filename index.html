@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>astrolab — carte natale</title>
-  <link rel="stylesheet" href="style.css?v=11">
+  <link rel="stylesheet" href="style.css?v=12">
 </head>
 <body>
   <main>
@@ -28,6 +28,18 @@
         <label class="layer"><input type="checkbox" data-layer="aspects"> aspects</label>
         <label class="layer"><input type="checkbox" data-layer="harmonics"> harmoniques 5·7</label>
       </nav>
+      <details class="config">
+        <summary>configuration</summary>
+        <div class="config-body">
+          <label class="config-row">
+            <span>Aspects :</span>
+            <select data-config="aspectStyle">
+              <option value="lines">lignes</option>
+              <option value="digits">chiffres harmoniques</option>
+            </select>
+          </label>
+        </div>
+      </details>
       <div class="asteroid-search-wrap">
         <input id="asteroid-search" type="text" placeholder="astéroïde par nom ou n° MPC…" autocomplete="off">
         <div id="asteroid-dropdown" class="asteroid-dropdown" hidden></div>
@@ -40,6 +52,6 @@
     <section id="chart-data" class="chart-data"></section>
     <pre id="error-box" class="error-box" hidden></pre>
   </main>
-  <script type="module" src="app.js?v=11"></script>
+  <script type="module" src="app.js?v=12"></script>
 </body>
 </html>

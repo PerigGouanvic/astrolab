@@ -110,6 +110,66 @@ h1 {
   color: var(--ink);
 }
 
+/* Section configuration : dépliable sobre, ne s'affiche que si l'utilisateur
+   veut ajuster une option. Réservée aux réglages qui modifient *comment* on
+   affiche (pas *quoi* — ça, c'est les couches). */
+.config {
+  margin-top: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--line-medium);
+}
+
+.config summary {
+  cursor: pointer;
+  display: inline-block;
+  padding: 0.15rem 0.4rem;
+  border: 1px dashed var(--line-weak);
+  border-radius: 3px;
+  list-style: none;
+  user-select: none;
+}
+.config summary::-webkit-details-marker { display: none; }
+.config summary::before { content: '⚙ '; opacity: 0.6; }
+
+.config summary:hover {
+  color: var(--ink);
+  border-color: var(--line-medium);
+}
+
+.config[open] summary {
+  border-style: solid;
+  color: var(--ink);
+}
+
+.config-body {
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--line-weak);
+  border-radius: 3px;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  text-align: left;
+}
+
+.config-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.config-row select {
+  font-family: inherit;
+  font-size: inherit;
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line-weak);
+  border-radius: 3px;
+  padding: 0.15rem 0.3rem;
+  cursor: pointer;
+}
+
 .controls .proxy-btn {
   padding: 0.3rem 0.55rem;
   font-size: 1rem;
@@ -155,12 +215,18 @@ h1 {
   stroke-width: 1;
 }
 
+/* Glyphes du zodiaque : forcer présentation "text" (monochrome) car sur mobile
+   les fonts système rendent ces caractères en emoji couleur, ce qui casse
+   la charte sobre. Combinaison U+FE0E dans le texte + font-variant-emoji
+   pour couvrir tous les navigateurs. Taille et opacity réduites pour épurer. */
 .sign-symbol {
   fill: var(--sign-symbol);
   font-family: var(--font-serif);
-  font-size: 18px;
+  font-size: 14px;
   text-anchor: middle;
   dominant-baseline: central;
+  font-variant-emoji: text;
+  opacity: 0.65;
 }
 
 /* Cusps de maisons non-angulaires : trait fin pointillé qui va du centre
@@ -196,13 +262,15 @@ h1 {
 }
 
 /* Glyphes de planètes : à l'extérieur de la ceinture, plus gros qu'avant
-   car ils ne sont plus contraints par le cercle central. */
+   car ils ne sont plus contraints par le cercle central. Même précaution
+   monochrome que les signes (VS15 + font-variant-emoji). */
 .planet-symbol {
   fill: var(--planet);
   font-family: var(--font-serif);
   font-size: 30px;
   text-anchor: middle;
   dominant-baseline: central;
+  font-variant-emoji: text;
 }
 
 .planet-degree {
@@ -249,6 +317,26 @@ h1 {
 .aspect-septile     { stroke: #7a5a8a; stroke-width: 0.5; stroke-dasharray: 1 4; opacity: 0.55; }
 .aspect-biseptile   { stroke: #7a5a8a; stroke-width: 0.5; stroke-dasharray: 1 4; opacity: 0.55; }
 .aspect-triseptile  { stroke: #7a5a8a; stroke-width: 0.5; stroke-dasharray: 1 4; opacity: 0.55; }
+
+/* Mode "chiffres harmoniques" : chaque aspect est rendu comme une répétition
+   du chiffre de son harmonique le long du segment. Très petit → apparence de
+   pointillé en vue globale, chiffre lisible au zoom. Palette cohérente avec
+   les cordes du mode "lines". */
+.aspect-digit {
+  font-family: var(--font-mono);
+  font-size: 5px;
+  text-anchor: middle;
+  dominant-baseline: central;
+  opacity: 0.7;
+  user-select: none;
+}
+.aspect-digit-1 { fill: var(--line-medium); }
+.aspect-digit-2 { fill: var(--accent);      }
+.aspect-digit-3 { fill: #4a6a8a;            }
+.aspect-digit-4 { fill: var(--accent); opacity: 0.6; }
+.aspect-digit-5 { fill: #5a7a5a;            }
+.aspect-digit-6 { fill: #4a6a8a; opacity: 0.6; }
+.aspect-digit-7 { fill: #7a5a8a;            }
 
 .midpoint-symbol {
   fill: var(--line-medium);

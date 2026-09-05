@@ -85,26 +85,31 @@ function natalConfig() {
 }
 
 // ---------- Corps ----------
+// U+FE0E (VS15) force la présentation "text" des glyphes Unicode,
+// évitant le rendu emoji couleur des fonts système sur mobile (Noto Color,
+// Apple Color Emoji…). Sans ça, les signes ressortent en couleur alors
+// que tout le reste de la charte est monochrome.
+const VS15 = '︎';
 const PLANETS = [
-  { key: 'sun',     idx: 0,  glyph: '☉' },
-  { key: 'moon',    idx: 1,  glyph: '☽' },
-  { key: 'mercury', idx: 2,  glyph: '☿' },
-  { key: 'venus',   idx: 3,  glyph: '♀' },
-  { key: 'mars',    idx: 4,  glyph: '♂' },
-  { key: 'jupiter', idx: 5,  glyph: '♃' },
-  { key: 'saturn',  idx: 6,  glyph: '♄' },
-  { key: 'uranus',  idx: 7,  glyph: '♅' },
-  { key: 'neptune', idx: 8,  glyph: '♆' },
-  { key: 'pluto',   idx: 9,  glyph: '♇' },
+  { key: 'sun',     idx: 0,  glyph: '☉' + VS15 },
+  { key: 'moon',    idx: 1,  glyph: '☽' + VS15 },
+  { key: 'mercury', idx: 2,  glyph: '☿' + VS15 },
+  { key: 'venus',   idx: 3,  glyph: '♀' + VS15 },
+  { key: 'mars',    idx: 4,  glyph: '♂' + VS15 },
+  { key: 'jupiter', idx: 5,  glyph: '♃' + VS15 },
+  { key: 'saturn',  idx: 6,  glyph: '♄' + VS15 },
+  { key: 'uranus',  idx: 7,  glyph: '♅' + VS15 },
+  { key: 'neptune', idx: 8,  glyph: '♆' + VS15 },
+  { key: 'pluto',   idx: 9,  glyph: '♇' + VS15 },
 ];
 const EXTENDED = [
-  { key: 'chiron',  idx: 15, glyph: '⚷' },
-  { key: 'ceres',   idx: 17, glyph: '⚳' },
-  { key: 'pallas',  idx: 18, glyph: '⚴' },
-  { key: 'juno',    idx: 19, glyph: '⚵' },
-  { key: 'vesta',   idx: 20, glyph: '⚶' },
+  { key: 'chiron',  idx: 15, glyph: '⚷' + VS15 },
+  { key: 'ceres',   idx: 17, glyph: '⚳' + VS15 },
+  { key: 'pallas',  idx: 18, glyph: '⚴' + VS15 },
+  { key: 'juno',    idx: 19, glyph: '⚵' + VS15 },
+  { key: 'vesta',   idx: 20, glyph: '⚶' + VS15 },
 ];
-const SIGN_GLYPHS = ['♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓'];
+const SIGN_GLYPHS = ['♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓'].map(g => g + VS15);
 
 // ---------- Astéroïdes : catalogue + fetch/mount à la demande ----------
 let catalogPromise;
@@ -199,6 +204,15 @@ const ASPECTS_HARMONIC = [
   { key: 'biseptile',  angle: 720/7,    orb: 1.5 },  // ≈ 102.86
   { key: 'triseptile', angle: 1080/7,   orb: 1.5 },  // ≈ 154.29
 ];
+// Chiffre de l'harmonique dont chaque aspect est un multiple entier de 360/n.
+// Utilisé par le mode d'affichage "chiffres harmoniques" : au lieu de tracer
+// une corde continue, on répète le chiffre le long du segment — très petit,
+// donne l'impression de pointillé en vue panoramique et se révèle au zoom.
+const ASPECT_DIGIT = {
+  conjunction: 1, opposition: 2, trine: 3, square: 4,
+  quintile: 5, biquintile: 5, sextile: 6,
+  septile: 7, biseptile: 7, triseptile: 7,
+};
 function angularSeparation(lonA, lonB) {
   const d = normDeg(lonA - lonB);
   return d > 180 ? 360 - d : d;
@@ -313,17 +327,39 @@ function drawChart({ cusps, ascendant, midheaven, bodies, asteroids }, layers) {
 
   // Aspects : cordes de bord intérieur à bord intérieur, dans l'espace vide central.
   // Majeurs et harmoniques (5, 7) sont deux couches distinctes pour rester soustractif.
+  // Deux styles de rendu configurables (voir DEFAULT_CONFIG.aspectStyle) :
+  //   - 'lines'  : corde continue, palette par type d'aspect
+  //   - 'digits' : chiffre d'harmonique répété le long du segment (très petit,
+  //                pointillé en vue globale, chiffre lisible au zoom)
   if (layers.planets && (layers.aspects || layers.harmonics)) {
     const aspects = [];
     if (layers.aspects)   aspects.push(...computeAspects(bodies, ASPECTS_MAJOR));
     if (layers.harmonics) aspects.push(...computeAspects(bodies, ASPECTS_HARMONIC));
+    const useDigits = state.config.aspectStyle === 'digits';
     for (const asp of aspects) {
       const p1 = project(asp.a.lon, ascLon, R_ZODIAC_IN);
       const p2 = project(asp.b.lon, ascLon, R_ZODIAC_IN);
-      container.appendChild(svg('line', {
-        x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y,
-        class: `aspect aspect-${asp.type}`,
-      }));
+      if (useDigits) {
+        const digit = ASPECT_DIGIT[asp.type];
+        const dx = p2.x - p1.x, dy = p2.y - p1.y;
+        const len = Math.hypot(dx, dy);
+        // Pas de 10 unités entre chiffres — assez dense pour lire la corde,
+        // assez espacé pour rester lisible en mode zoom.
+        const step = 10;
+        const n = Math.max(2, Math.floor(len / step));
+        for (let i = 1; i < n; i++) {
+          const t = i / n;
+          container.appendChild(svg('text', {
+            x: p1.x + dx * t, y: p1.y + dy * t,
+            class: `aspect-digit aspect-digit-${digit}`,
+          }, String(digit)));
+        }
+      } else {
+        container.appendChild(svg('line', {
+          x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y,
+          class: `aspect aspect-${asp.type}`,
+        }));
+      }
     }
   }
 
@@ -397,28 +433,33 @@ function drawDataTable({ ascendant, midheaven }, bodies, asteroids) {
 
 // ---------- État + persistance ----------
 const STORAGE_KEY = 'astrolab.asteroids';
-const LAYERS_KEY = 'astrolab.layers';
+const LAYERS_KEY  = 'astrolab.layers';
+const CONFIG_KEY  = 'astrolab.config';
 const DEFAULT_LAYERS = {
   signs: true, houses: true, planets: true,
   midpoints: false, asteroids: true, aspects: false, harmonics: false,
 };
-function loadLayers() {
+// Section configuration : options qui modifient *comment* on affiche une couche,
+// pas *ce qu'on affiche* (les couches, c'est la soustraction ; la config, c'est
+// la manière). Extensible : ajouter ici les prochaines options.
+const DEFAULT_CONFIG = {
+  aspectStyle: 'lines',  // 'lines' | 'digits' (répétition du chiffre d'harmonique)
+};
+function loadStored(key, defaults) {
   try {
-    const stored = JSON.parse(localStorage.getItem(LAYERS_KEY) || '{}');
-    return { ...DEFAULT_LAYERS, ...stored };
-  } catch { return { ...DEFAULT_LAYERS }; }
+    const stored = JSON.parse(localStorage.getItem(key) || '{}');
+    return { ...defaults, ...stored };
+  } catch { return { ...defaults }; }
 }
 let state = {
   mode: 'now',
-  layers: loadLayers(),
+  layers: loadStored(LAYERS_KEY, DEFAULT_LAYERS),
+  config: loadStored(CONFIG_KEY, DEFAULT_CONFIG),
   asteroids: JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'), // array of [mpc, name]
 };
-function saveAsteroids() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.asteroids));
-}
-function saveLayers() {
-  localStorage.setItem(LAYERS_KEY, JSON.stringify(state.layers));
-}
+function saveAsteroids() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.asteroids)); }
+function saveLayers()    { localStorage.setItem(LAYERS_KEY,  JSON.stringify(state.layers));    }
+function saveConfig()    { localStorage.setItem(CONFIG_KEY,  JSON.stringify(state.config));    }
 
 function computeBodies(jd) {
   const out = [];
@@ -561,6 +602,15 @@ function wireControls() {
     inp.addEventListener('change', e => {
       state.layers[key] = e.target.checked;
       saveLayers();
+      render().catch(err => showError('render error: ' + err.message));
+    });
+  });
+  document.querySelectorAll('[data-config]').forEach(el => {
+    const key = el.dataset.config;
+    if (state.config[key] !== undefined) el.value = state.config[key];
+    el.addEventListener('change', e => {
+      state.config[key] = e.target.value;
+      saveConfig();
       render().catch(err => showError('render error: ' + err.message));
     });
   });
