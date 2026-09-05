@@ -412,40 +412,109 @@ function drawChart({ cusps, ascendant, midheaven, bodies, asteroids }, layers) {
     }
   }
 
-  // Scrapbook (v1) : items ancrés à une maison, placés au centre thématique
-  // de la maison (arc médian × rayon R_SCRAP_ITEM). Si plusieurs items dans
-  // la même maison, décalage angulaire uniforme sur ±20°. Chaque item est
-  // cliquable → ouvre le détail (édition/suppression). Position statique en v1 ;
-  // la physique barycentrique dynamique arrivera en phase C.
+  // Scrapbook (v1) : cadres textuels visuels positionnés librement dans
+  // le SVG via <foreignObject>. Créés au double-tap, éditables inline
+  // (contenteditable), déplaçables via poignée, redimensionnables via CSS
+  // natif `resize: both`. Migration sémantique (attraction vers barycentre
+  // thématique) différée à la phase B/D avec le LLM et les couches natales.
   if (layers.scrapbook && state.scrapbook.length) {
-    const byHouse = new Map();
-    for (const it of state.scrapbook) {
-      if (!byHouse.has(it.house)) byHouse.set(it.house, []);
-      byHouse.get(it.house).push(it);
-    }
-    for (const [houseNum, items] of byHouse) {
-      const houseIdx = houseNum - 1;
-      const lon      = cusps[houseIdx];
-      const nextLon  = cusps[(houseIdx + 1) % 12];
-      if (lon == null || nextLon == null) continue;
-      const arc      = normDeg(nextLon - lon);
-      const midLon   = normDeg(lon + arc / 2);
-      const spread   = Math.min(20, arc * 0.4);  // ±20° max, ou moins si maison étroite
-      const step     = items.length > 1 ? (spread * 2) / (items.length - 1) : 0;
-      items.forEach((it, i) => {
-        const offset  = items.length > 1 ? -spread + i * step : 0;
-        const itemLon = normDeg(midLon + offset);
-        const pt      = project(itemLon, ascLon, R_SCRAP_ITEM);
-        const g       = svg('g', { class: 'scrap-item', 'data-id': it.id, tabindex: '0' });
-        g.appendChild(svg('circle', { cx: pt.x, cy: pt.y, r: 7, class: 'scrap-dot' }));
-        const label = (it.title || '·').slice(0, 10);
-        g.appendChild(svg('text', { x: pt.x, y: pt.y + 20, class: 'scrap-label' }, label));
-        g.addEventListener('click', () => openScrapDetail(it.id));
-        g.addEventListener('keydown', e => { if (e.key === 'Enter') openScrapDetail(it.id); });
-        container.appendChild(g);
-      });
-    }
+    for (const it of state.scrapbook) drawScrapItem(container, it);
   }
+}
+
+// ---------- Scrapbook : rendu d'un item ----------
+function drawScrapItem(container, it) {
+  const fo = svg('foreignObject', {
+    x: it.x, y: it.y, width: it.width, height: it.height,
+    class: 'scrap-fo', 'data-id': it.id,
+  });
+  // Le contenu est un vrai DOM HTML — namespace XHTML.
+  const frame = document.createElementNS('http://www.w3.org/1999/xhtml', 'div');
+  frame.className = 'scrap-frame';
+  frame.innerHTML = `
+    <div class="scrap-header" data-role="handle">
+      <span class="scrap-grip">⋮⋮</span>
+      <button type="button" class="scrap-close" title="Supprimer" aria-label="Supprimer">×</button>
+    </div>
+    <div class="scrap-text" contenteditable="true" spellcheck="true"></div>
+  `;
+  const textEl = frame.querySelector('.scrap-text');
+  textEl.textContent = it.text || '';
+  fo.appendChild(frame);
+  container.appendChild(fo);
+  wireScrapItem(fo, frame, it);
+}
+
+// Fabrique les interactions d'un item : édition, drag, resize, suppression.
+function wireScrapItem(fo, frame, it) {
+  const textEl   = frame.querySelector('.scrap-text');
+  const handle   = frame.querySelector('.scrap-header');
+  const closeBtn = frame.querySelector('.scrap-close');
+
+  // Édition : sauvegarde après perte de focus ; suppression si vide.
+  textEl.addEventListener('blur', () => {
+    const val = textEl.textContent.trim();
+    if (!val) { removeScrapItem(it.id); return; }
+    updateScrapItem(it.id, { text: val, updatedAt: Date.now() });
+  });
+
+  // Suppression explicite : × dans le coin.
+  closeBtn.addEventListener('click', ev => {
+    ev.stopPropagation();
+    if (textEl.textContent.trim() && !confirm('Supprimer cet item ?')) return;
+    removeScrapItem(it.id);
+  });
+
+  // Drag depuis la poignée : conversion des coords écran → coords SVG viewBox
+  // via SVGMatrix inverse, robuste à tout zoom/pan futur du viewBox.
+  handle.addEventListener('pointerdown', ev => {
+    if (ev.target.closest('.scrap-close')) return;
+    ev.preventDefault();
+    handle.setPointerCapture(ev.pointerId);
+    const svgEl = fo.ownerSVGElement;
+    const start = screenToSvg(svgEl, ev.clientX, ev.clientY);
+    const originX = it.x, originY = it.y;
+    const onMove = e => {
+      const cur = screenToSvg(svgEl, e.clientX, e.clientY);
+      const nx = originX + (cur.x - start.x);
+      const ny = originY + (cur.y - start.y);
+      fo.setAttribute('x', nx);
+      fo.setAttribute('y', ny);
+      it.x = nx; it.y = ny;  // maj live, sauvegarde au pointerup
+    };
+    const onUp = () => {
+      handle.removeEventListener('pointermove', onMove);
+      handle.removeEventListener('pointerup', onUp);
+      handle.removeEventListener('pointercancel', onUp);
+      updateScrapItem(it.id, { x: it.x, y: it.y, updatedAt: Date.now() });
+    };
+    handle.addEventListener('pointermove', onMove);
+    handle.addEventListener('pointerup',   onUp);
+    handle.addEventListener('pointercancel', onUp);
+  });
+
+  // Resize natif via CSS `resize: both` sur .scrap-frame. On observe les
+  // changements de taille du div HTML et on synchronise le foreignObject
+  // (sinon le frame déborderait du foreignObject de taille fixe).
+  const ro = new ResizeObserver(entries => {
+    for (const e of entries) {
+      const w = Math.max(80, Math.round(e.contentRect.width  + 8));
+      const h = Math.max(50, Math.round(e.contentRect.height + 8));
+      fo.setAttribute('width',  w);
+      fo.setAttribute('height', h);
+      if (w !== it.width || h !== it.height) {
+        it.width = w; it.height = h;
+        updateScrapItem(it.id, { width: w, height: h }, /*skipRender*/ true);
+      }
+    }
+  });
+  ro.observe(frame);
+}
+
+function screenToSvg(svgEl, clientX, clientY) {
+  const pt = svgEl.createSVGPoint();
+  pt.x = clientX; pt.y = clientY;
+  return pt.matrixTransform(svgEl.getScreenCTM().inverse());
 }
 
 // ---------- Table ----------
@@ -560,70 +629,97 @@ async function render() {
   renderAsteroidChips();
 }
 
-// ---------- Scrapbook : ouverture/édition/suppression ----------
-// Modale d'ajout : formulaire simple (titre, corps, maison).
-// Modale de détail : affichage + suppression.
-// Édition en v1 = suppression + réajout (pas d'update in-place, viendra plus tard).
-function openScrapAdd() {
-  const dlg = document.getElementById('scrap-add-dialog');
-  if (!dlg) return;
-  const form = dlg.querySelector('form');
-  form.reset();
-  dlg.showModal();
-  setTimeout(() => form.querySelector('input[name="title"]').focus(), 50);
+// ---------- Scrapbook : création / modification / suppression ----------
+// Un item = un cadre textuel visuel positionné librement (x, y) dans le SVG.
+// Créé au double-tap, édité inline, déplacé via la poignée, redimensionné
+// via CSS resize natif, supprimé via × (ou blur si vide).
+// La migration sémantique (attraction vers barycentre calculé par LLM +
+// couches actives) arrivera en phase B/D — pour l'instant placement libre.
+
+function updateScrapItem(id, patch, skipRender = false) {
+  const idx = state.scrapbook.findIndex(x => x.id === id);
+  if (idx < 0) return;
+  state.scrapbook[idx] = { ...state.scrapbook[idx], ...patch };
+  saveScrapbook();
+  if (!skipRender) render().catch(e => showError('render error: ' + e.message));
 }
 
-function submitScrapAdd(ev) {
-  ev.preventDefault();
-  const form = ev.target;
-  const data = new FormData(form);
+function removeScrapItem(id) {
+  state.scrapbook = state.scrapbook.filter(x => x.id !== id);
+  saveScrapbook();
+  render().catch(e => showError('render error: ' + e.message));
+}
+
+function createScrapItemAt(x, y) {
+  // Cadre par défaut centré sur le point de tap (offset moitié taille).
+  const width = 160, height = 70;
   const item = {
     id: crypto.randomUUID(),
     createdAt: Date.now(),
-    title: (data.get('title') || '').trim(),
-    body:  (data.get('body')  || '').trim(),
-    house: parseInt(data.get('house'), 10),
+    updatedAt: Date.now(),
+    x: x - width / 2, y: y - height / 2,
+    width, height,
+    text: '',
   };
-  if (!item.title || !item.house || item.house < 1 || item.house > 12) return;
   state.scrapbook.push(item);
   saveScrapbook();
-  document.getElementById('scrap-add-dialog').close();
-  render().catch(e => showError('render error: ' + e.message));
+  render()
+    .then(() => {
+      // Focus dans l'éditable pour taper immédiatement.
+      const fo = document.querySelector(`.scrap-fo[data-id="${item.id}"]`);
+      if (fo) {
+        const textEl = fo.querySelector('.scrap-text');
+        if (textEl) textEl.focus();
+      }
+    })
+    .catch(e => showError('render error: ' + e.message));
 }
 
-function openScrapDetail(id) {
-  const item = state.scrapbook.find(x => x.id === id);
-  if (!item) return;
-  const dlg = document.getElementById('scrap-detail-dialog');
-  if (!dlg) return;
-  dlg.dataset.itemId = id;
-  dlg.querySelector('.detail-title').textContent = item.title || '(sans titre)';
-  dlg.querySelector('.detail-body').textContent  = item.body || '';
-  dlg.querySelector('.detail-house').textContent = 'Maison ' + item.house;
-  const created = new Date(item.createdAt);
-  dlg.querySelector('.detail-meta').textContent =
-    'Ajouté le ' + created.toLocaleDateString('fr-CA') + ' à ' + created.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' });
-  dlg.showModal();
+// Double-tap détection manuelle (dblclick natif est capricieux sur mobile).
+// Deux pointerdown sur le SVG à moins de 400 ms l'un de l'autre = créer un
+// item à la position (moyennée pour lisser). Ignoré si la cible est un item
+// existant ou un contrôle interactif à l'intérieur du chart.
+function wireScrapbookGestures() {
+  const svgEl = document.getElementById('chart');
+  if (!svgEl) return;
+  let lastTap = 0;
+  let lastPt  = null;
+  svgEl.addEventListener('pointerdown', ev => {
+    // Ignorer si sur un item existant ou un contrôle intérieur au chart.
+    if (ev.target.closest('.scrap-fo, foreignObject')) return;
+    const now = Date.now();
+    const pt  = screenToSvg(svgEl, ev.clientX, ev.clientY);
+    if (now - lastTap < 400 && lastPt && Math.hypot(pt.x - lastPt.x, pt.y - lastPt.y) < 40) {
+      // Double-tap confirmé — moyenner les deux positions pour lisser.
+      const avgX = (pt.x + lastPt.x) / 2;
+      const avgY = (pt.y + lastPt.y) / 2;
+      lastTap = 0;
+      lastPt  = null;
+      createScrapItemAt(avgX, avgY);
+    } else {
+      lastTap = now;
+      lastPt  = pt;
+    }
+  });
 }
 
-function deleteScrapItem() {
-  const dlg = document.getElementById('scrap-detail-dialog');
-  const id  = dlg.dataset.itemId;
-  if (!id) return;
-  if (!confirm('Supprimer cet item ?')) return;
-  state.scrapbook = state.scrapbook.filter(x => x.id !== id);
-  saveScrapbook();
-  dlg.close();
-  render().catch(e => showError('render error: ' + e.message));
-}
-
-function wireScrapbook() {
-  const addBtn = document.getElementById('scrap-add-btn');
-  if (addBtn) addBtn.addEventListener('click', openScrapAdd);
-  const addForm = document.querySelector('#scrap-add-dialog form');
-  if (addForm) addForm.addEventListener('submit', submitScrapAdd);
-  const deleteBtn = document.querySelector('#scrap-detail-dialog .detail-delete');
-  if (deleteBtn) deleteBtn.addEventListener('click', deleteScrapItem);
+// Migration : items sauvegardés au format phase-A ({title,body,house}) →
+// nouveau format ({x,y,width,height,text}). Placement par défaut au centre.
+function migrateScrapbookItems() {
+  let migrated = false;
+  state.scrapbook = state.scrapbook.map(it => {
+    if (it.x !== undefined && it.width !== undefined) return it;
+    migrated = true;
+    return {
+      id: it.id || crypto.randomUUID(),
+      createdAt: it.createdAt || Date.now(),
+      updatedAt: it.createdAt || Date.now(),
+      x: -80, y: -35,
+      width: 160, height: 70,
+      text: [it.title, it.body].filter(Boolean).join('\n'),
+    };
+  });
+  if (migrated) saveScrapbook();
 }
 
 // ---------- UI astéroïdes ----------
@@ -730,7 +826,7 @@ function wireControls() {
   wireAspectsMenu();
   wireAsteroidSearch();
   wireProxySettings();
-  wireScrapbook();
+  wireScrapbookGestures();
 }
 
 function wireAspectsMenu() {
@@ -818,6 +914,7 @@ function wireProxySettings() {
 
 async function main() {
   await initSwe();
+  migrateScrapbookItems();
   wireControls();
   await remountSavedAsteroids();
   await render();
