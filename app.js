@@ -640,10 +640,14 @@ function wireAspectsMenu() {
   };
 
   toggle.addEventListener('click', () => setOpen(panel.hidden));
-  // Backdrop transparent en position:fixed sur tout le viewport quand le
-  // panel est ouvert : intercepte tout clic hors du panel/toggle et ferme.
-  // Fiable sur mobile (les listeners doc-level peuvent être avalés par le SVG).
-  backdrop.addEventListener('click', () => setOpen(false));
+  // Trois voies de fermeture combinées pour maximum fiabilité mobile :
+  //   1. Bouton × explicite dans le panel (UX standard mobile)
+  //   2. Backdrop overlay (click + pointerdown en secours)
+  //   3. Toggle du bouton aspects lui-même (déjà géré ci-dessus)
+  const closeBtn = document.querySelector('.aspects-close');
+  if (closeBtn) closeBtn.addEventListener('click', () => setOpen(false));
+  backdrop.addEventListener('click',       () => setOpen(false));
+  backdrop.addEventListener('pointerdown', () => setOpen(false));
 
   // Checkboxes 1..9 : init depuis state + toggle sur change
   document.querySelectorAll('.aspects-panel input[data-harmonic]').forEach(inp => {

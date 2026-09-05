@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>astrolab — carte natale</title>
-  <link rel="stylesheet" href="style.css?v=16">
+  <link rel="stylesheet" href="style.css?v=17">
 </head>
 <body>
   <main>
@@ -29,8 +29,8 @@
           <button type="button" class="aspects-toggle" aria-expanded="false" aria-haspopup="true">
             aspects <span class="aspects-summary">—</span> <span aria-hidden="true">▾</span>
           </button>
-          <div class="aspects-backdrop" hidden aria-hidden="true"></div>
           <div class="aspects-panel" hidden role="menu">
+            <button type="button" class="aspects-close" aria-label="Fermer">×</button>
             <div class="panel-row">
               <span class="panel-label">affichage :</span>
               <div class="segmented" role="radiogroup" aria-label="Style de rendu">
@@ -71,6 +71,10 @@
     <section id="chart-data" class="chart-data"></section>
     <pre id="error-box" class="error-box" hidden></pre>
   </main>
-  <script type="module" src="app.js?v=16"></script>
+  <!-- Backdrop rendu au niveau body pour éviter tout containing block cassé
+       par un ancêtre transformé/positionné. Toggle par JS quand le popup
+       aspects est ouvert. -->
+  <div class="aspects-backdrop" hidden aria-hidden="true"></div>
+  <script type="module" src="app.js?v=17"></script>
 </body>
 </html>

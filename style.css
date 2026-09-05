@@ -368,15 +368,17 @@ h1 {
   text-align: center;
 }
 
-/* Backdrop transparent : couvre tout le viewport quand le panel est ouvert,
-   capte le clic extérieur → ferme le panel de manière fiable sur tous les
-   supports (touch, mouse, pen), sans dépendre du bubbling à travers le SVG. */
+/* Backdrop : couvre tout le viewport quand le panel est ouvert, capte le
+   clic extérieur → ferme le panel. Rendu au niveau <body> pour éviter tout
+   containing block cassé par un ancêtre transformé. Teinte très légère
+   pour donner un feedback visuel qu'un overlay est présent (sans obscurcir). */
 .aspects-backdrop {
   position: fixed;
   inset: 0;
   z-index: 15;
-  background: transparent;
+  background: rgba(0, 0, 0, 0.05);
   cursor: default;
+  pointer-events: auto;
 }
 
 .aspects-panel {
@@ -388,12 +390,33 @@ h1 {
   background: var(--bg);
   border: 1px solid var(--line-medium);
   border-radius: 4px;
-  padding: 0.6rem;
+  padding: 1.6rem 0.6rem 0.6rem;  /* padding-top plus grand pour la croix */
   box-shadow: 0 6px 18px rgba(0,0,0,0.12);
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
   min-width: 220px;
+}
+
+/* Bouton × explicite pour fermer le panel : UX mobile standard, garantie
+   indépendante de la fiabilité du backdrop. */
+.aspects-close {
+  position: absolute;
+  top: 0.15rem;
+  right: 0.3rem;
+  background: transparent;
+  border: none;
+  font-size: 1.4rem;
+  line-height: 1;
+  color: var(--line-medium);
+  cursor: pointer;
+  padding: 0.15rem 0.4rem;
+  min-height: 32px;
+  min-width: 32px;
+}
+.aspects-close:hover, .aspects-close:focus {
+  color: var(--ink);
+  outline: none;
 }
 
 /* Ligne du panneau : étiquette + contrôle sur la même ligne. */
