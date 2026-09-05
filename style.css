@@ -368,6 +368,17 @@ h1 {
   text-align: center;
 }
 
+/* Backdrop transparent : couvre tout le viewport quand le panel est ouvert,
+   capte le clic extérieur → ferme le panel de manière fiable sur tous les
+   supports (touch, mouse, pen), sans dépendre du bubbling à travers le SVG. */
+.aspects-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 15;
+  background: transparent;
+  cursor: default;
+}
+
 .aspects-panel {
   position: absolute;
   top: calc(100% + 4px);

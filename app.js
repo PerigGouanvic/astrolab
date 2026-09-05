@@ -628,24 +628,22 @@ function wireControls() {
 }
 
 function wireAspectsMenu() {
-  const toggle = document.querySelector('.aspects-toggle');
-  const panel  = document.querySelector('.aspects-panel');
-  if (!toggle || !panel) return;
+  const toggle   = document.querySelector('.aspects-toggle');
+  const panel    = document.querySelector('.aspects-panel');
+  const backdrop = document.querySelector('.aspects-backdrop');
+  if (!toggle || !panel || !backdrop) return;
 
-  toggle.addEventListener('click', () => {
-    const open = panel.hidden;
+  const setOpen = (open) => {
     panel.hidden = !open;
+    backdrop.hidden = !open;
     toggle.setAttribute('aria-expanded', String(open));
-  });
-  // Fermeture au clic extérieur — pointerdown en capture pour couvrir
-  // fiablement touch/mouse/pen (le simple 'click' sur document est parfois
-  // avalé par le viewport mobile ou par des éléments SVG).
-  document.addEventListener('pointerdown', e => {
-    if (panel.hidden) return;
-    if (toggle.contains(e.target) || panel.contains(e.target)) return;
-    panel.hidden = true;
-    toggle.setAttribute('aria-expanded', 'false');
-  }, { capture: true });
+  };
+
+  toggle.addEventListener('click', () => setOpen(panel.hidden));
+  // Backdrop transparent en position:fixed sur tout le viewport quand le
+  // panel est ouvert : intercepte tout clic hors du panel/toggle et ferme.
+  // Fiable sur mobile (les listeners doc-level peuvent être avalés par le SVG).
+  backdrop.addEventListener('click', () => setOpen(false));
 
   // Checkboxes 1..9 : init depuis state + toggle sur change
   document.querySelectorAll('.aspects-panel input[data-harmonic]').forEach(inp => {
