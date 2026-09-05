@@ -296,27 +296,27 @@ h1 {
 
 /* Aspects : cordes tracées à même l'intérieur du cercle des signes
    (de bord intérieur à bord intérieur), traversant l'espace vide central.
-   Palette sobre : gris/accent brun pour tensions (majeurs), bleu discret
-   pour harmoniques classiques (trigone/sextile), vert pour harmonique 5
-   (créativité, style), violet pour harmonique 7 (inspiration, mystique). */
+   Palette franche : accent brun pour tensions (majeurs 2/4), bleu saturé
+   pour harmoniques classiques (3/6), vert franc pour harmonique 5,
+   violet franc pour harmonique 7. Opacité à 1 pour lecture nette. */
 .aspect {
   fill: none;
-  stroke-width: 0.6;
-  opacity: 0.55;
+  stroke-width: 0.9;
+  opacity: 1;
 }
 /* Majeurs */
-.aspect-conjunction { stroke: var(--line-medium); stroke-dasharray: 3 2; }
-.aspect-opposition  { stroke: var(--accent);      stroke-width: 0.8; }
-.aspect-square      { stroke: var(--accent);      stroke-dasharray: 4 3; opacity: 0.45; }
-.aspect-trine       { stroke: #4a6a8a; }
-.aspect-sextile     { stroke: #4a6a8a; stroke-dasharray: 2 3; opacity: 0.45; }
-/* Harmonique 5 (72°, 144°) — vert discret pointillé fin */
-.aspect-quintile    { stroke: #5a7a5a; stroke-width: 0.5; stroke-dasharray: 1 3; opacity: 0.6; }
-.aspect-biquintile  { stroke: #5a7a5a; stroke-width: 0.5; stroke-dasharray: 1 3; opacity: 0.6; }
-/* Harmonique 7 (51.4°, 102.9°, 154.3°) — violet discret pointillé fin */
-.aspect-septile     { stroke: #7a5a8a; stroke-width: 0.5; stroke-dasharray: 1 4; opacity: 0.55; }
-.aspect-biseptile   { stroke: #7a5a8a; stroke-width: 0.5; stroke-dasharray: 1 4; opacity: 0.55; }
-.aspect-triseptile  { stroke: #7a5a8a; stroke-width: 0.5; stroke-dasharray: 1 4; opacity: 0.55; }
+.aspect-conjunction { stroke: #4a4a4a; stroke-dasharray: 3 2; }
+.aspect-opposition  { stroke: #a03020; stroke-width: 1.1; }
+.aspect-square      { stroke: #a03020; stroke-dasharray: 4 3; }
+.aspect-trine       { stroke: #1e5b8f; }
+.aspect-sextile     { stroke: #1e5b8f; stroke-dasharray: 2 3; }
+/* Harmonique 5 (72°, 144°) — vert franc */
+.aspect-quintile    { stroke: #2a7a3a; stroke-dasharray: 1 3; }
+.aspect-biquintile  { stroke: #2a7a3a; stroke-dasharray: 1 3; }
+/* Harmonique 7 (51.4°, 102.9°, 154.3°) — violet franc */
+.aspect-septile     { stroke: #6a2a7a; stroke-dasharray: 1 4; }
+.aspect-biseptile   { stroke: #6a2a7a; stroke-dasharray: 1 4; }
+.aspect-triseptile  { stroke: #6a2a7a; stroke-dasharray: 1 4; }
 
 /* Mode "chiffres harmoniques" : chaque aspect est rendu comme une répétition
    du chiffre de son harmonique le long du segment. Très petit → apparence de
@@ -324,19 +324,20 @@ h1 {
    les cordes du mode "lines". */
 .aspect-digit {
   font-family: var(--font-mono);
-  font-size: 5px;
+  font-weight: 700;
+  font-size: 6px;
   text-anchor: middle;
   dominant-baseline: central;
-  opacity: 0.7;
+  opacity: 1;
   user-select: none;
 }
-.aspect-digit-1 { fill: var(--line-medium); }
-.aspect-digit-2 { fill: var(--accent);      }
-.aspect-digit-3 { fill: #4a6a8a;            }
-.aspect-digit-4 { fill: var(--accent); opacity: 0.6; }
-.aspect-digit-5 { fill: #5a7a5a;            }
-.aspect-digit-6 { fill: #4a6a8a; opacity: 0.6; }
-.aspect-digit-7 { fill: #7a5a8a;            }
+.aspect-digit-1 { fill: #4a4a4a; }
+.aspect-digit-2 { fill: #a03020; }
+.aspect-digit-3 { fill: #1e5b8f; }
+.aspect-digit-4 { fill: #a03020; }
+.aspect-digit-5 { fill: #2a7a3a; }
+.aspect-digit-6 { fill: #1e5b8f; }
+.aspect-digit-7 { fill: #6a2a7a; }
 
 .midpoint-symbol {
   fill: var(--line-medium);
