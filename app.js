@@ -428,87 +428,82 @@ function drawScrapItem(container, it) {
     x: it.x, y: it.y, width: it.width, height: it.height,
     class: 'scrap-fo', 'data-id': it.id,
   });
-  // Le contenu est un vrai DOM HTML — namespace XHTML.
   const frame = document.createElementNS('http://www.w3.org/1999/xhtml', 'div');
   frame.className = 'scrap-frame';
   frame.innerHTML = `
-    <div class="scrap-header" data-role="handle">
-      <span class="scrap-grip">⋮⋮</span>
-      <button type="button" class="scrap-close" title="Supprimer" aria-label="Supprimer">×</button>
-    </div>
+    <span class="scrap-grip" title="Déplacer" aria-label="Déplacer">⋮⋮</span>
+    <button type="button" class="scrap-close" title="Supprimer" aria-label="Supprimer">×</button>
     <div class="scrap-text" contenteditable="true" spellcheck="true"></div>
   `;
-  const textEl = frame.querySelector('.scrap-text');
-  textEl.textContent = it.text || '';
+  frame.querySelector('.scrap-text').textContent = it.text || '';
   fo.appendChild(frame);
   container.appendChild(fo);
   wireScrapItem(fo, frame, it);
 }
 
-// Fabrique les interactions d'un item : édition, drag, resize, suppression.
+// Interactions : édition, drag, resize, suppression.
 function wireScrapItem(fo, frame, it) {
   const textEl   = frame.querySelector('.scrap-text');
-  const handle   = frame.querySelector('.scrap-header');
+  const gripEl   = frame.querySelector('.scrap-grip');
   const closeBtn = frame.querySelector('.scrap-close');
 
-  // Édition : sauvegarde après perte de focus ; suppression si vide.
+  // Édition : sauvegarde au blur ; suppression auto si vide.
   textEl.addEventListener('blur', () => {
     const val = textEl.textContent.trim();
     if (!val) { removeScrapItem(it.id); return; }
     updateScrapItem(it.id, { text: val, updatedAt: Date.now() });
   });
 
-  // Suppression explicite : × dans le coin.
+  // Suppression explicite.
   closeBtn.addEventListener('click', ev => {
     ev.stopPropagation();
     if (textEl.textContent.trim() && !confirm('Supprimer cet item ?')) return;
     removeScrapItem(it.id);
   });
 
-  // Drag depuis la poignée : conversion des coords écran → coords SVG viewBox
-  // via SVGMatrix inverse, robuste à tout zoom/pan futur du viewBox.
-  handle.addEventListener('pointerdown', ev => {
-    if (ev.target.closest('.scrap-close')) return;
+  // Drag depuis le grip.
+  gripEl.addEventListener('pointerdown', ev => {
     ev.preventDefault();
-    handle.setPointerCapture(ev.pointerId);
+    gripEl.setPointerCapture(ev.pointerId);
     const svgEl = fo.ownerSVGElement;
     const start = screenToSvg(svgEl, ev.clientX, ev.clientY);
     const originX = it.x, originY = it.y;
     const onMove = e => {
       const cur = screenToSvg(svgEl, e.clientX, e.clientY);
-      const nx = originX + (cur.x - start.x);
-      const ny = originY + (cur.y - start.y);
-      fo.setAttribute('x', nx);
-      fo.setAttribute('y', ny);
-      it.x = nx; it.y = ny;  // maj live, sauvegarde au pointerup
+      it.x = originX + (cur.x - start.x);
+      it.y = originY + (cur.y - start.y);
+      fo.setAttribute('x', it.x);
+      fo.setAttribute('y', it.y);
     };
     const onUp = () => {
-      handle.removeEventListener('pointermove', onMove);
-      handle.removeEventListener('pointerup', onUp);
-      handle.removeEventListener('pointercancel', onUp);
-      updateScrapItem(it.id, { x: it.x, y: it.y, updatedAt: Date.now() });
+      gripEl.removeEventListener('pointermove', onMove);
+      gripEl.removeEventListener('pointerup', onUp);
+      gripEl.removeEventListener('pointercancel', onUp);
+      updateScrapItem(it.id, { x: it.x, y: it.y, updatedAt: Date.now() }, true);
     };
-    handle.addEventListener('pointermove', onMove);
-    handle.addEventListener('pointerup',   onUp);
-    handle.addEventListener('pointercancel', onUp);
+    gripEl.addEventListener('pointermove', onMove);
+    gripEl.addEventListener('pointerup',   onUp);
+    gripEl.addEventListener('pointercancel', onUp);
   });
 
-  // Resize natif via CSS `resize: both` sur .scrap-frame. On observe les
-  // changements de taille du div HTML et on synchronise le foreignObject
-  // (sinon le frame déborderait du foreignObject de taille fixe).
+  // Resize : observer border-box (taille totale du frame incluant border/padding)
+  // et l'appliquer telle quelle au foreignObject, sans offset — évite la boucle
+  // infinie de croissance qu'introduisait un `+ padding` naïf sur content-box.
+  // Garde d'égalité en plus pour bloquer toute oscillation potentielle.
   const ro = new ResizeObserver(entries => {
     for (const e of entries) {
-      const w = Math.max(80, Math.round(e.contentRect.width  + 8));
-      const h = Math.max(50, Math.round(e.contentRect.height + 8));
+      const box = e.borderBoxSize && e.borderBoxSize[0];
+      const w = Math.round(box ? box.inlineSize : e.contentRect.width);
+      const h = Math.round(box ? box.blockSize  : e.contentRect.height);
+      if (w < 60 || h < 40) continue;
+      if (Math.abs(w - it.width) < 1 && Math.abs(h - it.height) < 1) continue;
+      it.width = w; it.height = h;
       fo.setAttribute('width',  w);
       fo.setAttribute('height', h);
-      if (w !== it.width || h !== it.height) {
-        it.width = w; it.height = h;
-        updateScrapItem(it.id, { width: w, height: h }, /*skipRender*/ true);
-      }
+      updateScrapItem(it.id, { width: w, height: h }, true);
     }
   });
-  ro.observe(frame);
+  ro.observe(frame, { box: 'border-box' });
 }
 
 function screenToSvg(svgEl, clientX, clientY) {
