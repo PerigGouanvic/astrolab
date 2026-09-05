@@ -13,6 +13,12 @@
 
 * { box-sizing: border-box; }
 
+/* Forcer [hidden] à s'appliquer partout. Sans !important, une règle
+   .foo { display: flex/block/...} définie ailleurs pour un élément qui a
+   aussi l'attribut [hidden] gagne en spécificité et rend l'élément visible
+   même quand hidden=true. Bug très classique HTML5. */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   padding: 1rem;
