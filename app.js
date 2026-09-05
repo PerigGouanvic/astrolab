@@ -60,18 +60,22 @@ const NATAL_PERIG = {
   info: '22 janvier 1972 · 07 h 25 · Montréal',
 };
 
-function nowConfig(place) {
+function nowConfig(place, timeMs = null) {
+  // timeMs null = temps réel courant ; sinon date custom (slider temporel).
+  const dateObj = timeMs != null ? new Date(timeMs) : new Date();
+  const ts      = timeMs != null ? timeMs           : Date.now();
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: place.tz,
     year: 'numeric', month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit', hour12: false,
-  }).formatToParts(new Date());
+  }).formatToParts(dateObj);
   const g = {};
   for (const p of parts) if (p.type !== 'literal') g[p.type] = p.value;
+  const isCustom = timeMs != null;
   return {
-    jd: Date.now() / 86400000 + 2440587.5,
+    jd: ts / 86400000 + 2440587.5,
     latitude: place.latitude, longitude: place.longitude,
-    title: 'Maintenant',
+    title: isCustom ? 'Moment choisi' : 'Maintenant',
     info: `${g.day}/${g.month}/${g.year} · ${g.hour} h ${g.minute} · ${place.label}`,
   };
 }
@@ -415,11 +419,31 @@ function drawChart({ cusps, ascendant, midheaven, bodies, asteroids }, layers) {
   // Scrapbook (v1) : cadres textuels visuels positionnés librement dans
   // le SVG via <foreignObject>. Créés au double-tap, éditables inline
   // (contenteditable), déplaçables via poignée, redimensionnables via CSS
-  // natif `resize: both`. Migration sémantique (attraction vers barycentre
-  // thématique) différée à la phase B/D avec le LLM et les couches natales.
+  // natif `resize: both`. Filtrés par le temps courant du chart : un item
+  // n'apparaît que si createdAt <= chartTime ET (retiredAt null OU
+  // chartTime < retiredAt). Ainsi remonter le slider fait réapparaître
+  // les items retirés temporellement.
   if (layers.scrapbook && state.scrapbook.length) {
-    for (const it of state.scrapbook) drawScrapItem(container, it);
+    const t = getChartTime();
+    for (const it of state.scrapbook) {
+      if (!isItemVisibleAt(it, t)) continue;
+      drawScrapItem(container, it);
+    }
   }
+}
+
+// Temps courant du chart pour le filtre scrapbook. null en mode natal =
+// pas de filtre (les items sont montrés indépendamment de la date natale
+// de Perig, qui est totalement décorrélée du présent).
+function getChartTime() {
+  if (state.mode === 'natal') return null;
+  return state.chartTime != null ? state.chartTime : Date.now();
+}
+function isItemVisibleAt(item, t) {
+  if (t == null) return true;
+  if ((item.createdAt || 0) > t) return false;
+  if (item.retiredAt != null && t >= item.retiredAt) return false;
+  return true;
 }
 
 // ---------- Scrapbook : rendu d'un item ----------
@@ -490,13 +514,34 @@ function wireScrapItem(fo, frame, it) {
     ev.target.value = '';  // reset pour permettre de re-uploader la même image
   });
 
-  // Suppression explicite.
-  closeBtn.addEventListener('click', ev => {
+  // Suppression : clic court = retrait TEMPOREL (item invisible à partir du
+  // chartTime courant, réversible en remontant le slider). Long-press ≥ 700ms
+  // = suppression DÉFINITIVE (irréversible, avec confirm renforcé).
+  let lpTimer = null;
+  let lpFired = false;
+  const clearLp = () => { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } };
+  closeBtn.addEventListener('pointerdown', ev => {
     ev.stopPropagation();
-    const hasContent = textEl.textContent.trim() || textEl.querySelector('img');
-    if (hasContent && !confirm('Supprimer cet item ?')) return;
-    removeScrapItem(it.id);
+    lpFired = false;
+    lpTimer = setTimeout(() => {
+      lpTimer = null;
+      lpFired = true;
+      if (confirm('EFFACER DÉFINITIVEMENT ?\n\nCet item disparaîtra aussi du passé, impossible à récupérer via le slider temporel.')) {
+        purgeScrapItem(it.id);
+      }
+    }, 700);
   });
+  closeBtn.addEventListener('pointerup', ev => {
+    ev.stopPropagation();
+    if (lpFired) { lpFired = false; return; }
+    clearLp();
+    // Clic court = retrait temporel
+    retireScrapItem(it.id);
+  });
+  closeBtn.addEventListener('pointerleave',  clearLp);
+  closeBtn.addEventListener('pointercancel', clearLp);
+  // Empêcher le 'click' bubbler (déjà géré par pointer)
+  closeBtn.addEventListener('click', ev => ev.stopPropagation());
 
   // Drag depuis le grip.
   gripEl.addEventListener('pointerdown', ev => {
@@ -653,6 +698,7 @@ let state = {
   aspectStyle: localStorage.getItem(ASPECT_STYLE_KEY) || 'lines',  // 'lines' | 'digits'
   asteroids: JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'),
   scrapbook: JSON.parse(localStorage.getItem(SCRAPBOOK_KEY) || '[]'),
+  chartTime: null,  // null = temps réel ; sinon ms epoch (slider temporel)
 };
 function saveAsteroids()   { localStorage.setItem(STORAGE_KEY,       JSON.stringify(state.asteroids)); }
 function saveLayers()      { localStorage.setItem(LAYERS_KEY,        JSON.stringify(state.layers));    }
@@ -688,7 +734,7 @@ function computeAsteroids(jd) {
 }
 
 async function render() {
-  const config = state.mode === 'natal' ? natalConfig() : nowConfig(MONTREAL);
+  const config = state.mode === 'natal' ? natalConfig() : nowConfig(MONTREAL, state.chartTime);
   document.getElementById('chart-title').textContent = config.title;
   document.getElementById('chart-info').textContent = config.info;
 
@@ -718,11 +764,26 @@ function updateScrapItem(id, patch, skipRender = false) {
   if (!skipRender) render().catch(e => showError('render error: ' + e.message));
 }
 
-function removeScrapItem(id) {
+// Deux modes d'élimination :
+// - retire(): l'item cesse d'exister À PARTIR du chartTime courant. Reste
+//   visible si on remonte le slider dans le passé. Réversible via slider.
+// - purge(): suppression définitive, l'item disparaît du tableau et de tout
+//   le passé. Irréversible.
+function retireScrapItem(id) {
+  const it = state.scrapbook.find(x => x.id === id);
+  if (!it) return;
+  // + 1 ms pour que l'item soit invisible dès le moment courant (borne stricte)
+  it.retiredAt = (state.chartTime != null ? state.chartTime : Date.now()) + 1;
+  saveScrapbook();
+  render().catch(e => showError('render error: ' + e.message));
+}
+function purgeScrapItem(id) {
   state.scrapbook = state.scrapbook.filter(x => x.id !== id);
   saveScrapbook();
   render().catch(e => showError('render error: ' + e.message));
 }
+// Compat interne : les anciens appels blur (item vide) purgent définitivement.
+function removeScrapItem(id) { purgeScrapItem(id); }
 
 function createScrapItemAt(x, y) {
   // Cadre par défaut centré sur le point de tap (offset moitié taille).
@@ -915,6 +976,57 @@ function wireControls() {
   wireAsteroidSearch();
   wireProxySettings();
   wireScrapbookGestures();
+  wireTimeSlider();
+}
+
+// Slider temporel : permet de naviguer entre le plus ancien createdAt du
+// scrapbook (à défaut : now - 30j) et maintenant. En changeant, on met à
+// jour state.chartTime et on re-rend. Bouton ↻ = retour au présent (chartTime null).
+function wireTimeSlider() {
+  const slider = document.getElementById('time-slider');
+  const label  = document.getElementById('time-label');
+  const reset  = document.getElementById('time-reset');
+  if (!slider || !label || !reset) return;
+
+  const range = () => {
+    const now = Date.now();
+    const oldest = state.scrapbook.length
+      ? Math.min(...state.scrapbook.map(x => x.createdAt || now))
+      : now - 30 * 86400000;
+    return { oldest, now };
+  };
+  const format = (ms) => {
+    const d = new Date(ms);
+    return d.toLocaleDateString('fr-CA') + ' ' + d.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' });
+  };
+  const updateLabel = () => {
+    if (state.chartTime == null) label.textContent = 'maintenant';
+    else                          label.textContent = format(state.chartTime);
+  };
+  const syncSlider = () => {
+    const { oldest, now } = range();
+    const t = state.chartTime != null ? state.chartTime : now;
+    const t01 = (now - oldest) > 0 ? (t - oldest) / (now - oldest) : 1;
+    slider.value = String(Math.round(t01 * 1000));
+    updateLabel();
+  };
+  syncSlider();
+
+  let throttle = null;
+  slider.addEventListener('input', () => {
+    const { oldest, now } = range();
+    const t01 = parseInt(slider.value, 10) / 1000;
+    const t   = oldest + t01 * (now - oldest);
+    state.chartTime = (t >= now - 60000) ? null : t;  // snap au présent près du max
+    updateLabel();
+    clearTimeout(throttle);
+    throttle = setTimeout(() => render().catch(e => showError('render error: ' + e.message)), 150);
+  });
+  reset.addEventListener('click', () => {
+    state.chartTime = null;
+    syncSlider();
+    render().catch(e => showError('render error: ' + e.message));
+  });
 }
 
 function wireAspectsMenu() {
