@@ -189,43 +189,57 @@ function computeMidpoints(bodies) {
   return out;
 }
 
-// ---------- Aspects majeurs + harmoniques 5 et 7 ----------
-const ASPECTS_MAJOR = [
-  { key: 'conjunction', angle:   0, orb: 8 },
-  { key: 'opposition',  angle: 180, orb: 8 },
-  { key: 'trine',       angle: 120, orb: 6 },
-  { key: 'square',      angle:  90, orb: 6 },
-  { key: 'sextile',     angle:  60, orb: 4 },
-];
-const ASPECTS_HARMONIC = [
-  { key: 'quintile',   angle:  72,      orb: 2   },  // 360/5
-  { key: 'biquintile', angle: 144,      orb: 2   },  // 2 × 72
-  { key: 'septile',    angle: 360/7,    orb: 1.5 },  // ≈ 51.43
-  { key: 'biseptile',  angle: 720/7,    orb: 1.5 },  // ≈ 102.86
-  { key: 'triseptile', angle: 1080/7,   orb: 1.5 },  // ≈ 154.29
-];
-// Chiffre de l'harmonique dont chaque aspect est un multiple entier de 360/n.
-// Utilisé par le mode d'affichage "chiffres harmoniques" : au lieu de tracer
-// une corde continue, on répète le chiffre le long du segment — très petit,
-// donne l'impression de pointillé en vue panoramique et se révèle au zoom.
-const ASPECT_DIGIT = {
-  conjunction: 1, opposition: 2, trine: 3, square: 4,
-  quintile: 5, biquintile: 5, sextile: 6,
-  septile: 7, biseptile: 7, triseptile: 7,
+// ---------- Aspects par harmonique (1 à 9) ----------
+// Chaque harmonique n regroupe les aspects nouveaux qu'elle apporte, c'est-à-dire
+// les angles k × (360/n) non déjà couverts par une harmonique inférieure. Ainsi
+// activer H1..H4 seulement donne les majeurs classiques, ajouter H6 ajoute le
+// sextile (le 120° est déjà en H3, le 180° en H2), etc.
+const HARMONICS_BY_N = {
+  1: [{ key: 'conjunction',    angle:   0,     orb: 8   }],
+  2: [{ key: 'opposition',     angle: 180,     orb: 8   }],
+  3: [{ key: 'trine',          angle: 120,     orb: 6   }],
+  4: [{ key: 'square',         angle:  90,     orb: 6   }],
+  5: [
+    { key: 'quintile',         angle:  72,     orb: 2   },
+    { key: 'biquintile',       angle: 144,     orb: 2   },
+  ],
+  6: [{ key: 'sextile',        angle:  60,     orb: 4   }],
+  7: [
+    { key: 'septile',          angle: 360/7,   orb: 1.5 },   // ≈ 51.43
+    { key: 'biseptile',        angle: 720/7,   orb: 1.5 },   // ≈ 102.86
+    { key: 'triseptile',       angle: 1080/7,  orb: 1.5 },   // ≈ 154.29
+  ],
+  8: [
+    { key: 'semisquare',       angle:  45,     orb: 2   },
+    { key: 'sesquisquare',     angle: 135,     orb: 2   },
+  ],
+  9: [
+    { key: 'novile',           angle:  40,     orb: 1.5 },
+    { key: 'binovile',         angle:  80,     orb: 1.5 },
+    { key: 'quadnovile',       angle: 160,     orb: 1.5 },
+  ],
 };
 function angularSeparation(lonA, lonB) {
   const d = normDeg(lonA - lonB);
   return d > 180 ? 360 - d : d;
 }
-function computeAspects(bodies, aspectSet) {
+function computeAspectsForHarmonics(bodies, harmonicsSet) {
+  // harmonicsSet : Set<number> des n activés (sous-ensemble de 1..9).
+  // Retourne un aspect avec { a, b, type, n, orb } — n est le numéro d'harmonique
+  // qui a produit le match (utilisé comme chiffre en mode d'affichage 'digits').
+  // Ordre : par n croissant, pour que les harmoniques fondamentales priment.
+  const activeSets = [];
+  for (const n of [...harmonicsSet].sort((a, b) => a - b)) {
+    for (const a of (HARMONICS_BY_N[n] || [])) activeSets.push({ ...a, n });
+  }
   const out = [];
   for (let i = 0; i < bodies.length; i++) {
     for (let j = i + 1; j < bodies.length; j++) {
       const sep = angularSeparation(bodies[i].lon, bodies[j].lon);
-      for (const a of aspectSet) {
+      for (const a of activeSets) {
         const delta = Math.abs(sep - a.angle);
         if (delta <= a.orb) {
-          out.push({ a: bodies[i], b: bodies[j], type: a.key, orb: delta });
+          out.push({ a: bodies[i], b: bodies[j], type: a.key, n: a.n, orb: delta });
           break;
         }
       }
@@ -326,38 +340,34 @@ function drawChart({ cusps, ascendant, midheaven, bodies, asteroids }, layers) {
   }
 
   // Aspects : cordes de bord intérieur à bord intérieur, dans l'espace vide central.
-  // Majeurs et harmoniques (5, 7) sont deux couches distinctes pour rester soustractif.
-  // Deux styles de rendu configurables (voir DEFAULT_CONFIG.aspectStyle) :
-  //   - 'lines'  : corde continue, palette par type d'aspect
-  //   - 'digits' : chiffre d'harmonique répété le long du segment (très petit,
-  //                pointillé en vue globale, chiffre lisible au zoom)
-  if (layers.planets && (layers.aspects || layers.harmonics)) {
-    const aspects = [];
-    if (layers.aspects)   aspects.push(...computeAspects(bodies, ASPECTS_MAJOR));
-    if (layers.harmonics) aspects.push(...computeAspects(bodies, ASPECTS_HARMONIC));
-    const useDigits = state.config.aspectStyle === 'digits';
+  // Unifiés par harmonique (1..9) — les majeurs classiques sont juste H1..H4.
+  // Deux styles de rendu (state.aspectStyle) :
+  //   - 'lines'  : corde continue, palette par harmonique (aspect-h${n})
+  //   - 'digits' : chiffre d'harmonique répété le long du segment (aspect-digit-${n})
+  if (layers.planets && state.harmonics.size > 0) {
+    const aspects = computeAspectsForHarmonics(bodies, state.harmonics);
+    const useDigits = state.aspectStyle === 'digits';
     for (const asp of aspects) {
       const p1 = project(asp.a.lon, ascLon, R_ZODIAC_IN);
       const p2 = project(asp.b.lon, ascLon, R_ZODIAC_IN);
       if (useDigits) {
-        const digit = ASPECT_DIGIT[asp.type];
         const dx = p2.x - p1.x, dy = p2.y - p1.y;
         const len = Math.hypot(dx, dy);
         // Pas de 10 unités entre chiffres — assez dense pour lire la corde,
         // assez espacé pour rester lisible en mode zoom.
         const step = 10;
-        const n = Math.max(2, Math.floor(len / step));
-        for (let i = 1; i < n; i++) {
-          const t = i / n;
+        const k = Math.max(2, Math.floor(len / step));
+        for (let i = 1; i < k; i++) {
+          const t = i / k;
           container.appendChild(svg('text', {
             x: p1.x + dx * t, y: p1.y + dy * t,
-            class: `aspect-digit aspect-digit-${digit}`,
-          }, String(digit)));
+            class: `aspect-digit aspect-digit-${asp.n}`,
+          }, String(asp.n)));
         }
       } else {
         container.appendChild(svg('line', {
           x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y,
-          class: `aspect aspect-${asp.type}`,
+          class: `aspect aspect-h${asp.n}`,
         }));
       }
     }
@@ -432,34 +442,41 @@ function drawDataTable({ ascendant, midheaven }, bodies, asteroids) {
 }
 
 // ---------- État + persistance ----------
-const STORAGE_KEY = 'astrolab.asteroids';
-const LAYERS_KEY  = 'astrolab.layers';
-const CONFIG_KEY  = 'astrolab.config';
+const STORAGE_KEY    = 'astrolab.asteroids';
+const LAYERS_KEY     = 'astrolab.layers';
+const HARMONICS_KEY  = 'astrolab.harmonics';
+const ASPECT_STYLE_KEY = 'astrolab.aspectStyle';
 const DEFAULT_LAYERS = {
   signs: true, houses: true, planets: true,
-  midpoints: false, asteroids: true, aspects: false, harmonics: false,
+  midpoints: false, asteroids: true,
 };
-// Section configuration : options qui modifient *comment* on affiche une couche,
-// pas *ce qu'on affiche* (les couches, c'est la soustraction ; la config, c'est
-// la manière). Extensible : ajouter ici les prochaines options.
-const DEFAULT_CONFIG = {
-  aspectStyle: 'lines',  // 'lines' | 'digits' (répétition du chiffre d'harmonique)
-};
+const DEFAULT_HARMONICS = [1, 2, 3, 4];  // majeurs classiques (conj, opp, tri, carré)
 function loadStored(key, defaults) {
   try {
     const stored = JSON.parse(localStorage.getItem(key) || '{}');
     return { ...defaults, ...stored };
   } catch { return { ...defaults }; }
 }
+function loadHarmonics() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(HARMONICS_KEY));
+    if (Array.isArray(arr)) {
+      return new Set(arr.filter(n => Number.isInteger(n) && n >= 1 && n <= 9));
+    }
+  } catch {}
+  return new Set(DEFAULT_HARMONICS);
+}
 let state = {
   mode: 'now',
   layers: loadStored(LAYERS_KEY, DEFAULT_LAYERS),
-  config: loadStored(CONFIG_KEY, DEFAULT_CONFIG),
-  asteroids: JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'), // array of [mpc, name]
+  harmonics: loadHarmonics(),
+  aspectStyle: localStorage.getItem(ASPECT_STYLE_KEY) || 'lines',  // 'lines' | 'digits'
+  asteroids: JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'),
 };
-function saveAsteroids() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.asteroids)); }
-function saveLayers()    { localStorage.setItem(LAYERS_KEY,  JSON.stringify(state.layers));    }
-function saveConfig()    { localStorage.setItem(CONFIG_KEY,  JSON.stringify(state.config));    }
+function saveAsteroids()   { localStorage.setItem(STORAGE_KEY,       JSON.stringify(state.asteroids)); }
+function saveLayers()      { localStorage.setItem(LAYERS_KEY,        JSON.stringify(state.layers));    }
+function saveHarmonics()   { localStorage.setItem(HARMONICS_KEY,     JSON.stringify([...state.harmonics].sort((a,b)=>a-b))); }
+function saveAspectStyle() { localStorage.setItem(ASPECT_STYLE_KEY,  state.aspectStyle); }
 
 function computeBodies(jd) {
   const out = [];
@@ -605,17 +622,62 @@ function wireControls() {
       render().catch(err => showError('render error: ' + err.message));
     });
   });
-  document.querySelectorAll('[data-config]').forEach(el => {
-    const key = el.dataset.config;
-    if (state.config[key] !== undefined) el.value = state.config[key];
-    el.addEventListener('change', e => {
-      state.config[key] = e.target.value;
-      saveConfig();
+  wireAspectsMenu();
+  wireAsteroidSearch();
+  wireProxySettings();
+}
+
+function wireAspectsMenu() {
+  const toggle = document.querySelector('.aspects-toggle');
+  const panel  = document.querySelector('.aspects-panel');
+  if (!toggle || !panel) return;
+
+  toggle.addEventListener('click', () => {
+    const open = panel.hidden;
+    panel.hidden = !open;
+    toggle.setAttribute('aria-expanded', String(open));
+  });
+  // Fermeture au clic extérieur (pour cohérence mobile)
+  document.addEventListener('click', e => {
+    if (panel.hidden) return;
+    if (toggle.contains(e.target) || panel.contains(e.target)) return;
+    panel.hidden = true;
+    toggle.setAttribute('aria-expanded', 'false');
+  });
+
+  // Checkboxes 1..9 : init depuis state + toggle sur change
+  document.querySelectorAll('.aspects-panel input[data-harmonic]').forEach(inp => {
+    const n = parseInt(inp.dataset.harmonic, 10);
+    inp.checked = state.harmonics.has(n);
+    inp.addEventListener('change', e => {
+      if (e.target.checked) state.harmonics.add(n);
+      else                  state.harmonics.delete(n);
+      saveHarmonics();
+      updateAspectsSummary();
       render().catch(err => showError('render error: ' + err.message));
     });
   });
-  wireAsteroidSearch();
-  wireProxySettings();
+
+  // Segmented control ligne / chiffre
+  document.querySelectorAll('.aspects-panel [data-aspect-style]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.aspectStyle === state.aspectStyle);
+    btn.addEventListener('click', () => {
+      state.aspectStyle = btn.dataset.aspectStyle;
+      saveAspectStyle();
+      document.querySelectorAll('.aspects-panel [data-aspect-style]').forEach(b =>
+        b.classList.toggle('active', b === btn));
+      render().catch(err => showError('render error: ' + err.message));
+    });
+  });
+
+  updateAspectsSummary();
+}
+
+function updateAspectsSummary() {
+  const el = document.querySelector('.aspects-summary');
+  if (!el) return;
+  const active = [...state.harmonics].sort((a, b) => a - b);
+  el.textContent = active.length ? active.join('·') : '—';
 }
 
 async function remountSavedAsteroids() {
