@@ -135,14 +135,21 @@ async function mountAsteroid(mpc) {
 }
 
 // ---------- Géométrie ----------
-const R_ZODIAC_OUT = 440;
-const R_ZODIAC_IN  = 380;
-const R_HOUSE_TICK = 360;
-const R_MIDPOINT   = 350;
-const R_PLANET     = 320;
-const R_ASTEROID   = 300;
-const R_HOUSE_NUM  = 260;
-const R_INNER      = 60;
+// Refonte : glyphes planètes à l'extérieur de la ceinture, ceinture 2× plus fine,
+// pas de cercle central, aspects tracés dans l'espace vide intérieur.
+// viewBox 1040×1040 (marge 20 pour accueillir les glyphes extérieurs).
+const R_ZODIAC_OUT   = 380;   // bord extérieur ceinture des signes
+const R_ZODIAC_IN    = 350;   // bord intérieur ceinture (épaisseur 30, 2× plus fine)
+const R_HOUSE_END    = 400;   // cusps de maisons dépassent 20 au-delà de la ceinture
+const R_ANGLE_EXTEND = 510;   // axes ASC/DSC/MC/IC traversent tout le viewBox
+const R_HOUSE_NUM    = 335;   // numéros de maisons juste sous la ceinture (dans l'anneau)
+const R_MIDPOINT     = R_ZODIAC_IN - 8;  // ticks mi-points côté intérieur ceinture
+const R_PLANET_TICK  = R_ZODIAC_OUT;     // tick de position sur le bord extérieur
+const R_PLANET_TICK_END = R_ZODIAC_OUT + 8;
+const R_PLANET       = 415;   // glyphes planètes à l'extérieur
+const R_PLANET_DEG   = 448;   // degrés au-delà du glyphe
+const R_ASTEROID_DOT = 465;   // astéroïdes encore plus à l'extérieur
+const R_ASTEROID_LBL = 488;   // labels courts
 const DEG = Math.PI / 180;
 
 function normDeg(d) { return ((d % 360) + 360) % 360; }
@@ -177,24 +184,31 @@ function computeMidpoints(bodies) {
   return out;
 }
 
-// ---------- Aspects majeurs ----------
-const ASPECTS = [
+// ---------- Aspects majeurs + harmoniques 5 et 7 ----------
+const ASPECTS_MAJOR = [
   { key: 'conjunction', angle:   0, orb: 8 },
   { key: 'opposition',  angle: 180, orb: 8 },
   { key: 'trine',       angle: 120, orb: 6 },
   { key: 'square',      angle:  90, orb: 6 },
   { key: 'sextile',     angle:  60, orb: 4 },
 ];
+const ASPECTS_HARMONIC = [
+  { key: 'quintile',   angle:  72,      orb: 2   },  // 360/5
+  { key: 'biquintile', angle: 144,      orb: 2   },  // 2 × 72
+  { key: 'septile',    angle: 360/7,    orb: 1.5 },  // ≈ 51.43
+  { key: 'biseptile',  angle: 720/7,    orb: 1.5 },  // ≈ 102.86
+  { key: 'triseptile', angle: 1080/7,   orb: 1.5 },  // ≈ 154.29
+];
 function angularSeparation(lonA, lonB) {
   const d = normDeg(lonA - lonB);
   return d > 180 ? 360 - d : d;
 }
-function computeAspects(bodies) {
+function computeAspects(bodies, aspectSet) {
   const out = [];
   for (let i = 0; i < bodies.length; i++) {
     for (let j = i + 1; j < bodies.length; j++) {
       const sep = angularSeparation(bodies[i].lon, bodies[j].lon);
-      for (const a of ASPECTS) {
+      for (const a of aspectSet) {
         const delta = Math.abs(sep - a.angle);
         if (delta <= a.orb) {
           out.push({ a: bodies[i], b: bodies[j], type: a.key, orb: delta });
@@ -207,44 +221,68 @@ function computeAspects(bodies) {
 }
 
 // ---------- Rendu SVG ----------
-// La logique soustractive est le moteur : chaque couche est indépendamment
-// affichable / masquable via `layers`. Une couche masquée n'ajoute aucun
-// élément au DOM (pas simplement `display:none`), pour une carte réellement
-// épurée quand on soustrait.
+// Refonte : le cercle est ouvert à l'intérieur (plus de sous-cercle central),
+// la ceinture des signes est fine, les astres vivent à l'extérieur, les
+// aspects traversent l'espace vide central de bord intérieur à bord intérieur.
+// La logique soustractive reste le moteur : chaque couche est indépendamment
+// affichable / masquable via `layers` (aucun élément DOM si masquée).
 function drawChart({ cusps, ascendant, midheaven, bodies, asteroids }, layers) {
   const container = document.getElementById('chart');
   container.innerHTML = '';
   const ascLon = ascendant;
 
-  // Anneaux de fond : toujours présents (structure minimale du cercle)
+  // Anneaux de fond : bord extérieur + bord intérieur de la ceinture (fine)
   container.appendChild(svg('circle', { cx: 0, cy: 0, r: R_ZODIAC_OUT, class: 'zodiac-ring' }));
   container.appendChild(svg('circle', { cx: 0, cy: 0, r: R_ZODIAC_IN,  class: 'zodiac-ring' }));
-  container.appendChild(svg('circle', { cx: 0, cy: 0, r: R_INNER,      class: 'zodiac-inner' }));
 
-  // Signes du zodiaque (glyphes + séparateurs 30°)
+  // Signes : ticks 1° très fins (subdivision de chaque signe) puis séparateurs
+  // 30° foncés (démarcation des signes) puis glyphes centrés dans la ceinture.
   if (layers.signs) {
+    // Ticks 1° côté intérieur, sauf multiples de 30 (déjà tracés en séparateurs)
+    for (let d = 0; d < 360; d++) {
+      if (d % 30 === 0) continue;
+      const p1 = project(d, ascLon, R_ZODIAC_IN);
+      const p2 = project(d, ascLon, R_ZODIAC_IN + 3);
+      container.appendChild(svg('line', { x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, class: 'degree-tick' }));
+    }
+    // Séparateurs 30° : traversent toute la ceinture, foncés
     for (let i = 0; i < 12; i++) {
       const lon = i * 30;
       const p1 = project(lon, ascLon, R_ZODIAC_IN);
       const p2 = project(lon, ascLon, R_ZODIAC_OUT);
       container.appendChild(svg('line', { x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, class: 'zodiac-divider' }));
-      const gp = project(lon + 15, ascLon, (R_ZODIAC_IN + R_ZODIAC_OUT) / 2);
+    }
+    // Glyphes signes centrés dans la ceinture (au milieu de chaque tranche 30°)
+    for (let i = 0; i < 12; i++) {
+      const gp = project(i * 30 + 15, ascLon, (R_ZODIAC_IN + R_ZODIAC_OUT) / 2);
       container.appendChild(svg('text', { x: gp.x, y: gp.y, class: 'sign-symbol' }, SIGN_GLYPHS[i]));
     }
   }
 
-  // Maisons (cusps + numéros) + axes angulaires (ASC/MC/DSC/IC)
+  // Maisons : cusps du centre au-delà de la ceinture ; axes ASC/DSC/MC/IC
+  // traversent tout le viewBox pour évoquer l'ossature-base de la carte.
   if (layers.houses) {
     for (let i = 0; i < 12; i++) {
       const lon = cusps[i];
       if (lon == null) continue;
       const isAngle = (i === 0 || i === 3 || i === 6 || i === 9);
-      const p1 = project(lon, ascLon, R_INNER);
-      const p2 = project(lon, ascLon, R_ZODIAC_IN);
-      container.appendChild(svg('line', {
-        x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y,
-        class: isAngle ? 'house-cusp house-cusp-angle' : 'house-cusp',
-      }));
+      if (isAngle) {
+        // Axe complet : de -R_ANGLE_EXTEND à +R_ANGLE_EXTEND sur l'axe (traverse le viewBox)
+        const p1 = project(lon,                ascLon, R_ANGLE_EXTEND);
+        const p2 = project(normDeg(lon + 180), ascLon, R_ANGLE_EXTEND);
+        container.appendChild(svg('line', {
+          x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, class: 'house-cusp-angle',
+        }));
+      } else {
+        // Cusp normal : du centre à R_HOUSE_END (dépasse au-delà de la ceinture)
+        container.appendChild(svg('line', {
+          x1: 0, y1: 0,
+          x2: project(lon, ascLon, R_HOUSE_END).x,
+          y2: project(lon, ascLon, R_HOUSE_END).y,
+          class: 'house-cusp',
+        }));
+      }
+      // Numéro de maison au milieu de la tranche, juste sous la ceinture
       const nextLon = cusps[(i + 1) % 12];
       if (nextLon != null) {
         const arc = normDeg(nextLon - lon);
@@ -253,30 +291,35 @@ function drawChart({ cusps, ascendant, midheaven, bodies, asteroids }, layers) {
         container.appendChild(svg('text', { x: np.x, y: np.y, class: 'house-number' }, String(i + 1)));
       }
     }
+    // Labels ASC/MC/DSC/IC au bout des axes (juste à l'intérieur du viewBox)
     const angleLabels = [
       { lon: ascLon, text: 'ASC' }, { lon: midheaven, text: 'MC' },
       { lon: normDeg(ascLon + 180), text: 'DSC' }, { lon: normDeg(midheaven + 180), text: 'IC' },
     ];
     for (const l of angleLabels) {
-      const p = project(l.lon, ascLon, R_ZODIAC_OUT + 20);
+      const p = project(l.lon, ascLon, R_ANGLE_EXTEND - 15);
       container.appendChild(svg('text', { x: p.x, y: p.y, class: 'angle-label' }, l.text));
     }
   }
 
-  // Mi-points entre planètes majeures (ticks sur un rayon dédié)
+  // Mi-points entre planètes majeures (ticks fins côté intérieur de la ceinture)
   if (layers.midpoints && layers.planets) {
     for (const m of computeMidpoints(bodies)) {
-      const t1 = project(m.lon, ascLon, R_MIDPOINT);
-      const t2 = project(m.lon, ascLon, R_MIDPOINT - 8);
+      const t1 = project(m.lon, ascLon, R_ZODIAC_IN);
+      const t2 = project(m.lon, ascLon, R_ZODIAC_IN - 8);
       container.appendChild(svg('line', { x1: t1.x, y1: t1.y, x2: t2.x, y2: t2.y, class: 'midpoint-tick' }));
     }
   }
 
-  // Aspects majeurs entre planètes (cordes traversant le cercle intérieur)
-  if (layers.aspects && layers.planets) {
-    for (const asp of computeAspects(bodies)) {
-      const p1 = project(asp.a.lon, ascLon, R_INNER);
-      const p2 = project(asp.b.lon, ascLon, R_INNER);
+  // Aspects : cordes de bord intérieur à bord intérieur, dans l'espace vide central.
+  // Majeurs et harmoniques (5, 7) sont deux couches distinctes pour rester soustractif.
+  if (layers.planets && (layers.aspects || layers.harmonics)) {
+    const aspects = [];
+    if (layers.aspects)   aspects.push(...computeAspects(bodies, ASPECTS_MAJOR));
+    if (layers.harmonics) aspects.push(...computeAspects(bodies, ASPECTS_HARMONIC));
+    for (const asp of aspects) {
+      const p1 = project(asp.a.lon, ascLon, R_ZODIAC_IN);
+      const p2 = project(asp.b.lon, ascLon, R_ZODIAC_IN);
       container.appendChild(svg('line', {
         x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y,
         class: `aspect aspect-${asp.type}`,
@@ -284,35 +327,39 @@ function drawChart({ cusps, ascendant, midheaven, bodies, asteroids }, layers) {
     }
   }
 
-  // Astéroïdes personnalisés : petits points + label court, sur un rayon distinct
+  // Astéroïdes : tick sur la ceinture pour marquer la position exacte,
+  // puis dot + label plus à l'extérieur (au-delà de l'anneau planétaire)
   if (layers.asteroids) {
     for (const a of asteroids) {
-      const tk1 = project(a.lon, ascLon, R_HOUSE_TICK - 2);
-      const tk2 = project(a.lon, ascLon, R_HOUSE_TICK - 10);
+      const tk1 = project(a.lon, ascLon, R_ZODIAC_OUT);
+      const tk2 = project(a.lon, ascLon, R_ZODIAC_OUT + 6);
       container.appendChild(svg('line', { x1: tk1.x, y1: tk1.y, x2: tk2.x, y2: tk2.y, class: 'asteroid-tick' }));
-      const pt = project(a.lon, ascLon, R_ASTEROID);
+      const pt = project(a.lon, ascLon, R_ASTEROID_DOT);
       container.appendChild(svg('circle', { cx: pt.x, cy: pt.y, r: 3, class: 'asteroid-dot' }));
-      const lp = project(a.lon, ascLon, R_ASTEROID - 14);
-      container.appendChild(svg('text', { x: lp.x, y: lp.y, class: 'asteroid-label' }, a.name.slice(0, 6)));
+      const lp = project(a.lon, ascLon, R_ASTEROID_LBL);
+      container.appendChild(svg('text', { x: lp.x, y: lp.y, class: 'asteroid-label' }, a.name.slice(0, 8)));
     }
   }
 
-  // Planètes majeures + Chiron/Ceres/Pallas/Juno/Vesta
+  // Planètes : glyphes à l'extérieur de la ceinture (plus gros, plus lisibles).
+  // Tick de position sur le bord extérieur de la ceinture pour ancrer visuellement
+  // la longitude exacte du corps. Décalage radial si plusieurs planètes serrées.
   if (layers.planets) {
     const sorted = [...bodies].sort((a, b) => normDeg(a.lon - ascLon) - normDeg(b.lon - ascLon));
     const MIN_SEP = 8;
     let lastLon = -999, ringOffset = 0;
     for (const p of sorted) {
       const sep = normDeg(p.lon - lastLon);
-      if (sep < MIN_SEP && lastLon > -999) ringOffset += 26; else ringOffset = 0;
-      const r = R_PLANET - ringOffset;
-      const pt = project(p.lon, ascLon, r);
-      const tk1 = project(p.lon, ascLon, R_HOUSE_TICK);
-      const tk2 = project(p.lon, ascLon, R_HOUSE_TICK - 12);
+      if (sep < MIN_SEP && lastLon > -999) ringOffset += 28; else ringOffset = 0;
+      const rGlyph = R_PLANET + ringOffset;
+      const rDeg   = R_PLANET_DEG + ringOffset;
+      const pt = project(p.lon, ascLon, rGlyph);
+      const tk1 = project(p.lon, ascLon, R_PLANET_TICK);
+      const tk2 = project(p.lon, ascLon, R_PLANET_TICK_END);
       container.appendChild(svg('line', { x1: tk1.x, y1: tk1.y, x2: tk2.x, y2: tk2.y, class: 'planet-tick' }));
       container.appendChild(svg('text', { x: pt.x, y: pt.y, class: 'planet-symbol' }, p.glyph));
       const degInSign = Math.floor(p.lon % 30);
-      const dp = project(p.lon, ascLon, r - 22);
+      const dp = project(p.lon, ascLon, rDeg);
       container.appendChild(svg('text', { x: dp.x, y: dp.y, class: 'planet-degree' }, degInSign + '°' + (p.retro ? ' ℞' : '')));
       lastLon = p.lon;
     }
@@ -353,7 +400,7 @@ const STORAGE_KEY = 'astrolab.asteroids';
 const LAYERS_KEY = 'astrolab.layers';
 const DEFAULT_LAYERS = {
   signs: true, houses: true, planets: true,
-  midpoints: false, asteroids: true, aspects: false,
+  midpoints: false, asteroids: true, aspects: false, harmonics: false,
 };
 function loadLayers() {
   try {

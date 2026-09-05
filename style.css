@@ -140,41 +140,48 @@ h1 {
   stroke-width: 1;
 }
 
-.zodiac-inner {
-  fill: none;
-  stroke: var(--line-weak);
-  stroke-width: 0.5;
+/* Ticks fins tous les degrés à l'intérieur de la ceinture des signes.
+   30 par signe, 360 au total, très discrets pour ne pas saturer. */
+.degree-tick {
+  stroke: var(--line-medium);
+  stroke-width: 0.3;
+  opacity: 0.5;
 }
 
+/* Séparateurs entre signes (multiples de 30°) : traversent la ceinture,
+   franchement foncés pour bien démarquer les 12 signes. */
 .zodiac-divider {
-  stroke: var(--line-weak);
-  stroke-width: 0.5;
+  stroke: var(--line-strong);
+  stroke-width: 1;
 }
 
 .sign-symbol {
   fill: var(--sign-symbol);
   font-family: var(--font-serif);
-  font-size: 22px;
+  font-size: 18px;
   text-anchor: middle;
   dominant-baseline: central;
 }
 
+/* Cusps de maisons non-angulaires : trait fin pointillé qui va du centre
+   jusqu'à dépasser un peu au-delà de la ceinture. */
 .house-cusp {
   stroke: var(--line-medium);
   stroke-width: 0.5;
   stroke-dasharray: 2 3;
 }
 
+/* Axes ASC/DSC & MC/IC : traversent tout le viewBox, l'ossature-base de la
+   carte, franchement visibles pour évoquer que c'est la donnée première. */
 .house-cusp-angle {
   stroke: var(--line-strong);
-  stroke-width: 1.2;
-  stroke-dasharray: none;
+  stroke-width: 1.4;
 }
 
 .house-number {
   fill: var(--line-medium);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10px;
   text-anchor: middle;
   dominant-baseline: central;
 }
@@ -188,10 +195,12 @@ h1 {
   dominant-baseline: central;
 }
 
+/* Glyphes de planètes : à l'extérieur de la ceinture, plus gros qu'avant
+   car ils ne sont plus contraints par le cercle central. */
 .planet-symbol {
   fill: var(--planet);
   font-family: var(--font-serif);
-  font-size: 26px;
+  font-size: 30px;
   text-anchor: middle;
   dominant-baseline: central;
 }
@@ -199,11 +208,13 @@ h1 {
 .planet-degree {
   fill: var(--line-medium);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 10px;
   text-anchor: middle;
   dominant-baseline: central;
 }
 
+/* Tick de position : petit trait sur le bord extérieur de la ceinture qui
+   ancre visuellement la longitude exacte du corps sous son glyphe. */
 .planet-tick {
   stroke: var(--planet);
   stroke-width: 1;
@@ -215,19 +226,29 @@ h1 {
   opacity: 0.5;
 }
 
-/* Aspects : cordes traversant le cercle intérieur.
-   Palette sobre, cohérente avec la charte : gris/accent pour tensions,
-   bleu discret pour trigones/sextiles harmoniques. */
+/* Aspects : cordes tracées à même l'intérieur du cercle des signes
+   (de bord intérieur à bord intérieur), traversant l'espace vide central.
+   Palette sobre : gris/accent brun pour tensions (majeurs), bleu discret
+   pour harmoniques classiques (trigone/sextile), vert pour harmonique 5
+   (créativité, style), violet pour harmonique 7 (inspiration, mystique). */
 .aspect {
   fill: none;
   stroke-width: 0.6;
   opacity: 0.55;
 }
+/* Majeurs */
 .aspect-conjunction { stroke: var(--line-medium); stroke-dasharray: 3 2; }
 .aspect-opposition  { stroke: var(--accent);      stroke-width: 0.8; }
 .aspect-square      { stroke: var(--accent);      stroke-dasharray: 4 3; opacity: 0.45; }
 .aspect-trine       { stroke: #4a6a8a; }
 .aspect-sextile     { stroke: #4a6a8a; stroke-dasharray: 2 3; opacity: 0.45; }
+/* Harmonique 5 (72°, 144°) — vert discret pointillé fin */
+.aspect-quintile    { stroke: #5a7a5a; stroke-width: 0.5; stroke-dasharray: 1 3; opacity: 0.6; }
+.aspect-biquintile  { stroke: #5a7a5a; stroke-width: 0.5; stroke-dasharray: 1 3; opacity: 0.6; }
+/* Harmonique 7 (51.4°, 102.9°, 154.3°) — violet discret pointillé fin */
+.aspect-septile     { stroke: #7a5a8a; stroke-width: 0.5; stroke-dasharray: 1 4; opacity: 0.55; }
+.aspect-biseptile   { stroke: #7a5a8a; stroke-width: 0.5; stroke-dasharray: 1 4; opacity: 0.55; }
+.aspect-triseptile  { stroke: #7a5a8a; stroke-width: 0.5; stroke-dasharray: 1 4; opacity: 0.55; }
 
 .midpoint-symbol {
   fill: var(--line-medium);
@@ -239,7 +260,7 @@ h1 {
 }
 
 .asteroid-tick {
-  stroke: var(--line-medium);
+  stroke: var(--accent);
   stroke-width: 0.6;
   opacity: 0.7;
 }
@@ -249,13 +270,15 @@ h1 {
   opacity: 0.85;
 }
 
+/* Labels astéroïdes : plus grands qu'avant car ils vivent à l'extérieur
+   du diagramme, plus de contrainte de densité. */
 .asteroid-label {
   fill: var(--accent);
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: 10px;
   text-anchor: middle;
   dominant-baseline: central;
-  opacity: 0.85;
+  opacity: 0.9;
 }
 
 .asteroid-search-wrap {
