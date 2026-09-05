@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>astrolab — carte natale</title>
-  <link rel="stylesheet" href="style.css?v=18">
+  <link rel="stylesheet" href="style.css?v=19">
 </head>
 <body>
   <main>
@@ -17,6 +17,7 @@
       <nav class="controls">
         <button type="button" data-mode="now" class="active">maintenant</button>
         <button type="button" data-mode="natal">natal (Perig)</button>
+        <button type="button" id="scrap-add-btn" class="scrap-add-btn" title="Ajouter au scrapbook">＋</button>
         <button type="button" id="proxy-settings" class="proxy-btn" title="Configurer le proxy CORS pour astéroïdes">⚙</button>
       </nav>
       <nav class="layers" aria-label="Couches visibles">
@@ -25,6 +26,7 @@
         <label class="layer"><input type="checkbox" data-layer="planets" checked> planètes</label>
         <label class="layer"><input type="checkbox" data-layer="midpoints"> mi-points</label>
         <label class="layer"><input type="checkbox" data-layer="asteroids" checked> astéroïdes</label>
+        <label class="layer"><input type="checkbox" data-layer="scrapbook" checked> scrapbook</label>
         <div class="aspects-menu">
           <button type="button" class="aspects-toggle" aria-expanded="false" aria-haspopup="true">
             aspects <span class="aspects-summary">—</span> <span aria-hidden="true">▾</span>
@@ -75,6 +77,55 @@
        par un ancêtre transformé/positionné. Toggle par JS quand le popup
        aspects est ouvert. -->
   <div class="aspects-backdrop" hidden aria-hidden="true"></div>
-  <script type="module" src="app.js?v=18"></script>
+
+  <!-- Scrapbook : dialog d'ajout (formulaire titre + corps + maison). -->
+  <dialog id="scrap-add-dialog" class="scrap-dialog">
+    <form method="dialog" class="scrap-form">
+      <h2>Ajouter au scrapbook</h2>
+      <label class="field">
+        <span>Titre</span>
+        <input type="text" name="title" required maxlength="80" autocomplete="off">
+      </label>
+      <label class="field">
+        <span>Souvenir, note, événement…</span>
+        <textarea name="body" rows="4" maxlength="2000"></textarea>
+      </label>
+      <label class="field">
+        <span>Maison (1–12)</span>
+        <select name="house" required>
+          <option value="">—</option>
+          <option value="1">1 — soi</option>
+          <option value="2">2 — valeurs</option>
+          <option value="3">3 — quotidien</option>
+          <option value="4">4 — foyer</option>
+          <option value="5">5 — création</option>
+          <option value="6">6 — service</option>
+          <option value="7">7 — relations</option>
+          <option value="8">8 — transformation</option>
+          <option value="9">9 — vision</option>
+          <option value="10">10 — ambition</option>
+          <option value="11">11 — communauté</option>
+          <option value="12">12 — transcendance</option>
+        </select>
+      </label>
+      <div class="scrap-actions">
+        <button type="submit" class="scrap-primary">Ajouter</button>
+        <button type="button" onclick="this.closest('dialog').close()">Annuler</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Scrapbook : dialog de détail (affiche + suppression). Édition v2. -->
+  <dialog id="scrap-detail-dialog" class="scrap-dialog">
+    <h2 class="detail-title"></h2>
+    <p class="detail-house"></p>
+    <p class="detail-body"></p>
+    <p class="detail-meta"></p>
+    <div class="scrap-actions">
+      <button type="button" class="detail-delete scrap-danger">Supprimer</button>
+      <button type="button" onclick="this.closest('dialog').close()">Fermer</button>
+    </div>
+  </dialog>
+  <script type="module" src="app.js?v=19"></script>
 </body>
 </html>

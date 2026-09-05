@@ -176,14 +176,21 @@ h1 {
   cursor: pointer;
 }
 
-.controls .proxy-btn {
+.controls .proxy-btn,
+.controls .scrap-add-btn {
   padding: 0.3rem 0.55rem;
   font-size: 1rem;
   opacity: 0.6;
 }
 
-.controls .proxy-btn:hover {
+.controls .proxy-btn:hover,
+.controls .scrap-add-btn:hover {
   opacity: 1;
+}
+
+.controls .scrap-add-btn {
+  color: var(--accent);
+  font-weight: 700;
 }
 
 #chart-container {
@@ -337,6 +344,152 @@ h1 {
 .aspect-digit-7 { fill: #6a2a7a; }
 .aspect-digit-8 { fill: #c07020; }
 .aspect-digit-9 { fill: #2a8080; }
+
+/* Items du scrapbook : petit disque + label court dans l'espace vide central.
+   Cursor pointer, hover marqué pour signaler l'interactivité. Focus visible
+   pour clavier (accessibilité). */
+.scrap-item {
+  cursor: pointer;
+}
+.scrap-dot {
+  fill: var(--accent);
+  opacity: 0.85;
+  transition: opacity 0.15s, transform 0.15s;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.scrap-item:hover .scrap-dot,
+.scrap-item:focus .scrap-dot {
+  opacity: 1;
+  transform: scale(1.25);
+}
+.scrap-label {
+  fill: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-anchor: middle;
+  dominant-baseline: central;
+  opacity: 0.75;
+  pointer-events: none;  /* le clic va au group, pas au label */
+  user-select: none;
+}
+.scrap-item:hover .scrap-label,
+.scrap-item:focus .scrap-label {
+  opacity: 1;
+}
+.scrap-item:focus {
+  outline: none;
+}
+
+/* Dialogs de scrapbook : sobres, cohérents avec la charte. <dialog> natif
+   gère automatiquement le backdrop, la fermeture ESC, le focus trap. */
+.scrap-dialog {
+  border: 1px solid var(--line-medium);
+  border-radius: 4px;
+  padding: 1.2rem 1.4rem;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-serif);
+  max-width: 480px;
+  width: calc(100vw - 2rem);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+}
+.scrap-dialog::backdrop {
+  background: rgba(0,0,0,0.25);
+}
+.scrap-dialog h2 {
+  margin: 0 0 0.8rem;
+  font-size: 1.1rem;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+.scrap-form .field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-bottom: 0.7rem;
+}
+.scrap-form .field span {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--line-medium);
+}
+.scrap-form input,
+.scrap-form textarea,
+.scrap-form select {
+  font-family: var(--font-serif);
+  font-size: 1rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--line-weak);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--ink);
+}
+.scrap-form input:focus,
+.scrap-form textarea:focus,
+.scrap-form select:focus {
+  outline: none;
+  border-color: var(--line-medium);
+}
+.scrap-form textarea {
+  resize: vertical;
+  font-family: var(--font-serif);
+}
+
+.scrap-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+.scrap-actions button {
+  padding: 0.4rem 0.9rem;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  border: 1px solid var(--line-weak);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--line-medium);
+  cursor: pointer;
+  min-height: 36px;
+}
+.scrap-actions button:hover {
+  color: var(--ink);
+  border-color: var(--line-medium);
+}
+.scrap-actions .scrap-primary {
+  background: var(--ink);
+  color: var(--bg);
+  border-color: var(--ink);
+  font-weight: 700;
+}
+.scrap-actions .scrap-primary:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+}
+.scrap-actions .scrap-danger {
+  color: #a03020;
+  border-color: #a03020;
+}
+.scrap-actions .scrap-danger:hover {
+  background: #a03020;
+  color: var(--bg);
+}
+
+.scrap-dialog .detail-body {
+  white-space: pre-wrap;
+  font-family: var(--font-serif);
+  line-height: 1.5;
+  margin: 0.5rem 0;
+}
+.scrap-dialog .detail-house,
+.scrap-dialog .detail-meta {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--line-medium);
+  margin: 0.3rem 0;
+}
 
 /* Menu déroulant "aspects" — regroupe la sélection des harmoniques (1..9)
    et le choix du style de rendu (ligne / chiffre). Placé au premier niveau

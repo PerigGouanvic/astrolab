@@ -155,6 +155,7 @@ const R_PLANET       = 415;   // glyphes planètes à l'extérieur
 const R_PLANET_DEG   = 448;   // degrés au-delà du glyphe
 const R_ASTEROID_DOT = 465;   // astéroïdes encore plus à l'extérieur
 const R_ASTEROID_LBL = 488;   // labels courts
+const R_SCRAP_ITEM   = 200;   // items scrapbook dans l'espace vide central
 const DEG = Math.PI / 180;
 
 function normDeg(d) { return ((d % 360) + 360) % 360; }
@@ -410,6 +411,41 @@ function drawChart({ cusps, ascendant, midheaven, bodies, asteroids }, layers) {
       lastLon = p.lon;
     }
   }
+
+  // Scrapbook (v1) : items ancrés à une maison, placés au centre thématique
+  // de la maison (arc médian × rayon R_SCRAP_ITEM). Si plusieurs items dans
+  // la même maison, décalage angulaire uniforme sur ±20°. Chaque item est
+  // cliquable → ouvre le détail (édition/suppression). Position statique en v1 ;
+  // la physique barycentrique dynamique arrivera en phase C.
+  if (layers.scrapbook && state.scrapbook.length) {
+    const byHouse = new Map();
+    for (const it of state.scrapbook) {
+      if (!byHouse.has(it.house)) byHouse.set(it.house, []);
+      byHouse.get(it.house).push(it);
+    }
+    for (const [houseNum, items] of byHouse) {
+      const houseIdx = houseNum - 1;
+      const lon      = cusps[houseIdx];
+      const nextLon  = cusps[(houseIdx + 1) % 12];
+      if (lon == null || nextLon == null) continue;
+      const arc      = normDeg(nextLon - lon);
+      const midLon   = normDeg(lon + arc / 2);
+      const spread   = Math.min(20, arc * 0.4);  // ±20° max, ou moins si maison étroite
+      const step     = items.length > 1 ? (spread * 2) / (items.length - 1) : 0;
+      items.forEach((it, i) => {
+        const offset  = items.length > 1 ? -spread + i * step : 0;
+        const itemLon = normDeg(midLon + offset);
+        const pt      = project(itemLon, ascLon, R_SCRAP_ITEM);
+        const g       = svg('g', { class: 'scrap-item', 'data-id': it.id, tabindex: '0' });
+        g.appendChild(svg('circle', { cx: pt.x, cy: pt.y, r: 7, class: 'scrap-dot' }));
+        const label = (it.title || '·').slice(0, 10);
+        g.appendChild(svg('text', { x: pt.x, y: pt.y + 20, class: 'scrap-label' }, label));
+        g.addEventListener('click', () => openScrapDetail(it.id));
+        g.addEventListener('keydown', e => { if (e.key === 'Enter') openScrapDetail(it.id); });
+        container.appendChild(g);
+      });
+    }
+  }
 }
 
 // ---------- Table ----------
@@ -446,9 +482,10 @@ const STORAGE_KEY    = 'astrolab.asteroids';
 const LAYERS_KEY     = 'astrolab.layers';
 const HARMONICS_KEY  = 'astrolab.harmonics';
 const ASPECT_STYLE_KEY = 'astrolab.aspectStyle';
+const SCRAPBOOK_KEY  = 'astrolab.scrapbook';
 const DEFAULT_LAYERS = {
   signs: true, houses: true, planets: true,
-  midpoints: false, asteroids: true,
+  midpoints: false, asteroids: true, scrapbook: true,
 };
 const DEFAULT_HARMONICS = [1, 2, 3, 4];  // majeurs classiques (conj, opp, tri, carré)
 function loadStored(key, defaults) {
@@ -472,11 +509,13 @@ let state = {
   harmonics: loadHarmonics(),
   aspectStyle: localStorage.getItem(ASPECT_STYLE_KEY) || 'lines',  // 'lines' | 'digits'
   asteroids: JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'),
+  scrapbook: JSON.parse(localStorage.getItem(SCRAPBOOK_KEY) || '[]'),
 };
 function saveAsteroids()   { localStorage.setItem(STORAGE_KEY,       JSON.stringify(state.asteroids)); }
 function saveLayers()      { localStorage.setItem(LAYERS_KEY,        JSON.stringify(state.layers));    }
 function saveHarmonics()   { localStorage.setItem(HARMONICS_KEY,     JSON.stringify([...state.harmonics].sort((a,b)=>a-b))); }
 function saveAspectStyle() { localStorage.setItem(ASPECT_STYLE_KEY,  state.aspectStyle); }
+function saveScrapbook()   { localStorage.setItem(SCRAPBOOK_KEY,     JSON.stringify(state.scrapbook)); }
 
 function computeBodies(jd) {
   const out = [];
@@ -519,6 +558,72 @@ async function render() {
   );
   drawDataTable({ ascendant: H.ascendant, midheaven: H.midheaven }, bodies, asteroids);
   renderAsteroidChips();
+}
+
+// ---------- Scrapbook : ouverture/édition/suppression ----------
+// Modale d'ajout : formulaire simple (titre, corps, maison).
+// Modale de détail : affichage + suppression.
+// Édition en v1 = suppression + réajout (pas d'update in-place, viendra plus tard).
+function openScrapAdd() {
+  const dlg = document.getElementById('scrap-add-dialog');
+  if (!dlg) return;
+  const form = dlg.querySelector('form');
+  form.reset();
+  dlg.showModal();
+  setTimeout(() => form.querySelector('input[name="title"]').focus(), 50);
+}
+
+function submitScrapAdd(ev) {
+  ev.preventDefault();
+  const form = ev.target;
+  const data = new FormData(form);
+  const item = {
+    id: crypto.randomUUID(),
+    createdAt: Date.now(),
+    title: (data.get('title') || '').trim(),
+    body:  (data.get('body')  || '').trim(),
+    house: parseInt(data.get('house'), 10),
+  };
+  if (!item.title || !item.house || item.house < 1 || item.house > 12) return;
+  state.scrapbook.push(item);
+  saveScrapbook();
+  document.getElementById('scrap-add-dialog').close();
+  render().catch(e => showError('render error: ' + e.message));
+}
+
+function openScrapDetail(id) {
+  const item = state.scrapbook.find(x => x.id === id);
+  if (!item) return;
+  const dlg = document.getElementById('scrap-detail-dialog');
+  if (!dlg) return;
+  dlg.dataset.itemId = id;
+  dlg.querySelector('.detail-title').textContent = item.title || '(sans titre)';
+  dlg.querySelector('.detail-body').textContent  = item.body || '';
+  dlg.querySelector('.detail-house').textContent = 'Maison ' + item.house;
+  const created = new Date(item.createdAt);
+  dlg.querySelector('.detail-meta').textContent =
+    'Ajouté le ' + created.toLocaleDateString('fr-CA') + ' à ' + created.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' });
+  dlg.showModal();
+}
+
+function deleteScrapItem() {
+  const dlg = document.getElementById('scrap-detail-dialog');
+  const id  = dlg.dataset.itemId;
+  if (!id) return;
+  if (!confirm('Supprimer cet item ?')) return;
+  state.scrapbook = state.scrapbook.filter(x => x.id !== id);
+  saveScrapbook();
+  dlg.close();
+  render().catch(e => showError('render error: ' + e.message));
+}
+
+function wireScrapbook() {
+  const addBtn = document.getElementById('scrap-add-btn');
+  if (addBtn) addBtn.addEventListener('click', openScrapAdd);
+  const addForm = document.querySelector('#scrap-add-dialog form');
+  if (addForm) addForm.addEventListener('submit', submitScrapAdd);
+  const deleteBtn = document.querySelector('#scrap-detail-dialog .detail-delete');
+  if (deleteBtn) deleteBtn.addEventListener('click', deleteScrapItem);
 }
 
 // ---------- UI astéroïdes ----------
@@ -625,6 +730,7 @@ function wireControls() {
   wireAspectsMenu();
   wireAsteroidSearch();
   wireProxySettings();
+  wireScrapbook();
 }
 
 function wireAspectsMenu() {
