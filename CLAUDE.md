@@ -12,11 +12,15 @@ Logiciel d'astrologie épuré avec deux enrichissements distincts, visualisation
 - Visualisations **soustractives** : montrer les planètes dans les maisons **sans les signes** ; ou les aspects **seuls**, sans autre considération.
 - Journal utilisateur : indexer des événements vécus à des positions/moments donnés.
 - **Pas de LLM pour l'analyse** dans un premier temps — la valeur vient de la soustraction et du journal.
-- **Séquençage du build (2026-08-06)** — construire en trois strates dans cet ordre :
-  1. **Socle très épuré** : le cercle, les signes, les maisons, les planètes. Rien d'autre. Priorité à l'esthétique sobre.
-  2. **Densification** : ajout de la **gamme des enrichissements** — **par exemple** mi-points, astéroïdes étendus, et **autres spécifications du même genre** (fixed stars, parts arabes, harmoniques, déclinaisons, TNOs, etc. — liste ouverte à préciser avec Perig). À ce stade la logique **soustractive devient le moteur** (sans elle la carte est illisible), pas une feature parmi d'autres.
-  3. **Couches personnelles** : accrétion par planète/maison, journal, scrapbook, synastrie intégrée.
-  Utiliser une lib de calcul existante (type Swiss Ephemeris) — ne pas réinventer le socle astronomique.
+- **Séquençage du build (2026-08-06, actualisé 2026-09-05)** — construire en trois strates dans cet ordre :
+  1. **Socle très épuré** : le cercle, les signes, les maisons, les planètes. ✓ Fait.
+  2. **Densification** : mi-points, astéroïdes MPC à la demande, couches soustractives (moteur), aspects unifiés par harmonique H1..H9 (ligne ou chiffre). ✓ Fait pour l'essentiel — reste optionnel : mode zoom, fixed stars, parts arabes, TNOs.
+  3. **Couches personnelles** — phase A′ amorcée (2026-09-05) : scrapbook double-tap avec cadres textuels/visuels foreignObject, édition inline, images (paste/file), drag/resize, temporalité (retrait vs effacement, slider). Prochaines phases identifiées mais non commencées :
+     - **B** : superposition sélective de planètes natales (sienne + autres personnes) sur le thème du jour, avec style visuel distinct.
+     - **C** : placement barycentrique dynamique (physique force-directed, éléments qui se repoussent, migration au fil des couches actives).
+     - **D** : LLM assistant de placement thématique via OpenRouter (clé utilisateur, modèle au choix, fallback manuel obligatoire).
+     - **E** : empaquetage Capacitor pour publication Play Store.
+  Utiliser une lib de calcul existante (Swiss Ephemeris via `@kuntay/swisseph`) — ne pas réinventer le socle astronomique.
 
 ## Questions ouvertes
 - Spécifications détaillées à venir (Perig a annoncé « plus tard »).
@@ -30,7 +34,8 @@ Logiciel d'astrologie épuré avec deux enrichissements distincts, visualisation
 - Détails et ancrages : voir `florilege-perig/astrolab/manifeste/features-a-venir.md` (carnet de bord).
 
 ## Anti-scope
-- Pas de LLM analytique tant que la soustraction et le journal n'ont pas été éprouvés.
+- Pas de LLM analytique/interprétatif (pas d'oracle astrologique génératif).
+- LLM autorisé en revanche comme **assistant de placement thématique** (routage 12-classes maisons via OpenRouter, cf. mémoire `project_scrapbook_architecture.md` et `reference_llm_via_openrouter.md`) — jamais autoritaire, fallback manuel toujours disponible. Précision apportée le 2026-09-05.
 
 ## Contexte transversal
 Stub issu de la salve de brassage du **2026-07-31**. Nom stabilisé **astrolab** le 2026-08-17 (avant : `_astro/`). Repo public créé le même jour : `PerigGouanvic/astrolab`.
