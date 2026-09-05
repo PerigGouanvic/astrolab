@@ -385,32 +385,49 @@ h1 {
   min-width: 220px;
 }
 
-/* Segmented control (ligne / chiffre) : deux boutons collés, un actif. */
+/* Ligne du panneau : étiquette + contrôle sur la même ligne. */
+.panel-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.panel-label {
+  color: var(--line-medium);
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+}
+
+/* Segmented control (ligne / chiffre) : deux boutons collés côte à côte,
+   fond marqué pour être clairement lisible comme un contrôle interactif. */
 .segmented {
   display: inline-flex;
-  border: 1px solid var(--line-weak);
-  border-radius: 3px;
+  border: 1px solid var(--line-medium);
+  border-radius: 4px;
   overflow: hidden;
-  align-self: center;
+  background: var(--bg);
 }
 .segmented button {
   background: transparent;
   border: none;
-  padding: 0.25rem 0.7rem;
+  padding: 0.35rem 0.9rem;
   cursor: pointer;
   color: var(--line-medium);
   font-family: inherit;
   font-size: inherit;
+  min-height: 32px;
 }
 .segmented button + button {
-  border-left: 1px solid var(--line-weak);
+  border-left: 1px solid var(--line-medium);
 }
 .segmented button:hover {
   color: var(--ink);
+  background: rgba(0,0,0,0.04);
 }
 .segmented button.active {
   background: var(--ink);
   color: var(--bg);
+  font-weight: 700;
 }
 
 /* Grille des harmoniques 1..9 : chips carrées cochables, alignées 3×3.
