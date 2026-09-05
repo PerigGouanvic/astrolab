@@ -432,10 +432,15 @@ function drawScrapItem(container, it) {
   frame.className = 'scrap-frame';
   frame.innerHTML = `
     <span class="scrap-grip" title="Déplacer" aria-label="Déplacer">⋮⋮</span>
-    <button type="button" class="scrap-close" title="Supprimer" aria-label="Supprimer">×</button>
+    <button type="button" class="scrap-img"   title="Insérer une image" aria-label="Insérer une image">🖼</button>
+    <button type="button" class="scrap-close" title="Supprimer"         aria-label="Supprimer">×</button>
+    <input type="file" class="scrap-img-input" accept="image/*" hidden>
     <div class="scrap-text" contenteditable="true" spellcheck="true"></div>
   `;
-  frame.querySelector('.scrap-text').textContent = it.text || '';
+  // innerHTML pour préserver les <br> insérés par contenteditable et
+  // supporter les images en dataURL. Le contenu est user-généré, stocké
+  // localement, jamais rendu depuis une source externe → pas de risque XSS.
+  frame.querySelector('.scrap-text').innerHTML = it.html || it.text || '';
   fo.appendChild(frame);
   container.appendChild(fo);
   wireScrapItem(fo, frame, it);
@@ -446,18 +451,50 @@ function wireScrapItem(fo, frame, it) {
   const textEl   = frame.querySelector('.scrap-text');
   const gripEl   = frame.querySelector('.scrap-grip');
   const closeBtn = frame.querySelector('.scrap-close');
+  const imgBtn   = frame.querySelector('.scrap-img');
+  const imgInput = frame.querySelector('.scrap-img-input');
 
-  // Édition : sauvegarde au blur ; suppression auto si vide.
+  // Édition : sauvegarde en innerHTML (préserve sauts de ligne + images).
+  // Vide (texte ET images) = suppression auto.
   textEl.addEventListener('blur', () => {
-    const val = textEl.textContent.trim();
-    if (!val) { removeScrapItem(it.id); return; }
-    updateScrapItem(it.id, { text: val, updatedAt: Date.now() });
+    const html = textEl.innerHTML;
+    const stripped = textEl.textContent.trim();
+    const hasImg = !!textEl.querySelector('img');
+    if (!stripped && !hasImg) { removeScrapItem(it.id); return; }
+    updateScrapItem(it.id, { html, text: stripped, updatedAt: Date.now() }, true);
+  });
+
+  // Paste d'image depuis le presse-papier (Ctrl/Cmd+V ou coller mobile).
+  textEl.addEventListener('paste', ev => {
+    const items = ev.clipboardData && ev.clipboardData.items;
+    if (!items) return;
+    for (const it of items) {
+      if (it.type && it.type.startsWith('image/')) {
+        ev.preventDefault();
+        const file = it.getAsFile();
+        insertImageFile(textEl, file);
+        return;
+      }
+    }
+    // Sinon on laisse le paste par défaut (texte brut).
+  });
+
+  // Bouton image → ouvre le file picker.
+  imgBtn.addEventListener('click', ev => {
+    ev.stopPropagation();
+    imgInput.click();
+  });
+  imgInput.addEventListener('change', ev => {
+    const file = ev.target.files && ev.target.files[0];
+    if (file) insertImageFile(textEl, file);
+    ev.target.value = '';  // reset pour permettre de re-uploader la même image
   });
 
   // Suppression explicite.
   closeBtn.addEventListener('click', ev => {
     ev.stopPropagation();
-    if (textEl.textContent.trim() && !confirm('Supprimer cet item ?')) return;
+    const hasContent = textEl.textContent.trim() || textEl.querySelector('img');
+    if (hasContent && !confirm('Supprimer cet item ?')) return;
     removeScrapItem(it.id);
   });
 
@@ -510,6 +547,48 @@ function screenToSvg(svgEl, clientX, clientY) {
   const pt = svgEl.createSVGPoint();
   pt.x = clientX; pt.y = clientY;
   return pt.matrixTransform(svgEl.getScreenCTM().inverse());
+}
+
+// Lit un fichier image, redimensionne si trop grand, insère comme <img>
+// avec src=dataURL au caret courant dans le contenteditable.
+function insertImageFile(textEl, file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    // Downscale : les images très grandes explosent le quota localStorage
+    // (~5-10 MB total). Cap à 800 px de large, qualité JPEG raisonnable.
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 800;
+      let w = img.width, h = img.height;
+      if (w > MAX || h > MAX) {
+        const scale = MAX / Math.max(w, h);
+        w = Math.round(w * scale);
+        h = Math.round(h * scale);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+      const insert = document.createElement('img');
+      insert.src = dataUrl;
+      insert.alt = '';
+      insert.style.maxWidth = '100%';
+      textEl.focus();
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0 && textEl.contains(sel.anchorNode)) {
+        const range = sel.getRangeAt(0);
+        range.deleteContents();
+        range.insertNode(insert);
+        range.collapse(false);
+      } else {
+        textEl.appendChild(insert);
+      }
+      textEl.dispatchEvent(new Event('blur'));  // sauvegarde immédiate
+      textEl.focus();
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
 }
 
 // ---------- Table ----------
@@ -700,19 +779,33 @@ function wireScrapbookGestures() {
 
 // Migration : items sauvegardés au format phase-A ({title,body,house}) →
 // nouveau format ({x,y,width,height,text}). Placement par défaut au centre.
+// Clamp aussi les dimensions et positions aberrantes (ancien bug de boucle
+// ResizeObserver a pu laisser des items géants illisibles impossibles à
+// supprimer). Ramène dans un état saisissable.
 function migrateScrapbookItems() {
   let migrated = false;
+  const VIEW = 520;  // demi-largeur du viewBox
   state.scrapbook = state.scrapbook.map(it => {
-    if (it.x !== undefined && it.width !== undefined) return it;
-    migrated = true;
-    return {
-      id: it.id || crypto.randomUUID(),
-      createdAt: it.createdAt || Date.now(),
-      updatedAt: it.createdAt || Date.now(),
-      x: -80, y: -35,
-      width: 160, height: 70,
-      text: [it.title, it.body].filter(Boolean).join('\n'),
-    };
+    if (it.x === undefined || it.width === undefined) {
+      migrated = true;
+      it = {
+        id: it.id || crypto.randomUUID(),
+        createdAt: it.createdAt || Date.now(),
+        updatedAt: it.createdAt || Date.now(),
+        x: -80, y: -35,
+        width: 160, height: 70,
+        text: [it.title, it.body].filter(Boolean).join('\n'),
+      };
+    }
+    // Clamp dimensions : max 500, min 80x50, pour libérer les cases géantes
+    const w = Math.max(80, Math.min(500, it.width  || 160));
+    const h = Math.max(50, Math.min(500, it.height || 70));
+    if (w !== it.width || h !== it.height) { it.width = w; it.height = h; migrated = true; }
+    // Clamp position : dans le viewBox visible
+    const x = Math.max(-VIEW, Math.min(VIEW - w, it.x));
+    const y = Math.max(-VIEW, Math.min(VIEW - h, it.y));
+    if (x !== it.x || y !== it.y) { it.x = x; it.y = y; migrated = true; }
+    return it;
   });
   if (migrated) saveScrapbook();
 }
