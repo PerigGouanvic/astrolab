@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>astrolab — carte natale</title>
-  <link rel="stylesheet" href="style.css?v=9">
+  <link rel="stylesheet" href="style.css?v=10">
 </head>
 <body>
   <main>
@@ -17,8 +17,15 @@
       <nav class="controls">
         <button type="button" data-mode="now" class="active">maintenant</button>
         <button type="button" data-mode="natal">natal (Perig)</button>
-        <label class="toggle"><input type="checkbox" id="show-midpoints"> mi-points</label>
         <button type="button" id="proxy-settings" class="proxy-btn" title="Configurer le proxy CORS pour astéroïdes">⚙</button>
+      </nav>
+      <nav class="layers" aria-label="Couches visibles">
+        <label class="layer"><input type="checkbox" data-layer="signs" checked> signes</label>
+        <label class="layer"><input type="checkbox" data-layer="houses" checked> maisons</label>
+        <label class="layer"><input type="checkbox" data-layer="planets" checked> planètes</label>
+        <label class="layer"><input type="checkbox" data-layer="midpoints"> mi-points</label>
+        <label class="layer"><input type="checkbox" data-layer="asteroids" checked> astéroïdes</label>
+        <label class="layer"><input type="checkbox" data-layer="aspects"> aspects</label>
       </nav>
       <div class="asteroid-search-wrap">
         <input id="asteroid-search" type="text" placeholder="astéroïde par nom ou n° MPC…" autocomplete="off">
@@ -32,6 +39,6 @@
     <section id="chart-data" class="chart-data"></section>
     <pre id="error-box" class="error-box" hidden></pre>
   </main>
-  <script type="module" src="app.js?v=9"></script>
+  <script type="module" src="app.js?v=10"></script>
 </body>
 </html>

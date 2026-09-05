@@ -1,7 +1,10 @@
 // astrolab — strate 2 : Swiss Ephemeris + astéroïdes à la demande
 //   - Sun→Pluto + Chiron + Ceres/Pallas/Juno/Vesta
 //   - Astéroïdes MPC arbitraires (fetch à la demande via proxy CORS)
-//   - Modes maintenant / natal + toggle mi-points + rétrogrades ℞
+//   - Modes maintenant / natal
+//   - Couches soustractives : signes, maisons, planètes, mi-points, astéroïdes, aspects
+//   - Aspects majeurs (conjonction, opposition, trigone, carré, sextile)
+//   - Rétrogrades ℞
 
 // jsDelivr +esm : bundle self-contained avec process.browser=true.
 // esm.sh polyfille process.versions.node truthy → swisseph tente createRequire() → boom.
@@ -174,54 +177,94 @@ function computeMidpoints(bodies) {
   return out;
 }
 
+// ---------- Aspects majeurs ----------
+const ASPECTS = [
+  { key: 'conjunction', angle:   0, orb: 8 },
+  { key: 'opposition',  angle: 180, orb: 8 },
+  { key: 'trine',       angle: 120, orb: 6 },
+  { key: 'square',      angle:  90, orb: 6 },
+  { key: 'sextile',     angle:  60, orb: 4 },
+];
+function angularSeparation(lonA, lonB) {
+  const d = normDeg(lonA - lonB);
+  return d > 180 ? 360 - d : d;
+}
+function computeAspects(bodies) {
+  const out = [];
+  for (let i = 0; i < bodies.length; i++) {
+    for (let j = i + 1; j < bodies.length; j++) {
+      const sep = angularSeparation(bodies[i].lon, bodies[j].lon);
+      for (const a of ASPECTS) {
+        const delta = Math.abs(sep - a.angle);
+        if (delta <= a.orb) {
+          out.push({ a: bodies[i], b: bodies[j], type: a.key, orb: delta });
+          break;
+        }
+      }
+    }
+  }
+  return out;
+}
+
 // ---------- Rendu SVG ----------
-function drawChart({ cusps, ascendant, midheaven, bodies, asteroids }, opts = {}) {
+// La logique soustractive est le moteur : chaque couche est indépendamment
+// affichable / masquable via `layers`. Une couche masquée n'ajoute aucun
+// élément au DOM (pas simplement `display:none`), pour une carte réellement
+// épurée quand on soustrait.
+function drawChart({ cusps, ascendant, midheaven, bodies, asteroids }, layers) {
   const container = document.getElementById('chart');
   container.innerHTML = '';
   const ascLon = ascendant;
 
+  // Anneaux de fond : toujours présents (structure minimale du cercle)
   container.appendChild(svg('circle', { cx: 0, cy: 0, r: R_ZODIAC_OUT, class: 'zodiac-ring' }));
   container.appendChild(svg('circle', { cx: 0, cy: 0, r: R_ZODIAC_IN,  class: 'zodiac-ring' }));
   container.appendChild(svg('circle', { cx: 0, cy: 0, r: R_INNER,      class: 'zodiac-inner' }));
 
-  for (let i = 0; i < 12; i++) {
-    const lon = i * 30;
-    const p1 = project(lon, ascLon, R_ZODIAC_IN);
-    const p2 = project(lon, ascLon, R_ZODIAC_OUT);
-    container.appendChild(svg('line', { x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, class: 'zodiac-divider' }));
-    const gp = project(lon + 15, ascLon, (R_ZODIAC_IN + R_ZODIAC_OUT) / 2);
-    container.appendChild(svg('text', { x: gp.x, y: gp.y, class: 'sign-symbol' }, SIGN_GLYPHS[i]));
-  }
-
-  for (let i = 0; i < 12; i++) {
-    const lon = cusps[i];
-    if (lon == null) continue;
-    const isAngle = (i === 0 || i === 3 || i === 6 || i === 9);
-    const p1 = project(lon, ascLon, R_INNER);
-    const p2 = project(lon, ascLon, R_ZODIAC_IN);
-    container.appendChild(svg('line', {
-      x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y,
-      class: isAngle ? 'house-cusp house-cusp-angle' : 'house-cusp',
-    }));
-    const nextLon = cusps[(i + 1) % 12];
-    if (nextLon != null) {
-      const arc = normDeg(nextLon - lon);
-      const midLon = normDeg(lon + arc / 2);
-      const np = project(midLon, ascLon, R_HOUSE_NUM);
-      container.appendChild(svg('text', { x: np.x, y: np.y, class: 'house-number' }, String(i + 1)));
+  // Signes du zodiaque (glyphes + séparateurs 30°)
+  if (layers.signs) {
+    for (let i = 0; i < 12; i++) {
+      const lon = i * 30;
+      const p1 = project(lon, ascLon, R_ZODIAC_IN);
+      const p2 = project(lon, ascLon, R_ZODIAC_OUT);
+      container.appendChild(svg('line', { x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, class: 'zodiac-divider' }));
+      const gp = project(lon + 15, ascLon, (R_ZODIAC_IN + R_ZODIAC_OUT) / 2);
+      container.appendChild(svg('text', { x: gp.x, y: gp.y, class: 'sign-symbol' }, SIGN_GLYPHS[i]));
     }
   }
 
-  const labels = [
-    { lon: ascLon, text: 'ASC' }, { lon: midheaven, text: 'MC' },
-    { lon: normDeg(ascLon + 180), text: 'DSC' }, { lon: normDeg(midheaven + 180), text: 'IC' },
-  ];
-  for (const l of labels) {
-    const p = project(l.lon, ascLon, R_ZODIAC_OUT + 20);
-    container.appendChild(svg('text', { x: p.x, y: p.y, class: 'angle-label' }, l.text));
+  // Maisons (cusps + numéros) + axes angulaires (ASC/MC/DSC/IC)
+  if (layers.houses) {
+    for (let i = 0; i < 12; i++) {
+      const lon = cusps[i];
+      if (lon == null) continue;
+      const isAngle = (i === 0 || i === 3 || i === 6 || i === 9);
+      const p1 = project(lon, ascLon, R_INNER);
+      const p2 = project(lon, ascLon, R_ZODIAC_IN);
+      container.appendChild(svg('line', {
+        x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y,
+        class: isAngle ? 'house-cusp house-cusp-angle' : 'house-cusp',
+      }));
+      const nextLon = cusps[(i + 1) % 12];
+      if (nextLon != null) {
+        const arc = normDeg(nextLon - lon);
+        const midLon = normDeg(lon + arc / 2);
+        const np = project(midLon, ascLon, R_HOUSE_NUM);
+        container.appendChild(svg('text', { x: np.x, y: np.y, class: 'house-number' }, String(i + 1)));
+      }
+    }
+    const angleLabels = [
+      { lon: ascLon, text: 'ASC' }, { lon: midheaven, text: 'MC' },
+      { lon: normDeg(ascLon + 180), text: 'DSC' }, { lon: normDeg(midheaven + 180), text: 'IC' },
+    ];
+    for (const l of angleLabels) {
+      const p = project(l.lon, ascLon, R_ZODIAC_OUT + 20);
+      container.appendChild(svg('text', { x: p.x, y: p.y, class: 'angle-label' }, l.text));
+    }
   }
 
-  if (opts.showMidpoints) {
+  // Mi-points entre planètes majeures (ticks sur un rayon dédié)
+  if (layers.midpoints && layers.planets) {
     for (const m of computeMidpoints(bodies)) {
       const t1 = project(m.lon, ascLon, R_MIDPOINT);
       const t2 = project(m.lon, ascLon, R_MIDPOINT - 8);
@@ -229,33 +272,50 @@ function drawChart({ cusps, ascendant, midheaven, bodies, asteroids }, opts = {}
     }
   }
 
-  // Astéroïdes personnalisés : petits points + label court, sur un rayon distinct
-  for (const a of asteroids) {
-    const tk1 = project(a.lon, ascLon, R_HOUSE_TICK - 2);
-    const tk2 = project(a.lon, ascLon, R_HOUSE_TICK - 10);
-    container.appendChild(svg('line', { x1: tk1.x, y1: tk1.y, x2: tk2.x, y2: tk2.y, class: 'asteroid-tick' }));
-    const pt = project(a.lon, ascLon, R_ASTEROID);
-    container.appendChild(svg('circle', { cx: pt.x, cy: pt.y, r: 3, class: 'asteroid-dot' }));
-    const lp = project(a.lon, ascLon, R_ASTEROID - 14);
-    container.appendChild(svg('text', { x: lp.x, y: lp.y, class: 'asteroid-label' }, a.name.slice(0, 6)));
+  // Aspects majeurs entre planètes (cordes traversant le cercle intérieur)
+  if (layers.aspects && layers.planets) {
+    for (const asp of computeAspects(bodies)) {
+      const p1 = project(asp.a.lon, ascLon, R_INNER);
+      const p2 = project(asp.b.lon, ascLon, R_INNER);
+      container.appendChild(svg('line', {
+        x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y,
+        class: `aspect aspect-${asp.type}`,
+      }));
+    }
   }
 
-  const sorted = [...bodies].sort((a, b) => normDeg(a.lon - ascLon) - normDeg(b.lon - ascLon));
-  const MIN_SEP = 8;
-  let lastLon = -999, ringOffset = 0;
-  for (const p of sorted) {
-    const sep = normDeg(p.lon - lastLon);
-    if (sep < MIN_SEP && lastLon > -999) ringOffset += 26; else ringOffset = 0;
-    const r = R_PLANET - ringOffset;
-    const pt = project(p.lon, ascLon, r);
-    const tk1 = project(p.lon, ascLon, R_HOUSE_TICK);
-    const tk2 = project(p.lon, ascLon, R_HOUSE_TICK - 12);
-    container.appendChild(svg('line', { x1: tk1.x, y1: tk1.y, x2: tk2.x, y2: tk2.y, class: 'planet-tick' }));
-    container.appendChild(svg('text', { x: pt.x, y: pt.y, class: 'planet-symbol' }, p.glyph));
-    const degInSign = Math.floor(p.lon % 30);
-    const dp = project(p.lon, ascLon, r - 22);
-    container.appendChild(svg('text', { x: dp.x, y: dp.y, class: 'planet-degree' }, degInSign + '°' + (p.retro ? ' ℞' : '')));
-    lastLon = p.lon;
+  // Astéroïdes personnalisés : petits points + label court, sur un rayon distinct
+  if (layers.asteroids) {
+    for (const a of asteroids) {
+      const tk1 = project(a.lon, ascLon, R_HOUSE_TICK - 2);
+      const tk2 = project(a.lon, ascLon, R_HOUSE_TICK - 10);
+      container.appendChild(svg('line', { x1: tk1.x, y1: tk1.y, x2: tk2.x, y2: tk2.y, class: 'asteroid-tick' }));
+      const pt = project(a.lon, ascLon, R_ASTEROID);
+      container.appendChild(svg('circle', { cx: pt.x, cy: pt.y, r: 3, class: 'asteroid-dot' }));
+      const lp = project(a.lon, ascLon, R_ASTEROID - 14);
+      container.appendChild(svg('text', { x: lp.x, y: lp.y, class: 'asteroid-label' }, a.name.slice(0, 6)));
+    }
+  }
+
+  // Planètes majeures + Chiron/Ceres/Pallas/Juno/Vesta
+  if (layers.planets) {
+    const sorted = [...bodies].sort((a, b) => normDeg(a.lon - ascLon) - normDeg(b.lon - ascLon));
+    const MIN_SEP = 8;
+    let lastLon = -999, ringOffset = 0;
+    for (const p of sorted) {
+      const sep = normDeg(p.lon - lastLon);
+      if (sep < MIN_SEP && lastLon > -999) ringOffset += 26; else ringOffset = 0;
+      const r = R_PLANET - ringOffset;
+      const pt = project(p.lon, ascLon, r);
+      const tk1 = project(p.lon, ascLon, R_HOUSE_TICK);
+      const tk2 = project(p.lon, ascLon, R_HOUSE_TICK - 12);
+      container.appendChild(svg('line', { x1: tk1.x, y1: tk1.y, x2: tk2.x, y2: tk2.y, class: 'planet-tick' }));
+      container.appendChild(svg('text', { x: pt.x, y: pt.y, class: 'planet-symbol' }, p.glyph));
+      const degInSign = Math.floor(p.lon % 30);
+      const dp = project(p.lon, ascLon, r - 22);
+      container.appendChild(svg('text', { x: dp.x, y: dp.y, class: 'planet-degree' }, degInSign + '°' + (p.retro ? ' ℞' : '')));
+      lastLon = p.lon;
+    }
   }
 }
 
@@ -290,13 +350,27 @@ function drawDataTable({ ascendant, midheaven }, bodies, asteroids) {
 
 // ---------- État + persistance ----------
 const STORAGE_KEY = 'astrolab.asteroids';
+const LAYERS_KEY = 'astrolab.layers';
+const DEFAULT_LAYERS = {
+  signs: true, houses: true, planets: true,
+  midpoints: false, asteroids: true, aspects: false,
+};
+function loadLayers() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(LAYERS_KEY) || '{}');
+    return { ...DEFAULT_LAYERS, ...stored };
+  } catch { return { ...DEFAULT_LAYERS }; }
+}
 let state = {
   mode: 'now',
-  showMidpoints: false,
+  layers: loadLayers(),
   asteroids: JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'), // array of [mpc, name]
 };
 function saveAsteroids() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.asteroids));
+}
+function saveLayers() {
+  localStorage.setItem(LAYERS_KEY, JSON.stringify(state.layers));
 }
 
 function computeBodies(jd) {
@@ -336,7 +410,7 @@ async function render() {
   const asteroids = computeAsteroids(config.jd);
   drawChart(
     { cusps: H.cusps, ascendant: H.ascendant, midheaven: H.midheaven, bodies, asteroids },
-    { showMidpoints: state.showMidpoints },
+    state.layers,
   );
   drawDataTable({ ascendant: H.ascendant, midheaven: H.midheaven }, bodies, asteroids);
   renderAsteroidChips();
@@ -434,9 +508,14 @@ function wireControls() {
       render().catch(e => showError('render error: ' + e.message));
     });
   });
-  document.getElementById('show-midpoints').addEventListener('change', e => {
-    state.showMidpoints = e.target.checked;
-    render().catch(err => showError('render error: ' + err.message));
+  document.querySelectorAll('.layers input[data-layer]').forEach(inp => {
+    const key = inp.dataset.layer;
+    inp.checked = !!state.layers[key];
+    inp.addEventListener('change', e => {
+      state.layers[key] = e.target.checked;
+      saveLayers();
+      render().catch(err => showError('render error: ' + err.message));
+    });
   });
   wireAsteroidSearch();
   wireProxySettings();
