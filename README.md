@@ -1,27 +1,36 @@
 # astrolab
 
-**Statut** : actif — strate 2 aboutie + **strate 3 phase A′ amorcée** (scrapbook : cadres textuels/visuels au double-tap, avec images, sauts de ligne, drag/resize, temporalité). Nom stabilisé 2026-08-17 (ex-`_astro/`).
+**Statut** : redémarrage from-scratch en Three.js + Vite (2026-09-06). Code SVG d'avant le pivot archivé via `git rm` (commit `3f87429`), récupérable dans l'historique.
 
-**Intention** : Logiciel d'astrologie épuré avec deux enrichissements **distincts** — (a) calcul des **mi-points** entre corps, (b) intégration d'un large corpus d'**astéroïdes**. Visualisations soustractives (planètes×maisons sans signes ; aspects seuls, sans autre considération). Journal utilisateur pour indexer des événements vécus à des positions/moments.
+**Intention** : point de rencontre astronomie ↔ astrologie. Une seule scène 3D — la Terre au centre, la sphère céleste autour, deux régimes de vue soustractifs (astrologue au-dessus du plan de l'écliptique, astronome au sommet Terre) qui ne sont que deux positions de caméra sur cette même scène. Visualisations soustractives (planètes×maisons sans signes ; aspects seuls) étendues au niveau des régimes de vue. Journal utilisateur biographique déposé sur points fixes du ciel (points natals, mi-points, étoiles, constellations personnelles) — chaque point devient portail vers une profondeur scrapbook. Constellations personnelles émergent des convergences de points natals de plusieurs personnes (familles, cercles), rendues comme amas ouverts avec nébulosité biographique par sommation.
 
-**Pas de LLM pour l'analyse** dans un premier temps — on privilégie la soustraction et le journal.
+**Pas de LLM pour l'analyse** — la valeur vient de la soustraction, du journal, et de la vraie 3D. LLM autorisé plus tard comme assistant de placement thématique (OpenRouter, clé utilisateur, fallback manuel obligatoire).
 
-## App
+## Manifeste et décisions
 
-Fichiers à la racine du repo (contrainte GitHub Pages) : `index.html`, `style.css`, `app.js`. Version web statique HTML+SVG+JS pur, pas de build. Ouvrir `index.html` en local ou consulter la version déployée : https://periggouanvic.github.io/astrolab/
+- Manifeste principale : [`florilege-perig/astrolab/manifeste/2026-09-06_bifurcation-3d-native.md`](https://github.com/PerigGouanvic/florilege-perig/blob/main/astrolab/manifeste/2026-09-06_bifurcation-3d-native.md) — ontologie fixe/orbitant, constellations personnelles, scrapbook nébuleux, bifurcation 3D-native, stack retenue, transition astrologue↔astronome par la Terre au centre.
+- Addendum placement Terre et échelles : [`2026-09-06_addendum-terre-camera-echelles.md`](https://github.com/PerigGouanvic/florilege-perig/blob/main/astrolab/manifeste/2026-09-06_addendum-terre-camera-echelles.md) — vue astrologue = caméra normale à l'écliptique ; R_CELESTE=100, R_TERRE=8 ; Terre orientée selon plan horizontal du lieu.
+- Décisions consolidées et contexte de travail : `CLAUDE.md` voisin.
 
-Lib de calcul : **Swiss Ephemeris 2.10.03** via [`@kuntay/swisseph`](https://www.npmjs.com/package/@kuntay/swisseph) chargée en ESM depuis jsDelivr (WASM 230 KB brotli, sans fichiers `.se1` en mode Moshier ; téléchargement des `.se1` via `FetchEphemeris` pour Chiron + astéroïdes majeurs). Deux modes commutables : **maintenant** (Montréal, temps réel) et **natal (Perig)**. Rétrogrades marqués ℞.
+## Stack
 
-**Couches soustractives** : chaque strate visuelle est indépendamment activable / masquable — signes, maisons, planètes, mi-points, astéroïdes, aspects. Une couche masquée n'ajoute aucun élément au DOM (pas simplement `display:none`). Persistance localStorage. La soustraction est le moteur : on lit la carte en ne gardant que ce qu'on veut voir (par ex. planètes×maisons sans signes, ou aspects seuls).
+- **Three.js** — rendu 3D unique, scène soustractive.
+- **Astronomy Engine** (cosinekitty, MIT) — positions planétaires + transformations de coordonnées, côté client, sans contamination de licence.
+- **HYG database** (mag<6 pour l'instant, extensible) — étoiles fixes.
+- **Vite** — bundler / dev server. GitHub Pages via workflow Actions (`vite build` → publier `dist/`).
 
-**Aspects majeurs** : conjonction (8°), opposition (8°), trigone (6°), carré (6°), sextile (4°). Rendus en cordes traversant le cercle intérieur, couleurs sobres (tensions en accent brun, harmoniques en bleu discret).
+Pas de Swiss Ephemeris côté client (AGPL). Swiss Ephemeris peut rester utile pour des scripts build (astéroïdes) mais ne rentre jamais dans le bundle.
 
-**Astéroïdes à la demande** : recherche par nom ou n° MPC dans le catalogue de ~27 300 astéroïdes nommés (`asteroids.json`). Ajout dynamique → fetch du fichier `.se1` via proxy CORS → mount dans le WASM → position calculée. Liste persistée en localStorage. Voir [`proxy/README.md`](proxy/README.md) pour déployer le proxy (Deno Deploy gratuit, 5 min).
+## Séquencement du build (post-pivot)
 
-> **Licence** : Swiss Ephemeris est AGPL-3.0-or-later. Cette app, publiée en source ouverte sur GitHub Pages, hérite de la contrainte AGPL — à formaliser par un fichier `LICENSE` explicite (à venir).
+1. Historique SVG (2026-08 → 2026-09-05) — archivé via `git rm` ✓
+2. Base 3D : scène Three.js, sphère céleste, Terre stylisée orientée, planètes vraies, étoiles HYG mag<6. Deux positions de caméra pré-réglées.
+3. Signes, maisons, aspects rebâtis en 3D (cordes 3D dans la sphère céleste, cuspides Placidus).
+4. Transition astrologue ↔ astronome animée, portail Terre.
+5. Couches personnelles 3D natives — constellations personnelles (amas ouverts), scrapbook sur points fixes, nébulosité émergente, voyage temporel via planètes-poignées, rétrogradation-friction.
+6. LLM assistant de placement thématique via OpenRouter.
+7. Empaquetage Capacitor pour Play Store.
 
-## Séquencement du build
+## Repo
 
-1. **Socle épuré** (fait) — cercle, signes, maisons Placidus, planètes. Priorité à l'esthétique sobre.
-2. **Densification** (aboutie pour l'essentiel) — mi-points ✓, astéroïdes majeurs ✓, migration Swiss Ephemeris ✓, astéroïdes arbitraires à la demande ✓, **couches soustractives** ✓, **aspects unifiés par harmonique H1..H9** ✓ (avec rendu ligne ou chiffre), refonte visuelle (glyphes extérieurs, axes traversants, ceinture fine, ticks 1°) ✓. Reste optionnel : mode zoom (SVG viewBox), fixed stars, parts arabes, TNOs.
-3. **Couches personnelles** (phase A′ scrapbook amorcée) — items textuels/visuels créés au double-tap sur le chart, éditables inline (contenteditable), images collables (paste/file), drag/resize, temporalité (retrait vs effacement, slider temporel). Prochaines phases : planètes natales superposables sélectivement, LLM assistant de placement barycentrique via OpenRouter, empaquetage Capacitor pour Play Store.
+[`PerigGouanvic/astrolab`](https://github.com/PerigGouanvic/astrolab). Ancien déploiement statique GitHub Pages à `https://periggouanvic.github.io/astrolab/` restera cassé jusqu'au premier rebuild via workflow Actions (à venir).
