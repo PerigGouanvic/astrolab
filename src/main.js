@@ -1,2 +1,12 @@
-// astrolab — point d'entrée. Bootstrap Vite, la scène 3D arrive juste après.
-console.log('astrolab bootstrap ok — scene wiring vient à la task #8');
+// astrolab — point d'entrée.
+// Charge la scène 3D unique et lance la boucle de rendu.
+
+import { createScene } from './scene.js';
+
+const canvas = document.getElementById('scene');
+if (!canvas) throw new Error('#scene canvas introuvable');
+
+const { animate } = createScene(canvas);
+animate();
+
+// Le HUD (boutons astrologue/astronome) est câblé à la task #12.
