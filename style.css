@@ -165,15 +165,25 @@ h1 {
   gap: 0.5rem;
 }
 
-.config-row select {
+.config-row select,
+.config-btn {
   font-family: inherit;
   font-size: inherit;
   background: transparent;
   color: var(--ink);
   border: 1px solid var(--line-weak);
   border-radius: 3px;
-  padding: 0.15rem 0.3rem;
+  padding: 0.15rem 0.4rem;
   cursor: pointer;
+}
+
+.config-btn:hover {
+  border-color: var(--line-medium);
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.config-label {
+  color: var(--line-medium);
 }
 
 .controls .proxy-btn {
@@ -247,6 +257,10 @@ h1 {
   width: 100%;
   height: 100%;
   display: block;
+  /* Empêche le double-tap-to-zoom du navigateur mobile de manger le second
+     tap destiné à notre détection manuelle de double-tap (scrapbook).
+     `manipulation` garde pan et pinch-zoom à deux doigts. */
+  touch-action: manipulation;
 }
 
 /* SVG element styles */
@@ -399,19 +413,21 @@ h1 {
 }
 
 .scrap-frame {
+  /* --scrap-scale est posé en inline par wireScrapItem/drawScrapItem
+     (dérivé de sqrt(area / baseArea)) et pilote les tailles intérieures
+     — texte, paddings, boutons — pour que le contenu grossisse avec le
+     cadre tout en laissant width/height libres (ratio ajustable). */
+  --scrap-scale: 1;
   box-sizing: border-box;
   position: relative;
   background: rgba(255, 253, 245, 0.92);
   border: 1px solid rgba(122, 74, 42, 0.45);
   border-radius: 8px;
   font-family: var(--font-serif);
-  font-size: 12px;
+  font-size: calc(12px * var(--scrap-scale));
   color: var(--ink);
-  min-width: 80px;
-  min-height: 50px;
   width: 100%;
   height: 100%;
-  resize: both;
   overflow: hidden;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
@@ -428,14 +444,14 @@ h1 {
 
 .scrap-grip {
   position: absolute;
-  top: 2px;
-  left: 4px;
+  top: calc(2px * var(--scrap-scale));
+  left: calc(4px * var(--scrap-scale));
   color: var(--accent);
-  font-size: 11px;
+  font-size: calc(11px * var(--scrap-scale));
   line-height: 1;
   opacity: 0.5;
   cursor: grab;
-  padding: 3px 4px;
+  padding: calc(3px * var(--scrap-scale)) calc(4px * var(--scrap-scale));
   user-select: none;
   touch-action: none;
   letter-spacing: -2px;
@@ -450,18 +466,18 @@ h1 {
 /* Bouton image : coin haut-droite, à gauche du ×. */
 .scrap-img {
   position: absolute;
-  top: 1px;
-  right: 26px;
+  top: calc(1px * var(--scrap-scale));
+  right: calc(26px * var(--scrap-scale));
   background: transparent;
   border: none;
   color: var(--accent);
   cursor: pointer;
-  font-size: 12px;
+  font-size: calc(12px * var(--scrap-scale));
   line-height: 1;
-  padding: 3px 5px;
+  padding: calc(3px * var(--scrap-scale)) calc(5px * var(--scrap-scale));
   opacity: 0.5;
-  min-width: 22px;
-  min-height: 22px;
+  min-width: calc(22px * var(--scrap-scale));
+  min-height: calc(22px * var(--scrap-scale));
   transition: opacity 0.15s;
   z-index: 2;
 }
@@ -473,18 +489,18 @@ h1 {
    il n'y a pas de hover et il faut pouvoir supprimer un item cassé. */
 .scrap-close {
   position: absolute;
-  top: 1px;
-  right: 3px;
+  top: calc(1px * var(--scrap-scale));
+  right: calc(3px * var(--scrap-scale));
   background: transparent;
   border: none;
   color: var(--accent);
   cursor: pointer;
-  font-size: 14px;
+  font-size: calc(14px * var(--scrap-scale));
   line-height: 1;
-  padding: 3px 6px;
+  padding: calc(3px * var(--scrap-scale)) calc(6px * var(--scrap-scale));
   opacity: 0.5;
-  min-width: 22px;
-  min-height: 22px;
+  min-width: calc(22px * var(--scrap-scale));
+  min-height: calc(22px * var(--scrap-scale));
   transition: opacity 0.15s;
   z-index: 2;
 }
@@ -495,12 +511,36 @@ h1 {
   color: #a03020;
 }
 
+/* Poignée de redimensionnement : coin bas-droit. Remplace CSS `resize: both`
+   qui n'a aucune poignée visible/utilisable sur mobile. Wire pointer events
+   dans wireScrapItem — permet d'agrandir ou de rapetisser librement, pour
+   donner à la taille d'une note une valeur signifiante (petite note = petite
+   observation, grande note = développement). */
+.scrap-resize {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  color: var(--accent);
+  font-size: calc(14px * var(--scrap-scale));
+  line-height: 1;
+  opacity: 0.5;
+  cursor: nwse-resize;
+  padding: calc(4px * var(--scrap-scale)) calc(5px * var(--scrap-scale)) calc(2px * var(--scrap-scale)) calc(8px * var(--scrap-scale));
+  user-select: none;
+  touch-action: none;
+  transition: opacity 0.15s;
+  z-index: 2;
+}
+.scrap-frame:hover .scrap-resize,
+.scrap-frame:focus-within .scrap-resize { opacity: 0.85; }
+.scrap-resize:hover { opacity: 1 !important; }
+
 /* Zone de texte : tout le cadre. Padding-top plus grand pour laisser
    la place aux mini-contrôles sans qu'ils recouvrent le texte. */
 .scrap-text {
   width: 100%;
   height: 100%;
-  padding: 22px 10px 8px;
+  padding: calc(22px * var(--scrap-scale)) calc(10px * var(--scrap-scale)) calc(16px * var(--scrap-scale));
   box-sizing: border-box;
   outline: none;
   overflow-y: auto;

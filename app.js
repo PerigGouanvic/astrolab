@@ -37,7 +37,7 @@ window.addEventListener('unhandledrejection', e => {
 // Fallback v4-like via Math.random pour servir en http://nom-tailscale sur mobile.
 function genId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return genId();
+    return crypto.randomUUID();
   }
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
     const r = Math.random() * 16 | 0;
@@ -459,6 +459,21 @@ function isItemVisibleAt(item, t) {
   return true;
 }
 
+// Dimensions "canoniques" servant uniquement de référence pour calculer le
+// facteur `--scrap-scale` (CSS custom property) qui pilote la taille du
+// contenu intérieur. width/height eux restent libres — on peut étirer le
+// cadre dans n'importe quel ratio, comme dans toute app graphique.
+const SCRAP_BASE_W = 160;
+const SCRAP_BASE_H = 70;
+const SCRAP_BASE_AREA = SCRAP_BASE_W * SCRAP_BASE_H;
+
+// Facteur appliqué au contenu intérieur (texte, boutons, padding). Racine
+// carrée du ratio de surface : étirer un cadre augmente modérément le texte,
+// plutôt que linéairement avec une seule dimension.
+function scrapContentScale(w, h) {
+  return Math.max(0.4, Math.min(5, Math.sqrt((w * h) / SCRAP_BASE_AREA)));
+}
+
 // ---------- Scrapbook : rendu d'un item ----------
 function drawScrapItem(container, it) {
   const fo = svg('foreignObject', {
@@ -467,12 +482,14 @@ function drawScrapItem(container, it) {
   });
   const frame = document.createElementNS('http://www.w3.org/1999/xhtml', 'div');
   frame.className = 'scrap-frame';
+  frame.style.setProperty('--scrap-scale', scrapContentScale(it.width, it.height));
   frame.innerHTML = `
     <span class="scrap-grip" title="Déplacer" aria-label="Déplacer">⋮⋮</span>
     <button type="button" class="scrap-img"   title="Insérer une image" aria-label="Insérer une image">🖼</button>
     <button type="button" class="scrap-close" title="Supprimer"         aria-label="Supprimer">×</button>
     <input type="file" class="scrap-img-input" accept="image/*" hidden>
     <div class="scrap-text" contenteditable="true" spellcheck="true"></div>
+    <span class="scrap-resize" title="Redimensionner" aria-label="Redimensionner">⇲</span>
   `;
   // innerHTML pour préserver les <br> insérés par contenteditable et
   // supporter les images en dataURL. Le contenu est user-généré, stocké
@@ -556,7 +573,7 @@ function wireScrapItem(fo, frame, it) {
   // Empêcher le 'click' bubbler (déjà géré par pointer)
   closeBtn.addEventListener('click', ev => ev.stopPropagation());
 
-  // Drag depuis le grip.
+  // Drag depuis le grip : met à jour x,y du foreignObject.
   gripEl.addEventListener('pointerdown', ev => {
     ev.preventDefault();
     gripEl.setPointerCapture(ev.pointerId);
@@ -581,24 +598,39 @@ function wireScrapItem(fo, frame, it) {
     gripEl.addEventListener('pointercancel', onUp);
   });
 
-  // Resize : observer border-box (taille totale du frame incluant border/padding)
-  // et l'appliquer telle quelle au foreignObject, sans offset — évite la boucle
-  // infinie de croissance qu'introduisait un `+ padding` naïf sur content-box.
-  // Garde d'égalité en plus pour bloquer toute oscillation potentielle.
-  const ro = new ResizeObserver(entries => {
-    for (const e of entries) {
-      const box = e.borderBoxSize && e.borderBoxSize[0];
-      const w = Math.round(box ? box.inlineSize : e.contentRect.width);
-      const h = Math.round(box ? box.blockSize  : e.contentRect.height);
-      if (w < 60 || h < 40) continue;
-      if (Math.abs(w - it.width) < 1 && Math.abs(h - it.height) < 1) continue;
+  // Resize : poignée coin bas-droit → modifie width et height **indépendamment**
+  // (ratio libre comme toute app graphique classique). Le contenu intérieur
+  // (texte, images, boutons, padding) scale automatiquement via la variable
+  // CSS `--scrap-scale` dérivée de la surface du cadre — étirer agrandit
+  // modérément le texte, ne pas étirer garde la taille actuelle. Bornes :
+  // min 60×40 (lisibilité préservée), max 500 (viewBox).
+  const resizeEl = frame.querySelector('.scrap-resize');
+  resizeEl.addEventListener('pointerdown', ev => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    resizeEl.setPointerCapture(ev.pointerId);
+    const svgEl = fo.ownerSVGElement;
+    const start = screenToSvg(svgEl, ev.clientX, ev.clientY);
+    const originW = it.width, originH = it.height;
+    const onMove = e => {
+      const cur = screenToSvg(svgEl, e.clientX, e.clientY);
+      const w = Math.max(60, Math.min(500, originW + (cur.x - start.x)));
+      const h = Math.max(40, Math.min(500, originH + (cur.y - start.y)));
       it.width = w; it.height = h;
       fo.setAttribute('width',  w);
       fo.setAttribute('height', h);
-      updateScrapItem(it.id, { width: w, height: h }, true);
-    }
+      frame.style.setProperty('--scrap-scale', scrapContentScale(w, h));
+    };
+    const onUp = () => {
+      resizeEl.removeEventListener('pointermove', onMove);
+      resizeEl.removeEventListener('pointerup', onUp);
+      resizeEl.removeEventListener('pointercancel', onUp);
+      updateScrapItem(it.id, { width: it.width, height: it.height, updatedAt: Date.now() }, true);
+    };
+    resizeEl.addEventListener('pointermove', onMove);
+    resizeEl.addEventListener('pointerup',   onUp);
+    resizeEl.addEventListener('pointercancel', onUp);
   });
-  ro.observe(frame, { box: 'border-box' });
 }
 
 function screenToSvg(svgEl, clientX, clientY) {
@@ -799,13 +831,15 @@ function purgeScrapItem(id) {
 function removeScrapItem(id) { purgeScrapItem(id); }
 
 function createScrapItemAt(x, y) {
-  // Cadre par défaut centré sur le point de tap (offset moitié taille).
-  const width = 160, height = 70;
+  // Dimensions par défaut modestes — la note démarre petite, l'utilisateur
+  // étire via la poignée ⇲ (ratio libre, le texte scale avec la surface).
+  const width = 120, height = 50;
   const item = {
     id: genId(),
     createdAt: Date.now(),
     updatedAt: Date.now(),
-    x: x - width / 2, y: y - height / 2,
+    x: x - width / 2,
+    y: y - height / 2,
     width, height,
     text: '',
   };
@@ -851,31 +885,38 @@ function wireScrapbookGestures() {
   });
 }
 
-// Migration : items sauvegardés au format phase-A ({title,body,house}) →
-// nouveau format ({x,y,width,height,text}). Placement par défaut au centre.
-// Clamp aussi les dimensions et positions aberrantes (ancien bug de boucle
-// ResizeObserver a pu laisser des items géants illisibles impossibles à
-// supprimer). Ramène dans un état saisissable.
+// Migration : trois formats historiques peuvent coexister dans localStorage.
+// (a) phase-A pur : {title, body, house} → placement centre.
+// (b) scale-only (bref essai v27) : {x, y, scale, text} → calcule w/h depuis scale.
+// (c) format courant : {x, y, width, height, html|text}.
 function migrateScrapbookItems() {
   let migrated = false;
   const VIEW = 520;  // demi-largeur du viewBox
   state.scrapbook = state.scrapbook.map(it => {
-    if (it.x === undefined || it.width === undefined) {
+    // (a) format phase-A pur : pas de x/y encore.
+    if (it.x === undefined) {
       migrated = true;
       it = {
         id: it.id || genId(),
         createdAt: it.createdAt || Date.now(),
         updatedAt: it.createdAt || Date.now(),
-        x: -80, y: -35,
-        width: 160, height: 70,
+        x: -SCRAP_BASE_W / 2, y: -SCRAP_BASE_H / 2,
+        width: SCRAP_BASE_W, height: SCRAP_BASE_H,
         text: [it.title, it.body].filter(Boolean).join('\n'),
       };
     }
-    // Clamp dimensions : max 500, min 80x50, pour libérer les cases géantes
-    const w = Math.max(80, Math.min(500, it.width  || 160));
-    const h = Math.max(50, Math.min(500, it.height || 70));
+    // (b) format scale-only (v27 éphémère) : reconvertit en width/height.
+    if (it.scale !== undefined && it.width === undefined) {
+      it.width  = SCRAP_BASE_W * it.scale;
+      it.height = SCRAP_BASE_H * it.scale;
+      delete it.scale;
+      migrated = true;
+    }
+    // (c) clamp dimensions : min 60×40 (lisibilité), max 500 (viewBox).
+    const w = Math.max(60, Math.min(500, it.width  || 120));
+    const h = Math.max(40, Math.min(500, it.height || 50));
     if (w !== it.width || h !== it.height) { it.width = w; it.height = h; migrated = true; }
-    // Clamp position : dans le viewBox visible
+    // Clamp position : dans le viewBox visible.
     const x = Math.max(-VIEW, Math.min(VIEW - w, it.x));
     const y = Math.max(-VIEW, Math.min(VIEW - h, it.y));
     if (x !== it.x || y !== it.y) { it.x = x; it.y = y; migrated = true; }
@@ -990,6 +1031,95 @@ function wireControls() {
   wireProxySettings();
   wireScrapbookGestures();
   wireTimeSlider();
+  wireDataExportImport();
+}
+
+// Export / Import : snapshot complet du localStorage sous le préfixe
+// `astrolab.`, format JSON unique avec dataURL inline pour les images.
+// Un seul fichier à transporter = la personne repart avec SES données,
+// peut les recharger chez elle ou les partager plus tard. Pas d'infra ZIP
+// pour l'instant — tant que les images sont capées à 800 px, le JSON reste
+// raisonnable (quelques Mo max pour des dizaines d'items).
+const DATA_EXPORT_VERSION = 1;
+
+function collectAstrolabStorage() {
+  const data = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith('astrolab.')) data[k] = localStorage.getItem(k);
+  }
+  return data;
+}
+
+function exportData() {
+  const payload = {
+    app: 'astrolab',
+    version: DATA_EXPORT_VERSION,
+    exportedAt: new Date().toISOString(),
+    data: collectAstrolabStorage(),
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+  a.href = url;
+  a.download = `astrolab-${stamp}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function importData(file) {
+  const text = await file.text();
+  let payload;
+  try { payload = JSON.parse(text); }
+  catch (e) { throw new Error('fichier JSON invalide : ' + e.message); }
+  if (!payload || payload.app !== 'astrolab' || !payload.data) {
+    throw new Error('format inattendu — ce JSON ne vient pas d\'un export astrolab.');
+  }
+  // Écrase les clés astrolab.* existantes avec le contenu importé. Les
+  // autres clés localStorage (d'autres apps sur le même domaine) restent
+  // intactes. L'utilisateur a confirmé avant d'arriver ici.
+  for (const k of Object.keys(localStorage)) {
+    if (k.startsWith('astrolab.')) localStorage.removeItem(k);
+  }
+  for (const [k, v] of Object.entries(payload.data)) {
+    if (k.startsWith('astrolab.') && typeof v === 'string') localStorage.setItem(k, v);
+  }
+}
+
+function wireDataExportImport() {
+  const exportBtn = document.getElementById('data-export');
+  const importBtn = document.getElementById('data-import');
+  const fileInput = document.getElementById('data-import-file');
+  if (!exportBtn || !importBtn || !fileInput) return;
+
+  exportBtn.addEventListener('click', () => {
+    try { exportData(); }
+    catch (e) { showError('export : ' + e.message); }
+  });
+
+  importBtn.addEventListener('click', () => {
+    const n = Object.keys(localStorage).filter(k => k.startsWith('astrolab.')).length;
+    const warning = n
+      ? `Importer un snapshot ÉCRASE les ${n} entrées locales (scrapbook, astéroïdes, couches, préférences). Continuer ?`
+      : 'Importer un snapshot JSON astrolab ?';
+    if (!confirm(warning)) return;
+    fileInput.click();
+  });
+
+  fileInput.addEventListener('change', async ev => {
+    const file = ev.target.files && ev.target.files[0];
+    ev.target.value = '';  // reset pour permettre de ré-importer le même fichier
+    if (!file) return;
+    try {
+      await importData(file);
+      location.reload();
+    } catch (e) {
+      showError('import : ' + e.message);
+    }
+  });
 }
 
 // Slider temporel : permet de naviguer entre le plus ancien createdAt du
