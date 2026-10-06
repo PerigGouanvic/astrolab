@@ -33,6 +33,19 @@ window.addEventListener('unhandledrejection', e => {
   showError('unhandled promise: ' + (e.reason && (e.reason.stack || e.reason.message || e.reason)));
 });
 
+// crypto.randomUUID n'existe qu'en contexte sécurisé (HTTPS ou localhost).
+// Fallback v4-like via Math.random pour servir en http://nom-tailscale sur mobile.
+function genId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return genId();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
 // ---------- Bootstrap Swiss Ephemeris ----------
 let sweMod;
 let swe;
@@ -789,7 +802,7 @@ function createScrapItemAt(x, y) {
   // Cadre par défaut centré sur le point de tap (offset moitié taille).
   const width = 160, height = 70;
   const item = {
-    id: crypto.randomUUID(),
+    id: genId(),
     createdAt: Date.now(),
     updatedAt: Date.now(),
     x: x - width / 2, y: y - height / 2,
@@ -850,7 +863,7 @@ function migrateScrapbookItems() {
     if (it.x === undefined || it.width === undefined) {
       migrated = true;
       it = {
-        id: it.id || crypto.randomUUID(),
+        id: it.id || genId(),
         createdAt: it.createdAt || Date.now(),
         updatedAt: it.createdAt || Date.now(),
         x: -80, y: -35,
