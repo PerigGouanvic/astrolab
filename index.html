@@ -7,23 +7,24 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>astrolab — carte natale</title>
-  <link rel="stylesheet" href="style.css?v=35">
+  <link rel="stylesheet" href="style.css?v=40">
 </head>
 <body>
   <main>
+    <div id="chart-header-fixed">
+      <h1 id="chart-title">Maintenant</h1>
+      <p id="chart-info" class="chart-info"></p>
+    </div>
     <div id="chart-container">
       <svg id="chart" viewBox="-520 -520 1040 1040" xmlns="http://www.w3.org/2000/svg"></svg>
     </div>
     <div id="timeline-container">
       <svg id="timeline" viewBox="0 0 800 260" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"></svg>
     </div>
-    <section id="chart-data" class="chart-data"></section>
     <pre id="error-box" class="error-box" hidden></pre>
     <aside id="controls-sheet" class="sheet sheet-peek" aria-label="Contrôles">
       <button type="button" class="sheet-handle" aria-label="Déplier ou replier les contrôles" aria-expanded="false"></button>
     <header>
-      <h1 id="chart-title">Maintenant</h1>
-      <p id="chart-info" class="chart-info"></p>
       <nav class="controls">
         <button type="button" data-mode="now" class="active">maintenant</button>
         <button type="button" data-mode="natal">natal (Perig)</button>
@@ -87,6 +88,7 @@
         <div id="asteroid-dropdown" class="asteroid-dropdown" hidden></div>
       </div>
       <div id="asteroid-chips" class="asteroid-chips"></div>
+      <section id="chart-data" class="chart-data"></section>
     </header>
     </aside>
   </main>
@@ -95,6 +97,6 @@
        aspects est ouvert. -->
   <div class="aspects-backdrop" hidden aria-hidden="true"></div>
 
-  <script type="module" src="app.js?v=39"></script>
+  <script type="module" src="app.js?v=46"></script>
 </body>
 </html>

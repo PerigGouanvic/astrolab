@@ -128,6 +128,14 @@ const EXTENDED = [
 ];
 const SIGN_GLYPHS = ['♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓'].map(g => g + VS15);
 
+// Scales de glyphes planétaires. L'infra `--planet-scale` par <text> est en
+// place (voir le render ci-dessous + CSS .planet-symbol) mais pas alimentée
+// pour l'instant : la mesure auto Canvas/SVG a été écartée (ne couvre pas les
+// corps célestes inventés sans glyphe, et harmonisation visuelle imparfaite).
+// Le futur atelier de création de glyphes alimentera PLANET_SCALES à la main.
+// Voir fiche memory/project_feature_atelier_glyphes.md.
+const PLANET_SCALES = {};
+
 // ---------- Astéroïdes : catalogue + fetch/mount à la demande ----------
 let catalogPromise;
 async function loadCatalog() {
@@ -421,7 +429,11 @@ function drawChart({ cusps, ascendant, midheaven, bodies, asteroids }, layers) {
       const tk1 = project(p.lon, ascLon, R_PLANET_TICK);
       const tk2 = project(p.lon, ascLon, R_PLANET_TICK_END);
       container.appendChild(svg('line', { x1: tk1.x, y1: tk1.y, x2: tk2.x, y2: tk2.y, class: 'planet-tick' }));
-      container.appendChild(svg('text', { x: pt.x, y: pt.y, class: 'planet-symbol' }, p.glyph));
+      container.appendChild(svg('text', {
+        x: pt.x, y: pt.y, class: 'planet-symbol',
+        'data-planet': p.key,
+        style: `--planet-scale: ${PLANET_SCALES[p.key] || 1}`
+      }, p.glyph));
       const degInSign = Math.floor(p.lon % 30);
       const dp = project(p.lon, ascLon, rDeg);
       container.appendChild(svg('text', { x: dp.x, y: dp.y, class: 'planet-degree' }, degInSign + '°' + (p.retro ? ' ℞' : '')));
@@ -1557,14 +1569,20 @@ function wireControls() {
   wireControlsSheet();
 }
 
-// Bottom sheet des contrôles : 3 états (collapsed/peek/expanded), draggable
-// par la poignée du haut, tappable pour cycler. Le but est de libérer la
-// surface d'écran mobile pour la carte et la frise ; les contrôles sont
-// toujours à portée de pouce mais ne consomment pas d'espace visuel permanent.
-const SHEET_STATES = ['collapsed', 'peek', 'expanded'];
+// Bottom sheet des contrôles : 4 états mobile (collapsed/peek/mid/expanded),
+// draggable par la poignée. Peek expose mode + slider pour manipulation en
+// voyant le cercle ; mid ajoute couches/aspects ; expanded tout.
+// Sur desktop (≥ 900px), le sheet s'étale horizontalement (voir CSS @media),
+// la poignée est masquée et les gestes sont désactivés.
+const SHEET_STATES = ['collapsed', 'peek', 'mid', 'expanded'];
+const DESKTOP_MQ = '(min-width: 900px)';
+function isDesktopViewport() {
+  return window.matchMedia && window.matchMedia(DESKTOP_MQ).matches;
+}
 function sheetHeightFor(name) {
   if (name === 'collapsed') return 32;
-  if (name === 'peek')      return 150;
+  if (name === 'peek')      return 110;
+  if (name === 'mid')       return 220;
   return Math.round(window.innerHeight * 0.85);
 }
 function setSheetState(sheet, name) {
@@ -1585,13 +1603,22 @@ function wireControlsSheet() {
   const saved = (() => { try { return localStorage.getItem('astrolab.sheet.state'); } catch (e) { return null; } })();
   setSheetState(sheet, SHEET_STATES.includes(saved) ? saved : 'peek');
 
+  // Nettoyage à chaque bascule desktop ↔ mobile : height inline résiduel du
+  // drag mobile deviendrait absurde en desktop (et vice versa).
+  const mql = window.matchMedia(DESKTOP_MQ);
+  const onViewportChange = () => { sheet.style.height = ''; };
+  if (mql.addEventListener) mql.addEventListener('change', onViewportChange);
+  else if (mql.addListener) mql.addListener(onViewportChange);  // Safari <14
+
   // Drag : au move, met à jour height inline. Au up, snap au state le plus
   // proche. Si drag quasi-nul (< 6 px total), on considère ça comme un tap et
-  // on cycle au state suivant (collapsed → peek → expanded → collapsed).
+  // on cycle au state suivant. Sur desktop, tous les handlers early-return —
+  // la poignée est de toute façon masquée en CSS mais ceinture + bretelles.
   let dragY = null;
   let dragStartHeight = null;
-  let dragMax = 0;  // amplitude max pendant le drag, pour discriminer tap vs drag
+  let dragMax = 0;
   handle.addEventListener('pointerdown', ev => {
+    if (isDesktopViewport()) return;
     ev.preventDefault();
     handle.setPointerCapture(ev.pointerId);
     dragY = ev.clientY;
@@ -1600,6 +1627,7 @@ function wireControlsSheet() {
     sheet.classList.add('sheet-dragging');
   });
   handle.addEventListener('pointermove', ev => {
+    if (isDesktopViewport()) return;
     if (dragY == null) return;
     const dy = ev.clientY - dragY;
     dragMax = Math.max(dragMax, Math.abs(dy));
@@ -1609,19 +1637,18 @@ function wireControlsSheet() {
     sheet.style.height = h + 'px';
   });
   const endDrag = ev => {
+    if (isDesktopViewport()) return;
     if (dragY == null) return;
     const currentHeight = parseFloat(sheet.style.height) || dragStartHeight;
     dragY = null;
     dragStartHeight = null;
     sheet.classList.remove('sheet-dragging');
     if (dragMax < 6) {
-      // Tap : cycle au state suivant.
       const cur = SHEET_STATES.find(s => sheet.classList.contains('sheet-' + s)) || 'peek';
       const next = SHEET_STATES[(SHEET_STATES.indexOf(cur) + 1) % SHEET_STATES.length];
       setSheetState(sheet, next);
       return;
     }
-    // Drag : snap au state dont la hauteur est la plus proche.
     let best = SHEET_STATES[0];
     let bestDist = Infinity;
     for (const s of SHEET_STATES) {

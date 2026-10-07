@@ -55,7 +55,8 @@ aside.sheet {
   flex-direction: column;
 }
 aside.sheet.sheet-collapsed { height: 32px; }
-aside.sheet.sheet-peek      { height: 150px; }
+aside.sheet.sheet-peek      { height: 110px; }
+aside.sheet.sheet-mid       { height: 220px; }
 aside.sheet.sheet-expanded  { height: 85vh; }
 aside.sheet.sheet-dragging  { transition: none; }
 
@@ -96,14 +97,41 @@ aside.sheet header {
   -webkit-overflow-scrolling: touch;
 }
 aside.sheet.sheet-collapsed header { display: none; }
-/* En peek, on désactive le scroll pour éviter que l'utilisateur découvre
+/* En peek et mid, on désactive le scroll pour éviter que l'utilisateur découvre
    accidentellement du contenu masqué sans comprendre pourquoi. Expanded =
    accès complet. */
-aside.sheet.sheet-peek header { overflow-y: hidden; }
+aside.sheet.sheet-peek header,
+aside.sheet.sheet-mid header { overflow-y: hidden; }
 
 header {
   text-align: center;
   margin-bottom: 1rem;
+}
+
+/* Date/titre du moment courant, fixé en haut à gauche hors du sheet. Permet
+   de toujours savoir *quand* on regarde — essentiel au scrubbing temporel —
+   sans manger de place dans le tiroir. */
+#chart-header-fixed {
+  position: fixed;
+  top: 0.3rem;
+  left: 0.5rem;
+  z-index: 50;
+  pointer-events: none;  /* laisse passer les clics vers le cercle en dessous */
+  text-align: left;
+  max-width: 55%;        /* ne mange pas la moitié droite du cercle */
+  line-height: 1.1;
+}
+#chart-header-fixed h1 {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+#chart-header-fixed .chart-info {
+  margin: 0;
+  font-size: 0.68rem;
+  color: var(--line-medium);
+  font-style: italic;
 }
 
 h1 {
@@ -401,11 +429,16 @@ h1 {
 
 /* Glyphes de planètes : à l'extérieur de la ceinture, plus gros qu'avant
    car ils ne sont plus contraints par le cercle central. Même précaution
-   monochrome que les signes (VS15 + font-variant-emoji). */
+   monochrome que les signes (VS15 + font-variant-emoji).
+   `--planet-scale` est l'infra d'harmonisation par glyphe (défaut 1), posée
+   en style inline sur chaque <text> depuis `PLANET_SCALES` (app.js). Vide
+   pour l'instant — alimentée plus tard par l'atelier de création de glyphes
+   (voir memory/project_feature_atelier_glyphes.md). */
 .planet-symbol {
   fill: var(--planet);
   font-family: var(--font-serif);
-  font-size: 30px;
+  --planet-scale: 1;
+  font-size: calc(30px * var(--planet-scale));
   text-anchor: middle;
   dominant-baseline: central;
   font-variant-emoji: text;
@@ -941,7 +974,7 @@ h1 {
 }
 
 .chart-data {
-  margin-top: 2rem;
+  margin-top: 0.8rem;
   font-family: var(--font-mono);
   font-size: 0.85rem;
   color: var(--line-medium);
@@ -1089,9 +1122,62 @@ h1 {
 }
 
 @media (max-width: 600px) {
-  body { padding: 0.5rem; }
-  .sign-symbol { font-size: 26px; }
-  .planet-symbol { font-size: 30px; }
-  .house-number { font-size: 13px; }
-  .planet-degree { font-size: 11px; }
+  body {
+    padding: 0.5rem;
+    /* Réserve pour le sheet en peek (110px) + marge, pour que la frise
+       (au-dessus) ne soit jamais recouverte à l'état par défaut. */
+    padding-bottom: calc(110px + 0.5rem);
+  }
+  .sign-symbol { font-size: 34px; }
+  .planet-symbol { font-size: calc(84px * var(--planet-scale)); }
+  .house-number { font-size: 17px; }
+  .planet-degree { font-size: 14px; }
+  /* Frise haute mais sans dépasser sous le sheet. 35vh + body padding-bottom
+     dimensionné sur le sheet peek = frise entièrement visible par défaut. */
+  #timeline-container {
+    aspect-ratio: auto;
+    height: 35vh;
+  }
+}
+
+/* Desktop (≥ 900px) : le sheet n'a plus de sens vertical empilé — on l'étale
+   horizontalement. Pas de crans, pas de drag, poignée masquée. Hauteur auto
+   avec plafond pour que le chart reste visible. Les sections (mode, slider,
+   couches, aspects, config, recherche) s'étalent en flex-wrap. */
+@media (min-width: 900px) {
+  body {
+    /* Réserve = plafond du sheet (35vh). Le sheet scrollera en interne si
+       son contenu dépasse — le chart n'est jamais recouvert. */
+    padding-bottom: calc(35vh + 0.5rem);
+  }
+  aside.sheet,
+  aside.sheet.sheet-collapsed,
+  aside.sheet.sheet-peek,
+  aside.sheet.sheet-mid,
+  aside.sheet.sheet-expanded {
+    height: auto;
+    max-height: 35vh;
+    overflow-y: auto;
+  }
+  .sheet-handle { display: none; }
+  aside.sheet header,
+  aside.sheet.sheet-peek header,
+  aside.sheet.sheet-mid header {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem 1.5rem;
+    padding: 0.8rem 1rem;
+    overflow-y: visible;
+  }
+  /* Le titre et l'info-ligne restent visibles mais ne cassent plus le flux
+     en poussant tout vers le bas. Ils deviennent un bloc inline parmi les
+     autres. */
+  aside.sheet header h1 { margin: 0; font-size: 1.1rem; }
+  aside.sheet header .chart-info { font-size: 0.8rem; }
+  aside.sheet header .time-slider { min-width: 260px; }
+  aside.sheet header .asteroid-search-wrap { min-width: 240px; }
+  aside.sheet header .scrap-hint { font-size: 0.75rem; opacity: 0.7; }
 }
