@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>astrolab — carte natale</title>
-  <link rel="stylesheet" href="style.css?v=29">
+  <link rel="stylesheet" href="style.css?v=34">
 </head>
 <body>
   <main>
@@ -32,6 +32,7 @@
         <label class="layer"><input type="checkbox" data-layer="midpoints"> mi-points</label>
         <label class="layer"><input type="checkbox" data-layer="asteroids" checked> astéroïdes</label>
         <label class="layer"><input type="checkbox" data-layer="scrapbook" checked> scrapbook</label>
+        <label class="layer"><input type="checkbox" data-layer="timeline" checked> frise</label>
         <div class="aspects-menu">
           <button type="button" class="aspects-toggle" aria-expanded="false" aria-haspopup="true">
             aspects <span class="aspects-summary">—</span> <span aria-hidden="true">▾</span>
@@ -80,6 +81,9 @@
     <div id="chart-container">
       <svg id="chart" viewBox="-520 -520 1040 1040" xmlns="http://www.w3.org/2000/svg"></svg>
     </div>
+    <div id="timeline-container">
+      <svg id="timeline" viewBox="0 0 800 260" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
     <section id="chart-data" class="chart-data"></section>
     <pre id="error-box" class="error-box" hidden></pre>
   </main>
@@ -88,6 +92,6 @@
        aspects est ouvert. -->
   <div class="aspects-backdrop" hidden aria-hidden="true"></div>
 
-  <script type="module" src="app.js?v=29"></script>
+  <script type="module" src="app.js?v=38"></script>
 </body>
 </html>

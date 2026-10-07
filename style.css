@@ -906,6 +906,120 @@ h1 {
   overflow-x: auto;
 }
 
+/* Frise du temps horizontale — vue 2D déployée des cycles lents.
+   Empilée sous la roue, même largeur max. touch-action: none pour autoriser
+   le drag du curseur sans que le scroll de la page intercepte le geste. */
+#timeline-container {
+  width: 100%;
+  max-width: 800px;
+  margin: 1rem auto 0;
+  aspect-ratio: 800 / 260;
+}
+
+#timeline {
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+  cursor: col-resize;
+}
+
+/* Bandes signes alternées : fond très discret pour baliser 12 régions
+   horizontales sans voler l'attention aux courbes. */
+.tl-sign-band {
+  fill: var(--line-strong);
+  opacity: 0.04;
+}
+
+.tl-sign-sep {
+  stroke: var(--line-weak);
+  stroke-width: 0.4;
+  opacity: 0.5;
+}
+
+.tl-sign-glyph {
+  fill: var(--sign-symbol);
+  font-family: var(--font-serif);
+  font-size: 14px;
+  text-anchor: middle;
+  dominant-baseline: central;
+  font-variant-emoji: text;
+  opacity: 0.7;
+}
+
+/* Grille années : traits verticaux fins pour chaque année, renforcés aux
+   années labellées (pas 1 / 5 / 10 selon la largeur de la fenêtre). */
+.tl-year-tick {
+  stroke: var(--line-weak);
+  stroke-width: 0.3;
+  opacity: 0.4;
+}
+
+.tl-year-tick-strong {
+  stroke: var(--line-medium);
+  stroke-width: 0.5;
+  opacity: 0.6;
+}
+
+.tl-year-label {
+  fill: var(--line-medium);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+/* Courbes des 5 lentes. Palette alignée sur celle des aspects (par harmonique)
+   pour une cohérence visuelle à travers l'app. Pas de dash — on reste lisible
+   quand les courbes se croisent (le zigzag de rétrogradation suffit à les
+   démarquer les unes des autres). */
+.tl-curve {
+  fill: none;
+  stroke-width: 1.2;
+  opacity: 0.85;
+}
+.tl-curve-jupiter { stroke: #7a4a2a; }   /* brun accent */
+.tl-curve-saturn  { stroke: #4a4a4a; }   /* gris foncé */
+.tl-curve-uranus  { stroke: #1e5b8f; }   /* bleu */
+.tl-curve-neptune { stroke: #2a7a3a; }   /* vert */
+.tl-curve-pluto   { stroke: #6a2a7a; }   /* violet */
+
+.tl-curve-glyph {
+  font-family: var(--font-serif);
+  font-size: 13px;
+  text-anchor: start;
+  dominant-baseline: central;
+  font-variant-emoji: text;
+}
+.tl-curve-glyph.tl-curve-jupiter { fill: #7a4a2a; }
+.tl-curve-glyph.tl-curve-saturn  { fill: #4a4a4a; }
+.tl-curve-glyph.tl-curve-uranus  { fill: #1e5b8f; }
+.tl-curve-glyph.tl-curve-neptune { fill: #2a7a3a; }
+.tl-curve-glyph.tl-curve-pluto   { fill: #6a2a7a; }
+
+/* Curseur temporel : trait vertical qui marque chartTime (ou maintenant).
+   Même couleur accent que les angles ASC/MC pour signaler "point focal". */
+.tl-cursor {
+  stroke: var(--accent);
+  stroke-width: 1.2;
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+/* Segments scrapbook sur la frise : rectangle horizontal de createdAt à
+   retiredAt (ou fin de fenêtre si vivant). Hauteur proportionnelle à
+   l'angle solide de l'item dans la roue — préfigure le futur zoom où le
+   rect deviendra un foreignObject miniature avec le contenu réel. */
+.tl-scrap-seg {
+  fill: var(--accent);
+  opacity: 0.55;
+  stroke: var(--accent);
+  stroke-width: 0.3;
+}
+.tl-scrap-seg:hover {
+  opacity: 0.85;
+}
+
 @media (max-width: 600px) {
   body { padding: 0.5rem; }
   .sign-symbol { font-size: 26px; }

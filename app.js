@@ -509,12 +509,18 @@ function wireScrapItem(fo, frame, it) {
   const imgInput = frame.querySelector('.scrap-img-input');
 
   // Édition : sauvegarde en innerHTML (préserve sauts de ligne + images).
-  // Vide (texte ET images) = suppression auto.
+  // Vide (texte ET images) = suppression auto, SAUF si le file picker vient
+  // d'être ouvert (il vole le focus et déclencherait un faux blur-suppressif
+  // sur un item encore vide, avant que l'image soit insérée).
+  let insertingImageUntil = 0;
   textEl.addEventListener('blur', () => {
     const html = textEl.innerHTML;
     const stripped = textEl.textContent.trim();
     const hasImg = !!textEl.querySelector('img');
-    if (!stripped && !hasImg) { removeScrapItem(it.id); return; }
+    if (!stripped && !hasImg) {
+      if (Date.now() < insertingImageUntil) return;
+      removeScrapItem(it.id); return;
+    }
     updateScrapItem(it.id, { html, text: stripped, updatedAt: Date.now() }, true);
   });
 
@@ -533,16 +539,29 @@ function wireScrapItem(fo, frame, it) {
     // Sinon on laisse le paste par défaut (texte brut).
   });
 
-  // Bouton image → ouvre le file picker.
+  // Bouton image → ouvre le file picker. Deux précautions pour éviter que
+  // l'item vide s'auto-détruise à cause du blur sur le contenteditable :
+  //  1. preventDefault() sur pointerdown : le browser émet un blur AVANT que
+  //     notre handler click n'arme le flag, parce que la cible du pointerdown
+  //     capture le focus. preventDefault() empêche ce vol de focus.
+  //  2. flag temporisé : le file picker natif vole quand même le focus à
+  //     l'ouverture — pendant cette grâce de ~1 min, pas de suppression auto.
+  imgBtn.addEventListener('pointerdown', ev => {
+    ev.preventDefault();
+    insertingImageUntil = Date.now() + 60000;
+  });
   imgBtn.addEventListener('click', ev => {
     ev.stopPropagation();
+    insertingImageUntil = Date.now() + 60000;
     imgInput.click();
   });
   imgInput.addEventListener('change', ev => {
     const file = ev.target.files && ev.target.files[0];
     if (file) insertImageFile(textEl, file);
     ev.target.value = '';  // reset pour permettre de re-uploader la même image
+    insertingImageUntil = 0;
   });
+  imgInput.addEventListener('cancel', () => { insertingImageUntil = 0; });
 
   // Suppression : clic court = retrait TEMPOREL (item invisible à partir du
   // chartTime courant, réversible en remontant le slider). Long-press ≥ 700ms
@@ -591,7 +610,11 @@ function wireScrapItem(fo, frame, it) {
       gripEl.removeEventListener('pointermove', onMove);
       gripEl.removeEventListener('pointerup', onUp);
       gripEl.removeEventListener('pointercancel', onUp);
-      updateScrapItem(it.id, { x: it.x, y: it.y, updatedAt: Date.now() }, true);
+      // Recalcule lon à partir du nouveau centre et de l'ascLon courant.
+      // Déplacer un item dans la roue déplace sa position sur la frise.
+      const ascLon = state.currentAscLon != null ? state.currentAscLon : 0;
+      it.lon = xyToLon(it.x + it.width / 2, it.y + it.height / 2, ascLon);
+      updateScrapItem(it.id, { x: it.x, y: it.y, lon: it.lon, updatedAt: Date.now() }, true);
     };
     gripEl.addEventListener('pointermove', onMove);
     gripEl.addEventListener('pointerup',   onUp);
@@ -710,6 +733,432 @@ function drawDataTable({ ascendant, midheaven }, bodies, asteroids) {
   container.innerHTML = rows.join('');
 }
 
+// ---------- Frise du temps horizontale ----------
+// Vue soustractive complémentaire à la roue. Fenêtre = toute la vie du natif
+// (natal → maintenant). Axe X = temps. Axe Y = longitude écliptique (0°
+// Bélier en haut, Poissons en bas). Les 5 planètes lentes y tracent leurs
+// courbes avec zigzags de rétrogradation. Curseur temporel partagé avec la
+// roue via state.chartTime — couplage bidirectionnel gratuit. Items
+// scrapbook posés à la longitude écliptique correspondant à leur position
+// dans la roue, horodatés à createdAt.
+
+const TL_VB_W = 800;
+const TL_VB_H = 260;
+const TL_MARGIN_L = 42;
+const TL_MARGIN_R = 14;
+const TL_MARGIN_T = 10;
+const TL_MARGIN_B = 24;
+const TL_PLOT_W = TL_VB_W - TL_MARGIN_L - TL_MARGIN_R;
+const TL_PLOT_H = TL_VB_H - TL_MARGIN_T - TL_MARGIN_B;
+const TL_SIGN_H = TL_PLOT_H / 12;
+
+const SLOW_PLANETS = [
+  { key: 'jupiter', idx: 5, glyph: '♃' + VS15 },
+  { key: 'saturn',  idx: 6, glyph: '♄' + VS15 },
+  { key: 'uranus',  idx: 7, glyph: '♅' + VS15 },
+  { key: 'neptune', idx: 8, glyph: '♆' + VS15 },
+  { key: 'pluto',   idx: 9, glyph: '♇' + VS15 },
+];
+
+function msToJd(ms) { return ms / 86400000 + 2440587.5; }
+function jdToMs(jd) { return (jd - 2440587.5) * 86400000; }
+
+// Vie complète du natif (naissance → maintenant). Base invariante utilisée
+// par le cache de courbes et comme bornes de clamp pour le zoom.
+function fullTimelineRange() {
+  const startMs = Date.UTC(
+    NATAL_PERIG.yearUT, NATAL_PERIG.monthUT - 1, NATAL_PERIG.dayUT,
+    Math.floor(NATAL_PERIG.hourUT),
+    Math.round((NATAL_PERIG.hourUT % 1) * 60),
+  );
+  const endMs = Date.now();
+  return { startMs, endMs, startJd: msToJd(startMs), endJd: msToJd(endMs) };
+}
+
+const TL_ZOOM_MIN = 1.0;
+const TL_ZOOM_MAX = 500;
+
+// Fenêtre VISIBLE sur la frise, dérivée du zoom et de chartTime (ou
+// maintenant si pas de curseur posé). zoom=1 → vie complète. zoom>1 →
+// sous-fenêtre centrée sur chartTime, clampée aux bornes.
+function timelineRange() {
+  const full = fullTimelineRange();
+  const zoom = Math.max(TL_ZOOM_MIN, Math.min(TL_ZOOM_MAX, state.timeline?.zoom || 1));
+  if (zoom <= 1) return full;
+
+  const fullSpan = full.endMs - full.startMs;
+  const visibleSpan = fullSpan / zoom;
+  // Centre indépendant via state.timeline.tlCenter (posé par pan). Sinon
+  // fallback sur chartTime, puis sur maintenant. tlCenter dissocie la vue
+  // frise du curseur de la roue : on peut pan sans déplacer le moment observé.
+  const center = state.timeline?.tlCenter != null
+    ? state.timeline.tlCenter
+    : (state.chartTime != null ? state.chartTime : full.endMs);
+
+  let startMs = center - visibleSpan / 2;
+  let endMs   = center + visibleSpan / 2;
+
+  // Clamp : si on dépasse à gauche, pousser à droite (et inversement),
+  // pour que la fenêtre visible reste de taille constante.
+  if (startMs < full.startMs) { endMs += (full.startMs - startMs); startMs = full.startMs; }
+  if (endMs   > full.endMs)   { startMs -= (endMs - full.endMs);   endMs   = full.endMs;   }
+  startMs = Math.max(startMs, full.startMs);
+  endMs   = Math.min(endMs,   full.endMs);
+
+  return { startMs, endMs, startJd: msToJd(startMs), endJd: msToJd(endMs) };
+}
+
+// Pas de 14 jours : capture les zigzags de rétrogradation des lentes
+// (Jupiter ~1.15°/pas, Pluton ~0.02-0.08°/pas) sans surcharger (~1400 pts
+// par planète pour 54 ans de fenêtre).
+const TL_STEP_DAYS = 14;
+
+let _tlCache = null;
+function sampleSlowCurves() {
+  // Toujours échantillonner sur la vie COMPLÈTE (indépendant du zoom), pour
+  // que le cache reste stable et que les courbes dépassent la fenêtre
+  // visible sans se recouper quand on zoome.
+  const { startJd, endJd } = fullTimelineRange();
+  const dayKey = Math.floor(endJd);
+  if (_tlCache && _tlCache.startJd === startJd && _tlCache.dayKey === dayKey) {
+    return _tlCache.curves;
+  }
+  const curves = SLOW_PLANETS.map(p => ({ ...p, points: [] }));
+  for (let jd = startJd; jd <= endJd; jd += TL_STEP_DAYS) {
+    for (const c of curves) {
+      try {
+        const r = swe.calc(jd, c.idx);
+        c.points.push({ jd, lon: r.longitude, retro: r.longitudeSpeed < 0 });
+      } catch (e) {}
+    }
+  }
+  // Point final exact sur endJd pour que la courbe finisse à "maintenant"
+  // plutôt qu'au dernier multiple de 14 jours.
+  for (const c of curves) {
+    try {
+      const r = swe.calc(endJd, c.idx);
+      c.points.push({ jd: endJd, lon: r.longitude, retro: r.longitudeSpeed < 0 });
+    } catch (e) {}
+  }
+  _tlCache = { startJd, dayKey, curves };
+  return curves;
+}
+
+function tlX(ms, range) {
+  const { startMs, endMs } = range;
+  return TL_MARGIN_L + ((ms - startMs) / (endMs - startMs)) * TL_PLOT_W;
+}
+function tlY(lon) {
+  return TL_MARGIN_T + (normDeg(lon) / 360) * TL_PLOT_H;
+}
+
+// Inverse de project(lon, ascLon, r) : étant donné (x, y) coords SVG dans
+// la roue (centre en 0,0) et l'ascLon courant, retrouve la longitude
+// écliptique du point. Indépendant du rayon.
+function xyToLon(x, y, ascLon) {
+  const theta = Math.atan2(-y, x);                 // radians
+  const rel = (theta / DEG) - 180;                 // degrés depuis asc
+  return normDeg(rel + ascLon);
+}
+
+function drawTimeline() {
+  const svgEl = document.getElementById('timeline');
+  if (!svgEl) return;
+  svgEl.innerHTML = '';
+  const range = timelineRange();
+
+  // Bandes signes alternées + glyphes à gauche + séparateurs horizontaux
+  for (let i = 0; i < 12; i++) {
+    const y = TL_MARGIN_T + i * TL_SIGN_H;
+    if (i % 2 === 0) {
+      svgEl.appendChild(svg('rect', {
+        x: TL_MARGIN_L, y, width: TL_PLOT_W, height: TL_SIGN_H,
+        class: 'tl-sign-band',
+      }));
+    }
+    svgEl.appendChild(svg('text', {
+      x: TL_MARGIN_L - 10, y: y + TL_SIGN_H / 2,
+      class: 'tl-sign-glyph',
+    }, SIGN_GLYPHS[i]));
+    svgEl.appendChild(svg('line', {
+      x1: TL_MARGIN_L, y1: y, x2: TL_MARGIN_L + TL_PLOT_W, y2: y,
+      class: 'tl-sign-sep',
+    }));
+  }
+  svgEl.appendChild(svg('line', {
+    x1: TL_MARGIN_L, y1: TL_MARGIN_T + TL_PLOT_H,
+    x2: TL_MARGIN_L + TL_PLOT_W, y2: TL_MARGIN_T + TL_PLOT_H,
+    class: 'tl-sign-sep',
+  }));
+
+  // Graduation années : pas adaptatif (1 an / 5 ans / 10 ans)
+  const startYear = new Date(range.startMs).getUTCFullYear();
+  const endYear   = new Date(range.endMs).getUTCFullYear();
+  const yearSpan = endYear - startYear;
+  const labelStep = yearSpan <= 20 ? 1 : (yearSpan <= 60 ? 5 : 10);
+  for (let y = startYear; y <= endYear; y++) {
+    const ms = Date.UTC(y, 0, 1);
+    if (ms < range.startMs || ms > range.endMs) continue;
+    const x = tlX(ms, range);
+    const isLabeled = (y % labelStep === 0);
+    svgEl.appendChild(svg('line', {
+      x1: x, y1: TL_MARGIN_T, x2: x, y2: TL_MARGIN_T + TL_PLOT_H,
+      class: isLabeled ? 'tl-year-tick-strong' : 'tl-year-tick',
+    }));
+    if (isLabeled) {
+      svgEl.appendChild(svg('text', {
+        x, y: TL_MARGIN_T + TL_PLOT_H + 14, class: 'tl-year-label',
+      }, String(y)));
+    }
+  }
+
+  // Courbes des planètes lentes. Path coupé à chaque saut > 180°
+  // (traversée 0°/360°) pour éviter les cordes qui traversent le plot.
+  const curves = sampleSlowCurves();
+  for (const c of curves) {
+    if (c.points.length < 2) continue;
+    let d = '';
+    let prevLon = null;
+    for (const pt of c.points) {
+      const x = tlX(jdToMs(pt.jd), range);
+      const y = tlY(pt.lon);
+      if (prevLon == null || Math.abs(pt.lon - prevLon) > 180) {
+        d += `M${x.toFixed(1)},${y.toFixed(1)} `;
+      } else {
+        d += `L${x.toFixed(1)},${y.toFixed(1)} `;
+      }
+      prevLon = pt.lon;
+    }
+    svgEl.appendChild(svg('path', { d, class: `tl-curve tl-curve-${c.key}` }));
+    const last = c.points[c.points.length - 1];
+    svgEl.appendChild(svg('text', {
+      x: tlX(jdToMs(last.jd), range) + 2, y: tlY(last.lon),
+      class: `tl-curve-glyph tl-curve-${c.key}`,
+    }, c.glyph));
+  }
+
+  // Items scrapbook : segments horizontaux de createdAt à retiredAt (ou
+  // à endMs si toujours vivant). Un item n'est pas un instant mais une
+  // durée d'existence — tant qu'il n'a pas été retiré il "occupe" la vie
+  // du natif. Hauteur dérivée de la taille width/height de l'item dans la
+  // roue (approximation : width → arc écliptique au rayon moyen → degrés
+  // de longitude span). En attendant le zoom qui transformera chaque rect
+  // en <foreignObject> miniature avec le contenu réel manipulable.
+  if (state.layers.scrapbook) {
+    for (const it of state.scrapbook) {
+      if (it.lon == null || it.createdAt == null) continue;
+      if (it.createdAt > range.endMs) continue;
+      // Pas de filtre isItemVisibleAt ici : la frise montre la vie entière
+      // de chaque item. Le curseur chartTime n'est qu'un œilleton
+      // d'observation pour la roue, il ne masque pas les segments de la
+      // frise (sinon on perd l'item quand on remonte dans le passé).
+      const startMs = Math.max(it.createdAt, range.startMs);
+      // Fin du segment = durée d'existence réelle : retiredAt si l'item a
+      // été retiré, sinon maintenant (= bord droit de la frise). Le
+      // curseur chartTime ne tronque PAS le segment — il indique seulement
+      // d'où on observe, pas où l'item cesse d'exister.
+      let endSegMs = (it.retiredAt != null && it.retiredAt <= range.endMs)
+        ? it.retiredAt
+        : range.endMs;
+      if (endSegMs <= startMs) endSegMs = startMs + 1;
+      const x1 = tlX(startMs, range);
+      const x2 = tlX(endSegMs, range);
+      // Hauteur ≈ (item.width / radius) rad → deg, projeté sur Y. Rayon
+      // = distance au centre de la roue. Simplification : rayon moyen.
+      const cx = it.x + it.width / 2;
+      const cy = it.y + it.height / 2;
+      const radius = Math.max(50, Math.hypot(cx, cy));
+      const spanDeg = (it.width / radius) * (180 / Math.PI);
+      // Clamp pour rester lisible même pour des items ponctuels.
+      const h = Math.max(2.5, Math.min(TL_SIGN_H, (spanDeg / 360) * TL_PLOT_H));
+      const w = Math.max(2, x2 - x1);
+      const y = tlY(it.lon) - h / 2;
+      svgEl.appendChild(svg('rect', {
+        x: x1, y, width: w, height: h, rx: 1.5,
+        class: 'tl-scrap-seg', 'data-id': it.id,
+      }));
+    }
+  }
+
+  // Curseur temporel vertical, partagé avec state.chartTime
+  const cursorMs = state.chartTime != null ? state.chartTime : Date.now();
+  if (cursorMs >= range.startMs && cursorMs <= range.endMs) {
+    const x = tlX(cursorMs, range);
+    svgEl.appendChild(svg('line', {
+      x1: x, y1: TL_MARGIN_T, x2: x, y2: TL_MARGIN_T + TL_PLOT_H,
+      class: 'tl-cursor',
+    }));
+  }
+}
+
+// Interactions frise :
+//  - 1 doigt / clic gauche drag → pose chartTime (curseur de la roue)
+//  - molette → zoom temporel autour de chartTime
+//  - 2 doigts (mobile) → zoom (écart) + pan (milieu) simultanés, ancrés sur
+//    la valeur temporelle qui était sous le milieu au début du geste
+//  - clic milieu drag (desktop) → pan de la vue sans toucher chartTime
+// Pan = déplacement de state.timeline.tlCenter, indépendant de chartTime.
+function wireTimelineInteraction() {
+  const svgEl = document.getElementById('timeline');
+  if (!svgEl) return;
+  const svgXFromClient = (clientX) => {
+    const pt = svgEl.createSVGPoint();
+    pt.x = clientX; pt.y = 0;
+    return pt.matrixTransform(svgEl.getScreenCTM().inverse()).x;
+  };
+  const pickTime = (clientX) => {
+    const range = timelineRange();
+    const t01 = (svgXFromClient(clientX) - TL_MARGIN_L) / TL_PLOT_W;
+    const clamped = Math.max(0, Math.min(1, t01));
+    return range.startMs + clamped * (range.endMs - range.startMs);
+  };
+  let dragging = false;
+  let isPinching = false;
+  let throttle = null;
+  const scheduleRender = () => {
+    clearTimeout(throttle);
+    throttle = setTimeout(() => render().catch(e => showError('render error: ' + e.message)), 60);
+  };
+  const ensureTl = () => { if (!state.timeline) state.timeline = { zoom: 1 }; };
+
+  // Pan middle-click (desktop) : on fixe tlCenter au centre courant au début
+  // du drag, puis on soustrait le déplacement souris converti en ms.
+  let mousePanStartClientX = null;
+  let mousePanStartCenter  = null;
+
+  svgEl.addEventListener('pointerdown', ev => {
+    if (ev.button === 1) {
+      // Clic milieu = pan
+      ev.preventDefault();
+      svgEl.setPointerCapture(ev.pointerId);
+      const range = timelineRange();
+      mousePanStartClientX = ev.clientX;
+      mousePanStartCenter  = state.timeline?.tlCenter != null
+        ? state.timeline.tlCenter
+        : (range.startMs + range.endMs) / 2;
+      return;
+    }
+    if (isPinching) return;
+    dragging = true;
+    svgEl.setPointerCapture(ev.pointerId);
+    const t = pickTime(ev.clientX);
+    state.chartTime = (t >= Date.now() - 60000) ? null : t;
+    scheduleRender();
+  });
+  svgEl.addEventListener('pointermove', ev => {
+    if (mousePanStartClientX != null) {
+      const range = timelineRange();
+      const dxSvg = svgXFromClient(ev.clientX) - svgXFromClient(mousePanStartClientX);
+      const msPerSvg = (range.endMs - range.startMs) / TL_PLOT_W;
+      ensureTl();
+      state.timeline.tlCenter = mousePanStartCenter - dxSvg * msPerSvg;
+      scheduleRender();
+      return;
+    }
+    if (!dragging || isPinching) return;
+    const t = pickTime(ev.clientX);
+    state.chartTime = (t >= Date.now() - 60000) ? null : t;
+    scheduleRender();
+  });
+  const stop = () => {
+    dragging = false;
+    mousePanStartClientX = null;
+    mousePanStartCenter  = null;
+  };
+  svgEl.addEventListener('pointerup',     stop);
+  svgEl.addEventListener('pointercancel', stop);
+  svgEl.addEventListener('pointerleave',  stop);
+  // auxclick bouton milieu : empêche l'icône "scroll auto" sur certains browsers
+  svgEl.addEventListener('auxclick', ev => { if (ev.button === 1) ev.preventDefault(); });
+
+  // Molette = zoom. Facteur exponentiel pour un ressenti naturel.
+  svgEl.addEventListener('wheel', ev => {
+    ev.preventDefault();
+    const factor = Math.exp(-ev.deltaY * 0.0015);
+    const prev = state.timeline?.zoom || 1;
+    const next = Math.max(TL_ZOOM_MIN, Math.min(TL_ZOOM_MAX, prev * factor));
+    if (next === prev) return;
+    ensureTl();
+    state.timeline.zoom = next;
+    scheduleRender();
+  }, { passive: false });
+
+  // 2 doigts : zoom (écart entre doigts) + pan (milieu entre doigts),
+  // simultanés. On ancre la valeur temporelle qui était sous le milieu au
+  // début du geste : elle reste sous le milieu pendant tout le geste, que ce
+  // soit par pan ou par pinch.
+  let pinchStartDist   = null;
+  let pinchStartZoom   = null;
+  let pinchAnchorMs    = null;  // valeur temporelle sous le milieu, au start
+  svgEl.addEventListener('touchstart', ev => {
+    if (ev.touches.length >= 2) {
+      isPinching = true;
+      dragging = false;
+      const t0 = ev.touches[0], t1 = ev.touches[1];
+      pinchStartDist = Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY) || 1;
+      pinchStartZoom = state.timeline?.zoom || 1;
+      pinchAnchorMs  = pickTime((t0.clientX + t1.clientX) / 2);
+      ev.preventDefault();
+    }
+  }, { passive: false });
+  svgEl.addEventListener('touchmove', ev => {
+    if (ev.touches.length >= 2 && pinchStartDist != null) {
+      const t0 = ev.touches[0], t1 = ev.touches[1];
+      const dist = Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY);
+      const ratio = dist / pinchStartDist;
+      const nextZoom = Math.max(TL_ZOOM_MIN, Math.min(TL_ZOOM_MAX, pinchStartZoom * ratio));
+      ensureTl();
+      state.timeline.zoom = nextZoom;
+
+      // Pan ancré : on veut que pinchAnchorMs tombe sous le nouveau milieu.
+      // Calcule tlCenter tel que, dans la fenêtre résultante (de span fixe
+      // par le zoom), svgMidX corresponde exactement à pinchAnchorMs.
+      const midX = (t0.clientX + t1.clientX) / 2;
+      const svgMidX = svgXFromClient(midX);
+      const t01 = (svgMidX - TL_MARGIN_L) / TL_PLOT_W;
+      const full = fullTimelineRange();
+      const visibleSpan = (full.endMs - full.startMs) / nextZoom;
+      // pinchAnchorMs = newStartMs + t01 * visibleSpan
+      const newStartMs = pinchAnchorMs - t01 * visibleSpan;
+      state.timeline.tlCenter = newStartMs + visibleSpan / 2;
+
+      scheduleRender();
+      ev.preventDefault();
+    }
+  }, { passive: false });
+  const endPinch = ev => {
+    if (!ev.touches || ev.touches.length < 2) {
+      pinchStartDist = null;
+      pinchStartZoom = null;
+      pinchAnchorMs  = null;
+      // Léger délai pour que le pointerup final ne redéclenche pas un drag
+      setTimeout(() => { isPinching = false; }, 100);
+    }
+  };
+  svgEl.addEventListener('touchend',    endPinch);
+  svgEl.addEventListener('touchcancel', endPinch);
+}
+
+// Migration des items existants : calcule it.lon à partir de (x+w/2, y+h/2)
+// et de l'ascendant qui prévalait à createdAt. Appelée après swe est prêt.
+// Pour les items déjà munis d'un lon, no-op.
+function migrateScrapbookLon() {
+  let dirty = false;
+  for (const it of state.scrapbook) {
+    if (it.lon != null) continue;
+    if (it.createdAt == null) continue;
+    try {
+      const jd = msToJd(it.createdAt);
+      const H = swe.houses(jd, MONTREAL.latitude, MONTREAL.longitude, sweMod.HouseSystem.Placidus);
+      const cx = it.x + (it.width || SCRAP_BASE_W) / 2;
+      const cy = it.y + (it.height || SCRAP_BASE_H) / 2;
+      it.lon = xyToLon(cx, cy, H.ascendant);
+      dirty = true;
+    } catch (e) { /* skip */ }
+  }
+  if (dirty) saveScrapbook();
+}
+
 // ---------- État + persistance ----------
 const STORAGE_KEY    = 'astrolab.asteroids';
 const LAYERS_KEY     = 'astrolab.layers';
@@ -718,7 +1167,7 @@ const ASPECT_STYLE_KEY = 'astrolab.aspectStyle';
 const SCRAPBOOK_KEY  = 'astrolab.scrapbook';
 const DEFAULT_LAYERS = {
   signs: true, houses: true, planets: true,
-  midpoints: false, asteroids: true, scrapbook: true,
+  midpoints: false, asteroids: true, scrapbook: true, timeline: true,
 };
 const DEFAULT_HARMONICS = [1, 2, 3, 4];  // majeurs classiques (conj, opp, tri, carré)
 function loadStored(key, defaults) {
@@ -744,6 +1193,7 @@ let state = {
   asteroids: JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'),
   scrapbook: JSON.parse(localStorage.getItem(SCRAPBOOK_KEY) || '[]'),
   chartTime: null,  // null = temps réel ; sinon ms epoch (slider temporel)
+  timeline: { zoom: 1.0 },  // zoom frise, 1 = toute la vie, >1 = zoomé
 };
 function saveAsteroids()   { localStorage.setItem(STORAGE_KEY,       JSON.stringify(state.asteroids)); }
 function saveLayers()      { localStorage.setItem(LAYERS_KEY,        JSON.stringify(state.layers));    }
@@ -784,6 +1234,7 @@ async function render() {
   document.getElementById('chart-info').textContent = config.info;
 
   const H = swe.houses(config.jd, config.latitude, config.longitude, sweMod.HouseSystem.Placidus);
+  state.currentAscLon = H.ascendant;
   const bodies = computeBodies(config.jd);
   const asteroids = computeAsteroids(config.jd);
   drawChart(
@@ -792,6 +1243,10 @@ async function render() {
   );
   drawDataTable({ ascendant: H.ascendant, midheaven: H.midheaven }, bodies, asteroids);
   renderAsteroidChips();
+  // Frise : masquer le conteneur si la couche est coupée, sinon redessiner.
+  const tlContainer = document.getElementById('timeline-container');
+  if (tlContainer) tlContainer.hidden = !state.layers.timeline;
+  if (state.layers.timeline) drawTimeline();
 }
 
 // ---------- Scrapbook : création / modification / suppression ----------
@@ -834,13 +1289,25 @@ function createScrapItemAt(x, y) {
   // Dimensions par défaut modestes — la note démarre petite, l'utilisateur
   // étire via la poignée ⇲ (ratio libre, le texte scale avec la surface).
   const width = 120, height = 50;
+  // Longitude écliptique dérivée de la position du tap et de l'ascendant
+  // courant. Permet de placer l'item sur la frise à la hauteur du signe
+  // correspondant à sa position angulaire dans la roue.
+  const ascLon = state.currentAscLon != null ? state.currentAscLon : 0;
+  const lon = xyToLon(x, y, ascLon);
+  // Horodatage = chartTime affiché (sinon maintenant). Permet de "revenir
+  // dans le passé" via la frise ou le slider et déposer un item au moment
+  // qu'on regarde, pas au moment du geste physique. Sans ça, les items
+  // créés en mode scrubber s'accumulaient tous à "maintenant" et devenaient
+  // invisibles tant qu'on restait dans le passé.
+  const stamp = state.chartTime != null ? state.chartTime : Date.now();
   const item = {
     id: genId(),
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
+    createdAt: stamp,
+    updatedAt: stamp,
     x: x - width / 2,
     y: y - height / 2,
     width, height,
+    lon,
     text: '',
   };
   state.scrapbook.push(item);
@@ -1032,6 +1499,7 @@ function wireControls() {
   wireScrapbookGestures();
   wireTimeSlider();
   wireDataExportImport();
+  wireTimelineInteraction();
 }
 
 // Export / Import : snapshot complet du localStorage sous le préfixe
@@ -1167,6 +1635,13 @@ function wireTimeSlider() {
   });
   reset.addEventListener('click', () => {
     state.chartTime = null;
+    // Reset aussi la vue frise (zoom et pan) : "retour au présent" = retour
+    // à la vue initiale complète. Porte de sortie quand on s'est perdu dans
+    // le zoom ou le pan.
+    if (state.timeline) {
+      state.timeline.zoom = 1;
+      state.timeline.tlCenter = null;
+    }
     syncSlider();
     render().catch(e => showError('render error: ' + e.message));
   });
@@ -1258,6 +1733,7 @@ function wireProxySettings() {
 async function main() {
   await initSwe();
   migrateScrapbookItems();
+  migrateScrapbookLon();
   wireControls();
   await remountSavedAsteroids();
   await render();
