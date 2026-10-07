@@ -21,7 +21,10 @@
 
 body {
   margin: 0;
-  padding: 1rem;
+  padding: 0.5rem;
+  /* Place pour le bottom sheet collapsed (poignée seule). Overridé par JS
+     si le sheet change de taille statique. */
+  padding-bottom: calc(32px + 0.5rem);
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font-serif);
@@ -32,6 +35,71 @@ main {
   max-width: 900px;
   margin: 0 auto;
 }
+
+/* Bottom sheet : conteneur des contrôles, position fixed en bas, 3 états
+   (collapsed/peek/expanded). La poignée en haut sert à drag ou tap pour
+   changer d'état. Rend le max d'espace à la carte + frise, qui sont la
+   substance de l'app. */
+aside.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 100;
+  background: var(--bg);
+  border-top: 1px solid var(--line-weak);
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.08);
+  transition: height 0.25s ease-out;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+aside.sheet.sheet-collapsed { height: 32px; }
+aside.sheet.sheet-peek      { height: 150px; }
+aside.sheet.sheet-expanded  { height: 85vh; }
+aside.sheet.sheet-dragging  { transition: none; }
+
+.sheet-handle {
+  display: block;
+  flex: 0 0 32px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+  padding: 0;
+  position: relative;
+}
+.sheet-handle::before {
+  content: '';
+  display: block;
+  width: 44px;
+  height: 4px;
+  background: var(--line-weak);
+  border-radius: 2px;
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.sheet-handle:active { cursor: grabbing; }
+
+/* Le header DANS le sheet : on scroll si le contenu dépasse (en expanded).
+   En peek, overflow: hidden du sheet masque ce qui dépasse — l'utilisateur
+   voit titre + info + mode + début du slider. */
+aside.sheet header {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 0 1rem 1rem;
+  text-align: center;
+  margin: 0;
+  -webkit-overflow-scrolling: touch;
+}
+aside.sheet.sheet-collapsed header { display: none; }
+/* En peek, on désactive le scroll pour éviter que l'utilisateur découvre
+   accidentellement du contenu masqué sans comprendre pourquoi. Expanded =
+   accès complet. */
+aside.sheet.sheet-peek header { overflow-y: hidden; }
 
 header {
   text-align: center;

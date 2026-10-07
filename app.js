@@ -476,6 +476,16 @@ function scrapContentScale(w, h) {
 
 // ---------- Scrapbook : rendu d'un item ----------
 function drawScrapItem(container, it) {
+  // L'item est ancré à sa longitude écliptique (it.lon) et à son rayon
+  // (it.radius), pas à (x, y) absolus. Au rendu on dérive (x, y) depuis
+  // (lon, radius, ascLon courant) → l'item suit son coin de zodiaque quand
+  // les signes tournent (changement de chartTime). (x, y) ne sont qu'un
+  // cache de rendu, recalculés à chaque frame.
+  if (it.lon != null && it.radius != null && state.currentAscLon != null) {
+    const p = project(it.lon, state.currentAscLon, it.radius);
+    it.x = p.x - it.width / 2;
+    it.y = p.y - it.height / 2;
+  }
   const fo = svg('foreignObject', {
     x: it.x, y: it.y, width: it.width, height: it.height,
     class: 'scrap-fo', 'data-id': it.id,
@@ -610,11 +620,16 @@ function wireScrapItem(fo, frame, it) {
       gripEl.removeEventListener('pointermove', onMove);
       gripEl.removeEventListener('pointerup', onUp);
       gripEl.removeEventListener('pointercancel', onUp);
-      // Recalcule lon à partir du nouveau centre et de l'ascLon courant.
-      // Déplacer un item dans la roue déplace sa position sur la frise.
+      // Recalcule lon et radius à partir du nouveau centre et de l'ascLon
+      // courant. Déplacer un item dans la roue déplace sa position zodiacale
+      // (donc son segment sur la frise) et son rayon (donc son éloignement
+      // du centre, préservé à travers les futurs changements d'ascendant).
       const ascLon = state.currentAscLon != null ? state.currentAscLon : 0;
-      it.lon = xyToLon(it.x + it.width / 2, it.y + it.height / 2, ascLon);
-      updateScrapItem(it.id, { x: it.x, y: it.y, lon: it.lon, updatedAt: Date.now() }, true);
+      const cx = it.x + it.width / 2;
+      const cy = it.y + it.height / 2;
+      it.lon    = xyToLon(cx, cy, ascLon);
+      it.radius = Math.hypot(cx, cy);
+      updateScrapItem(it.id, { x: it.x, y: it.y, lon: it.lon, radius: it.radius, updatedAt: Date.now() }, true);
     };
     gripEl.addEventListener('pointermove', onMove);
     gripEl.addEventListener('pointerup',   onUp);
@@ -648,7 +663,19 @@ function wireScrapItem(fo, frame, it) {
       resizeEl.removeEventListener('pointermove', onMove);
       resizeEl.removeEventListener('pointerup', onUp);
       resizeEl.removeEventListener('pointercancel', onUp);
-      updateScrapItem(it.id, { width: it.width, height: it.height, updatedAt: Date.now() }, true);
+      // Resize garde (x, y) top-left fixe mais déplace le centre → recalcule
+      // lon et radius depuis le nouveau centre pour que l'ancrage zodiacal
+      // suive la nouvelle géométrie et reste stable aux prochains renders.
+      const ascLon = state.currentAscLon != null ? state.currentAscLon : 0;
+      const cx = it.x + it.width / 2;
+      const cy = it.y + it.height / 2;
+      it.lon    = xyToLon(cx, cy, ascLon);
+      it.radius = Math.hypot(cx, cy);
+      updateScrapItem(it.id, {
+        width: it.width, height: it.height,
+        lon: it.lon, radius: it.radius,
+        updatedAt: Date.now(),
+      }, true);
     };
     resizeEl.addEventListener('pointermove', onMove);
     resizeEl.addEventListener('pointerup',   onUp);
@@ -1014,10 +1041,26 @@ function wireTimelineInteraction() {
   };
   let dragging = false;
   let isPinching = false;
-  let throttle = null;
-  const scheduleRender = () => {
-    clearTimeout(throttle);
-    throttle = setTimeout(() => render().catch(e => showError('render error: ' + e.message)), 60);
+  // Deux schedulers séparés, tous deux coalesced via RAF :
+  //  - scheduleTimelineRender : ne redessine QUE la frise (pan/zoom frise).
+  //    Pas de swe.houses, pas de computeBodies/Asteroids, pas de drawChart.
+  //  - scheduleFullRender : redessine tout (quand on bouge chartTime et donc
+  //    la roue). Reste coalesced à 1 frame max.
+  let tlRaf = null;
+  let fullRaf = null;
+  const scheduleTimelineRender = () => {
+    if (tlRaf != null) return;
+    tlRaf = requestAnimationFrame(() => {
+      tlRaf = null;
+      try { drawTimeline(); } catch (e) { showError('timeline error: ' + e.message); }
+    });
+  };
+  const scheduleFullRender = () => {
+    if (fullRaf != null) return;
+    fullRaf = requestAnimationFrame(() => {
+      fullRaf = null;
+      render().catch(e => showError('render error: ' + e.message));
+    });
   };
   const ensureTl = () => { if (!state.timeline) state.timeline = { zoom: 1 }; };
 
@@ -1043,7 +1086,7 @@ function wireTimelineInteraction() {
     svgEl.setPointerCapture(ev.pointerId);
     const t = pickTime(ev.clientX);
     state.chartTime = (t >= Date.now() - 60000) ? null : t;
-    scheduleRender();
+    scheduleFullRender();
   });
   svgEl.addEventListener('pointermove', ev => {
     if (mousePanStartClientX != null) {
@@ -1052,13 +1095,13 @@ function wireTimelineInteraction() {
       const msPerSvg = (range.endMs - range.startMs) / TL_PLOT_W;
       ensureTl();
       state.timeline.tlCenter = mousePanStartCenter - dxSvg * msPerSvg;
-      scheduleRender();
+      scheduleTimelineRender();
       return;
     }
     if (!dragging || isPinching) return;
     const t = pickTime(ev.clientX);
     state.chartTime = (t >= Date.now() - 60000) ? null : t;
-    scheduleRender();
+    scheduleFullRender();
   });
   const stop = () => {
     dragging = false;
@@ -1080,7 +1123,7 @@ function wireTimelineInteraction() {
     if (next === prev) return;
     ensureTl();
     state.timeline.zoom = next;
-    scheduleRender();
+    scheduleTimelineRender();
   }, { passive: false });
 
   // 2 doigts : zoom (écart entre doigts) + pan (milieu entre doigts),
@@ -1122,7 +1165,7 @@ function wireTimelineInteraction() {
       const newStartMs = pinchAnchorMs - t01 * visibleSpan;
       state.timeline.tlCenter = newStartMs + visibleSpan / 2;
 
-      scheduleRender();
+      scheduleTimelineRender();
       ev.preventDefault();
     }
   }, { passive: false });
@@ -1293,7 +1336,8 @@ function createScrapItemAt(x, y) {
   // courant. Permet de placer l'item sur la frise à la hauteur du signe
   // correspondant à sa position angulaire dans la roue.
   const ascLon = state.currentAscLon != null ? state.currentAscLon : 0;
-  const lon = xyToLon(x, y, ascLon);
+  const lon    = xyToLon(x, y, ascLon);
+  const radius = Math.hypot(x, y);
   // Horodatage = chartTime affiché (sinon maintenant). Permet de "revenir
   // dans le passé" via la frise ou le slider et déposer un item au moment
   // qu'on regarde, pas au moment du geste physique. Sans ça, les items
@@ -1308,6 +1352,7 @@ function createScrapItemAt(x, y) {
     y: y - height / 2,
     width, height,
     lon,
+    radius,
     text: '',
   };
   state.scrapbook.push(item);
@@ -1387,6 +1432,15 @@ function migrateScrapbookItems() {
     const x = Math.max(-VIEW, Math.min(VIEW - w, it.x));
     const y = Math.max(-VIEW, Math.min(VIEW - h, it.y));
     if (x !== it.x || y !== it.y) { it.x = x; it.y = y; migrated = true; }
+    // Radius (ancrage zodiacal) : dérivé du centre absolu si absent. Les items
+    // phase-A (centre à 0,0) tombent sur radius 0 → placés au centre, inoffensif
+    // en l'état mais corrigeable au premier drag utilisateur.
+    if (it.radius == null) {
+      const cx = it.x + it.width / 2;
+      const cy = it.y + it.height / 2;
+      it.radius = Math.hypot(cx, cy);
+      migrated = true;
+    }
     return it;
   });
   if (migrated) saveScrapbook();
@@ -1500,6 +1554,84 @@ function wireControls() {
   wireTimeSlider();
   wireDataExportImport();
   wireTimelineInteraction();
+  wireControlsSheet();
+}
+
+// Bottom sheet des contrôles : 3 états (collapsed/peek/expanded), draggable
+// par la poignée du haut, tappable pour cycler. Le but est de libérer la
+// surface d'écran mobile pour la carte et la frise ; les contrôles sont
+// toujours à portée de pouce mais ne consomment pas d'espace visuel permanent.
+const SHEET_STATES = ['collapsed', 'peek', 'expanded'];
+function sheetHeightFor(name) {
+  if (name === 'collapsed') return 32;
+  if (name === 'peek')      return 150;
+  return Math.round(window.innerHeight * 0.85);
+}
+function setSheetState(sheet, name) {
+  for (const s of SHEET_STATES) sheet.classList.remove('sheet-' + s);
+  sheet.classList.add('sheet-' + name);
+  sheet.style.height = '';  // retire le height inline posé par le drag
+  const handle = sheet.querySelector('.sheet-handle');
+  if (handle) handle.setAttribute('aria-expanded', String(name === 'expanded'));
+  try { localStorage.setItem('astrolab.sheet.state', name); } catch (e) {}
+}
+function wireControlsSheet() {
+  const sheet = document.getElementById('controls-sheet');
+  if (!sheet) return;
+  const handle = sheet.querySelector('.sheet-handle');
+  if (!handle) return;
+
+  // Restaure dernier état (peek par défaut).
+  const saved = (() => { try { return localStorage.getItem('astrolab.sheet.state'); } catch (e) { return null; } })();
+  setSheetState(sheet, SHEET_STATES.includes(saved) ? saved : 'peek');
+
+  // Drag : au move, met à jour height inline. Au up, snap au state le plus
+  // proche. Si drag quasi-nul (< 6 px total), on considère ça comme un tap et
+  // on cycle au state suivant (collapsed → peek → expanded → collapsed).
+  let dragY = null;
+  let dragStartHeight = null;
+  let dragMax = 0;  // amplitude max pendant le drag, pour discriminer tap vs drag
+  handle.addEventListener('pointerdown', ev => {
+    ev.preventDefault();
+    handle.setPointerCapture(ev.pointerId);
+    dragY = ev.clientY;
+    dragStartHeight = sheet.getBoundingClientRect().height;
+    dragMax = 0;
+    sheet.classList.add('sheet-dragging');
+  });
+  handle.addEventListener('pointermove', ev => {
+    if (dragY == null) return;
+    const dy = ev.clientY - dragY;
+    dragMax = Math.max(dragMax, Math.abs(dy));
+    const minH = sheetHeightFor('collapsed');
+    const maxH = sheetHeightFor('expanded');
+    const h = Math.max(minH, Math.min(maxH, dragStartHeight - dy));
+    sheet.style.height = h + 'px';
+  });
+  const endDrag = ev => {
+    if (dragY == null) return;
+    const currentHeight = parseFloat(sheet.style.height) || dragStartHeight;
+    dragY = null;
+    dragStartHeight = null;
+    sheet.classList.remove('sheet-dragging');
+    if (dragMax < 6) {
+      // Tap : cycle au state suivant.
+      const cur = SHEET_STATES.find(s => sheet.classList.contains('sheet-' + s)) || 'peek';
+      const next = SHEET_STATES[(SHEET_STATES.indexOf(cur) + 1) % SHEET_STATES.length];
+      setSheetState(sheet, next);
+      return;
+    }
+    // Drag : snap au state dont la hauteur est la plus proche.
+    let best = SHEET_STATES[0];
+    let bestDist = Infinity;
+    for (const s of SHEET_STATES) {
+      const d = Math.abs(sheetHeightFor(s) - currentHeight);
+      if (d < bestDist) { bestDist = d; best = s; }
+    }
+    setSheetState(sheet, best);
+  };
+  handle.addEventListener('pointerup',     endDrag);
+  handle.addEventListener('pointercancel', endDrag);
 }
 
 // Export / Import : snapshot complet du localStorage sous le préfixe
