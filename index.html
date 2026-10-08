@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>astrolab — carte natale</title>
-  <link rel="stylesheet" href="style.css?v=40">
+  <link rel="stylesheet" href="style.css?v=42">
 </head>
 <body>
   <main>
@@ -81,6 +81,10 @@
             <button type="button" id="data-import" class="config-btn" title="Recharger un snapshot JSON (écrase les données courantes)">↑ importer</button>
             <input type="file" id="data-import-file" accept=".json,application/json" hidden>
           </div>
+          <div class="config-row">
+            <span class="config-label">glyphes :</span>
+            <button type="button" id="glyph-workshop-open" class="config-btn" title="Harmoniser la taille visuelle de chaque glyphe planétaire">◉ atelier</button>
+          </div>
         </div>
       </details>
       <div class="asteroid-search-wrap">
@@ -97,6 +101,46 @@
        aspects est ouvert. -->
   <div class="aspects-backdrop" hidden aria-hidden="true"></div>
 
-  <script type="module" src="app.js?v=46"></script>
+  <!-- Atelier de glyphes : modale plein écran, ouverte depuis la section
+       configuration du sheet. Alimente PLANET_SCALES (localStorage). -->
+  <div id="glyph-workshop" class="glyph-workshop" hidden aria-hidden="true" role="dialog" aria-label="Atelier de glyphes">
+    <div class="gw-panel">
+      <header class="gw-header">
+        <h2>atelier de glyphes</h2>
+        <button type="button" class="gw-close" aria-label="Fermer">×</button>
+      </header>
+      <div class="gw-body">
+        <section class="gw-active" aria-label="Glyphe actif">
+          <svg class="gw-reference" viewBox="-100 -100 200 200" xmlns="http://www.w3.org/2000/svg">
+            <circle class="gw-guide" r="55"></circle>
+            <text class="gw-glyph" x="0" y="0"></text>
+          </svg>
+          <div class="gw-controls">
+            <div class="gw-active-row">
+              <span class="gw-active-name">—</span>
+              <span class="gw-active-value">1.00</span>
+            </div>
+            <input type="range" class="gw-slider" min="0.5" max="2" step="0.05" value="1" aria-label="Échelle du glyphe actif">
+            <button type="button" class="gw-reset-one" title="Remettre ce glyphe à l'échelle 1">↻ par défaut</button>
+          </div>
+        </section>
+        <section class="gw-grid-wrap" aria-label="Preview baseline">
+          <p class="gw-grid-hint">tap pour éditer — baseline alignée, défile horizontalement</p>
+          <div class="gw-grid" role="list"></div>
+        </section>
+        <section class="gw-invented" aria-label="Corps célestes inventés">
+          <h3>corps inventés</h3>
+          <p class="gw-invented-hint">bientôt — téléverser un SVG pour un astéroïde, un événement ou une personne sans glyphe standard</p>
+          <button type="button" class="gw-invented-btn" disabled>+ corps inventé</button>
+        </section>
+      </div>
+      <footer class="gw-footer">
+        <button type="button" class="gw-cancel">× fermer sans enregistrer</button>
+        <button type="button" class="gw-save">✓ enregistrer</button>
+      </footer>
+    </div>
+  </div>
+
+  <script type="module" src="app.js?v=48"></script>
 </body>
 </html>

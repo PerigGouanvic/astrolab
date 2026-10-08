@@ -128,13 +128,24 @@ const EXTENDED = [
 ];
 const SIGN_GLYPHS = ['♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓'].map(g => g + VS15);
 
-// Scales de glyphes planétaires. L'infra `--planet-scale` par <text> est en
-// place (voir le render ci-dessous + CSS .planet-symbol) mais pas alimentée
-// pour l'instant : la mesure auto Canvas/SVG a été écartée (ne couvre pas les
-// corps célestes inventés sans glyphe, et harmonisation visuelle imparfaite).
-// Le futur atelier de création de glyphes alimentera PLANET_SCALES à la main.
+// Scales de glyphes planétaires alimentés par l'atelier de création (modale
+// plein écran, voir wireGlyphWorkshop). Chargé depuis localStorage au boot,
+// consommé par chaque <text class="planet-symbol"> via --planet-scale inline.
 // Voir fiche memory/project_feature_atelier_glyphes.md.
 const PLANET_SCALES = {};
+const PLANET_SCALES_KEY = 'astrolab.planet-scales';
+function loadPlanetScales() {
+  try {
+    const raw = localStorage.getItem(PLANET_SCALES_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') Object.assign(PLANET_SCALES, parsed);
+  } catch (e) {}
+}
+function savePlanetScales() {
+  try { localStorage.setItem(PLANET_SCALES_KEY, JSON.stringify(PLANET_SCALES)); }
+  catch (e) {}
+}
 
 // ---------- Astéroïdes : catalogue + fetch/mount à la demande ----------
 let catalogPromise;
@@ -1567,6 +1578,123 @@ function wireControls() {
   wireDataExportImport();
   wireTimelineInteraction();
   wireControlsSheet();
+  wireGlyphWorkshop();
+}
+
+// Atelier de glyphes : modale plein écran qui harmonise la taille visuelle des
+// glyphes planétaires (planètes + extended). Cadre de référence circulaire +
+// grille baseline-alignée pour juger l'harmonie globale. Live-update dans la
+// modale, persistance + re-render de la carte à la fermeture seulement.
+// Zone "corps inventés" présente mais désactivée en v1 (upload SVG à câbler).
+// Voir memory/project_feature_atelier_glyphes.md.
+const WORKSHOP_BODIES = [...PLANETS, ...EXTENDED];
+function wireGlyphWorkshop() {
+  const openBtn = document.getElementById('glyph-workshop-open');
+  const modal   = document.getElementById('glyph-workshop');
+  if (!openBtn || !modal) return;
+  const closeBtn    = modal.querySelector('.gw-close');
+  const cancelBtn   = modal.querySelector('.gw-cancel');
+  const saveBtn     = modal.querySelector('.gw-save');
+  const glyphText   = modal.querySelector('.gw-glyph');
+  const activeName  = modal.querySelector('.gw-active-name');
+  const activeValue = modal.querySelector('.gw-active-value');
+  const slider      = modal.querySelector('.gw-slider');
+  const resetBtn    = modal.querySelector('.gw-reset-one');
+  const grid        = modal.querySelector('.gw-grid');
+
+  let activeKey = WORKSHOP_BODIES[0].key;
+  const scaleOf = (key) => PLANET_SCALES[key] != null ? PLANET_SCALES[key] : 1;
+
+  const renderGrid = () => {
+    grid.innerHTML = '';
+    for (const body of WORKSHOP_BODIES) {
+      const cell = document.createElement('button');
+      cell.type = 'button';
+      cell.className = 'gw-cell' + (body.key === activeKey ? ' is-active' : '');
+      cell.dataset.key = body.key;
+      cell.setAttribute('aria-label', `${body.key} — scale ${scaleOf(body.key).toFixed(2)}`);
+      const g = document.createElement('span');
+      g.className = 'gw-cell-glyph';
+      g.style.setProperty('--planet-scale', scaleOf(body.key));
+      g.textContent = body.glyph;
+      const label = document.createElement('span');
+      label.className = 'gw-cell-label';
+      label.textContent = body.key;
+      cell.appendChild(g);
+      cell.appendChild(label);
+      cell.addEventListener('click', () => {
+        activeKey = body.key;
+        syncActive();
+        renderGrid();
+      });
+      grid.appendChild(cell);
+    }
+  };
+
+  const syncActive = () => {
+    const body = WORKSHOP_BODIES.find(b => b.key === activeKey);
+    glyphText.textContent = body.glyph;
+    glyphText.style.setProperty('--planet-scale', scaleOf(activeKey));
+    activeName.textContent = activeKey;
+    activeValue.textContent = scaleOf(activeKey).toFixed(2);
+    slider.value = String(scaleOf(activeKey));
+  };
+
+  slider.addEventListener('input', () => {
+    const val = parseFloat(slider.value);
+    PLANET_SCALES[activeKey] = val;
+    activeValue.textContent = val.toFixed(2);
+    glyphText.style.setProperty('--planet-scale', val);
+    const cellGlyph = grid.querySelector(`[data-key="${activeKey}"] .gw-cell-glyph`);
+    if (cellGlyph) cellGlyph.style.setProperty('--planet-scale', val);
+  });
+
+  resetBtn.addEventListener('click', () => {
+    PLANET_SCALES[activeKey] = 1;
+    syncActive();
+    renderGrid();
+  });
+
+  // Snapshot explicite au boot de la modale. ✓ enregistrer = persist + re-render
+  // de la carte. × / Esc / backdrop = annulation : on restaure l'état d'avant
+  // ouverture (clé par clé, pas réassignation sinon on perd la référence
+  // partagée avec le reste du module).
+  let snapshotOnOpen = {};
+  const restoreSnapshot = () => {
+    for (const k of Object.keys(PLANET_SCALES)) delete PLANET_SCALES[k];
+    Object.assign(PLANET_SCALES, snapshotOnOpen);
+  };
+  const hide = () => {
+    modal.hidden = true;
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('gw-modal-open');
+  };
+  const open = () => {
+    snapshotOnOpen = { ...PLANET_SCALES };
+    modal.hidden = false;
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('gw-modal-open');
+    syncActive();
+    renderGrid();
+  };
+  const save = () => {
+    savePlanetScales();
+    hide();
+    render().catch(e => showError('render error: ' + e.message));
+  };
+  const cancel = () => {
+    restoreSnapshot();
+    hide();
+  };
+
+  openBtn.addEventListener('click', open);
+  saveBtn.addEventListener('click', save);
+  closeBtn.addEventListener('click', cancel);
+  cancelBtn.addEventListener('click', cancel);
+  modal.addEventListener('click', e => { if (e.target === modal) cancel(); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !modal.hidden) cancel();
+  });
 }
 
 // Bottom sheet des contrôles : 4 états mobile (collapsed/peek/mid/expanded),
@@ -1891,6 +2019,7 @@ function wireProxySettings() {
 
 async function main() {
   await initSwe();
+  loadPlanetScales();
   migrateScrapbookItems();
   migrateScrapbookLon();
   wireControls();

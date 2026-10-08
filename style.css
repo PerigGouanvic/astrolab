@@ -1181,3 +1181,276 @@ h1 {
   aside.sheet header .asteroid-search-wrap { min-width: 240px; }
   aside.sheet header .scrap-hint { font-size: 0.75rem; opacity: 0.7; }
 }
+
+/* ---------- Atelier de glyphes (modale plein écran) ---------- */
+/* Harmonisation manuelle des tailles de glyphes planétaires. Cadre de
+   référence circulaire + grille baseline-alignée. Ouvert depuis la section
+   config du sheet. Persistance localStorage, re-render carte à la fermeture.
+   Voir memory/project_feature_atelier_glyphes.md. */
+.glyph-workshop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(26, 26, 26, 0.55);
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: 0;
+}
+body.gw-modal-open { overflow: hidden; }
+
+.gw-panel {
+  background: var(--bg);
+  color: var(--ink);
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 4px 32px rgba(0, 0, 0, 0.25);
+}
+
+.gw-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid var(--line-weak);
+}
+.gw-header h2 {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 1.1rem;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+.gw-close {
+  background: transparent;
+  border: 1px solid var(--line-weak);
+  color: var(--line-medium);
+  width: 2rem;
+  height: 2rem;
+  font-size: 1.2rem;
+  line-height: 1;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.gw-close:hover { color: var(--ink); border-color: var(--line-medium); }
+
+.gw-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.4rem;
+}
+
+/* Zone active : grand cercle de référence + glyphe centré + slider. */
+.gw-active {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8rem;
+}
+.gw-reference {
+  width: 220px;
+  height: 220px;
+  flex-shrink: 0;
+}
+.gw-guide {
+  fill: none;
+  stroke: var(--line-weak);
+  stroke-width: 0.8;
+  stroke-dasharray: 3 2;
+}
+.gw-glyph {
+  fill: var(--planet);
+  font-family: var(--font-serif);
+  --planet-scale: 1;
+  font-size: calc(60px * var(--planet-scale));
+  text-anchor: middle;
+  dominant-baseline: central;
+  font-variant-emoji: text;
+}
+
+.gw-controls {
+  width: 100%;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+.gw-active-row {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+}
+.gw-active-name {
+  color: var(--ink);
+  text-transform: lowercase;
+}
+.gw-active-value {
+  color: var(--line-medium);
+}
+.gw-slider {
+  width: 100%;
+}
+.gw-reset-one {
+  background: transparent;
+  border: 1px solid var(--line-weak);
+  color: var(--line-medium);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.gw-reset-one:hover { color: var(--ink); border-color: var(--line-medium); }
+
+/* Grille preview : tous les glyphes alignés sur une même baseline. Chaque
+   cellule rend le glyphe à sa scale actuelle pour que l'œil juge l'harmonie
+   globale. Tap/clic sélectionne le glyphe actif. */
+.gw-grid-wrap {
+  border-top: 1px dashed var(--line-weak);
+  padding-top: 1rem;
+}
+.gw-grid-hint {
+  margin: 0 0 0.6rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--line-medium);
+  text-align: center;
+  font-style: italic;
+}
+/* Carrousel horizontal : les 15 glyphes tiennent sur une ligne qui scroll
+   latéralement, baseline-align partagée. Snap-x pour poser l'œil cellule
+   par cellule. Pas de wrap : si ça déborde, on scrolle, c'est le but. */
+.gw-grid {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 0.3rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.3rem;
+}
+.gw-cell {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  padding: 0.4rem 0.3rem 0.3rem;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  font-family: var(--font-mono);
+  color: var(--ink);
+  flex: 0 0 auto;
+  min-width: 64px;
+  scroll-snap-align: center;
+}
+.gw-cell:hover { border-color: var(--line-weak); }
+.gw-cell.is-active {
+  border-color: var(--accent);
+  background: rgba(122, 74, 42, 0.05);
+}
+/* Baseline-align : hauteur fixe + align-items:flex-end + line-height:1 pour
+   que les glyphes de scales différents partagent la même ligne de base. */
+.gw-cell-glyph {
+  --planet-scale: 1;
+  font-family: var(--font-serif);
+  font-size: calc(28px * var(--planet-scale));
+  font-variant-emoji: text;
+  color: var(--planet);
+  height: 56px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  line-height: 1;
+}
+.gw-cell-label {
+  font-size: 0.65rem;
+  color: var(--line-medium);
+  letter-spacing: 0.02em;
+}
+
+/* Zone corps inventés : placeholder visible mais désactivé en v1. */
+.gw-invented {
+  border-top: 1px dashed var(--line-weak);
+  padding-top: 1rem;
+  text-align: center;
+}
+.gw-invented h3 {
+  margin: 0 0 0.3rem;
+  font-family: var(--font-serif);
+  font-size: 0.95rem;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+.gw-invented-hint {
+  margin: 0 0 0.6rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--line-medium);
+  font-style: italic;
+}
+.gw-invented-btn {
+  background: transparent;
+  border: 1px dashed var(--line-weak);
+  color: var(--line-medium);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 3px;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Footer de la modale : actions explicites. ✓ enregistrer est l'action
+   principale (accent couleur) ; ×/annuler est la sortie neutre qui restaure
+   l'état d'avant ouverture (snapshot JS). */
+.gw-footer {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.7rem 1rem;
+  border-top: 1px solid var(--line-weak);
+  background: var(--bg);
+}
+.gw-cancel, .gw-save {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.gw-cancel {
+  background: transparent;
+  border: 1px solid var(--line-weak);
+  color: var(--line-medium);
+}
+.gw-cancel:hover { color: var(--ink); border-color: var(--line-medium); }
+.gw-save {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: #faf7f0;
+}
+.gw-save:hover { filter: brightness(1.1); }
+
+@media (min-width: 700px) {
+  .gw-panel { margin-top: 2.5vh; margin-bottom: 2.5vh; max-height: 95vh; border-radius: 4px; }
+  .gw-body { padding: 1.3rem 1.5rem; }
+}
+
+@media (max-width: 420px) {
+  .gw-reference { width: 180px; height: 180px; }
+}
