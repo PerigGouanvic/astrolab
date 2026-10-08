@@ -1260,6 +1260,7 @@ let state = {
   scrapbook: JSON.parse(localStorage.getItem(SCRAPBOOK_KEY) || '[]'),
   chartTime: null,  // null = temps réel ; sinon ms epoch (slider temporel)
   timeline: { zoom: 1.0 },  // zoom frise, 1 = toute la vie, >1 = zoomé
+  chart: { zoom: 1.0, cx: 0, cy: 0 },  // zoom cercle via viewBox ; cx/cy = centre visible (viewBox initial = -520..520)
 };
 function saveAsteroids()   { localStorage.setItem(STORAGE_KEY,       JSON.stringify(state.asteroids)); }
 function saveLayers()      { localStorage.setItem(LAYERS_KEY,        JSON.stringify(state.layers));    }
@@ -1390,6 +1391,161 @@ function createScrapItemAt(x, y) {
       }
     })
     .catch(e => showError('render error: ' + e.message));
+}
+
+// Zoom cercle : viewBox dynamique, indépendant du zoom frise.
+//   - molette (desktop) → zoom autour du curseur
+//   - 2 doigts (mobile) → zoom (écart) + pan (milieu) simultanés, ancrés sur
+//     le point viewBox qui était sous le milieu au début du geste
+//   - clic milieu drag (desktop) → pan sans zoom
+// 1 doigt reste libre pour le double-tap scrapbook (wireScrapbookGestures).
+// Le viewBox initial 1040×1040 est centré en (0,0) ; on représente la fenêtre
+// visible par (cx, cy, zoom) avec w = h = 1040 / zoom.
+const CHART_VB_SIZE = 1040;
+const CHART_VB_HALF = 520;
+const CHART_ZOOM_MIN = 1.0;
+const CHART_ZOOM_MAX = 50;
+
+function clampChartState() {
+  const c = state.chart;
+  c.zoom = Math.max(CHART_ZOOM_MIN, Math.min(CHART_ZOOM_MAX, c.zoom || 1));
+  // Clamp cx/cy pour que la fenêtre visible reste à l'intérieur du viewBox
+  // initial (évite les bords vides). Si zoom = 1, cx=cy=0 forcé.
+  const halfVisible = CHART_VB_HALF / c.zoom;
+  const maxOffset = CHART_VB_HALF - halfVisible;
+  c.cx = Math.max(-maxOffset, Math.min(maxOffset, c.cx || 0));
+  c.cy = Math.max(-maxOffset, Math.min(maxOffset, c.cy || 0));
+}
+
+function updateChartViewBox() {
+  const svgEl = document.getElementById('chart');
+  if (!svgEl) return;
+  clampChartState();
+  const { zoom, cx, cy } = state.chart;
+  const w = CHART_VB_SIZE / zoom;
+  const x = cx - w / 2;
+  const y = cy - w / 2;
+  svgEl.setAttribute('viewBox', `${x} ${y} ${w} ${w}`);
+}
+
+function wireChartInteraction() {
+  const svgEl = document.getElementById('chart');
+  if (!svgEl) return;
+
+  // Position d'un event écran en coord viewBox courantes du cercle.
+  const svgPt = (clientX, clientY) => {
+    const pt = svgEl.createSVGPoint();
+    pt.x = clientX; pt.y = clientY;
+    return pt.matrixTransform(svgEl.getScreenCTM().inverse());
+  };
+
+  // Molette : zoom autour du curseur. Le point viewBox sous la souris reste
+  // sous la souris après zoom.
+  svgEl.addEventListener('wheel', ev => {
+    ev.preventDefault();
+    const anchor = svgPt(ev.clientX, ev.clientY);
+    const prev = state.chart.zoom || 1;
+    const factor = Math.exp(-ev.deltaY * 0.0015);
+    const next = Math.max(CHART_ZOOM_MIN, Math.min(CHART_ZOOM_MAX, prev * factor));
+    if (next === prev) return;
+    // cx_new tel que anchor reste au même point écran :
+    //   anchor.x = cx_new + (fx - 0.5) * w_new   avec fx = position relative
+    //   anchor.x = cx_old + (fx - 0.5) * w_old
+    // Donc cx_new = anchor.x - (anchor.x - cx_old) * (w_new / w_old)
+    //             = anchor.x - (anchor.x - cx_old) * (prev / next)
+    const r = prev / next;
+    state.chart.zoom = next;
+    state.chart.cx = anchor.x - (anchor.x - (state.chart.cx || 0)) * r;
+    state.chart.cy = anchor.y - (anchor.y - (state.chart.cy || 0)) * r;
+    updateChartViewBox();
+  }, { passive: false });
+
+  // Pinch 2-doigts : zoom + pan combinés, ancrés sur le milieu.
+  let pinchStartDist = null;
+  let pinchStartZoom = null;
+  let pinchAnchorVb  = null;  // (x,y) viewBox initial sous le milieu au start
+  svgEl.addEventListener('touchstart', ev => {
+    if (ev.touches.length >= 2) {
+      ev.preventDefault();
+      const t0 = ev.touches[0], t1 = ev.touches[1];
+      pinchStartDist = Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY) || 1;
+      pinchStartZoom = state.chart.zoom || 1;
+      pinchAnchorVb  = svgPt((t0.clientX + t1.clientX) / 2, (t0.clientY + t1.clientY) / 2);
+    }
+  }, { passive: false });
+
+  svgEl.addEventListener('touchmove', ev => {
+    if (ev.touches.length >= 2 && pinchStartDist != null) {
+      ev.preventDefault();
+      const t0 = ev.touches[0], t1 = ev.touches[1];
+      const dist = Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY) || 1;
+      const ratio = dist / pinchStartDist;
+      const nextZoom = Math.max(CHART_ZOOM_MIN, Math.min(CHART_ZOOM_MAX, pinchStartZoom * ratio));
+      state.chart.zoom = nextZoom;
+      // Ancrage : on veut que pinchAnchorVb (point initial sous milieu) tombe
+      // sous le milieu courant. Convertir le milieu courant en coord viewBox
+      // via la CTM courante NE marche pas car la CTM dépend du viewBox qu'on
+      // calcule. On raisonne en coord écran : la position écran du milieu doit
+      // correspondre à pinchAnchorVb projeté par le nouveau viewBox.
+      // Soit midScreen = (midX, midY) et rect = svgEl.getBoundingClientRect() ;
+      // fraction écran fx = (midX - rect.left) / rect.width, idem fy.
+      // Alors viewBox voulu : vbX = pinchAnchorVb.x - fx * w, vbY = pinchAnchorVb.y - fy * w
+      // → cx = vbX + w/2, cy = vbY + w/2.
+      const rect = svgEl.getBoundingClientRect();
+      const midX = (t0.clientX + t1.clientX) / 2;
+      const midY = (t0.clientY + t1.clientY) / 2;
+      const fx = (midX - rect.left) / rect.width;
+      const fy = (midY - rect.top) / rect.height;
+      const w = CHART_VB_SIZE / nextZoom;
+      state.chart.cx = pinchAnchorVb.x - (fx - 0.5) * w;
+      state.chart.cy = pinchAnchorVb.y - (fy - 0.5) * w;
+      updateChartViewBox();
+    }
+  }, { passive: false });
+
+  const endPinch = () => {
+    pinchStartDist = null;
+    pinchStartZoom = null;
+    pinchAnchorVb  = null;
+  };
+  svgEl.addEventListener('touchend',    endPinch);
+  svgEl.addEventListener('touchcancel', endPinch);
+
+  // Clic milieu desktop : pan sans zoom. On enregistre la position écran au
+  // start et le centre viewBox, puis on soustrait le déplacement converti en
+  // coord viewBox (via le ratio taille écran / taille viewBox visible).
+  let mousePanStartX = null;
+  let mousePanStartY = null;
+  let mousePanStartCx = null;
+  let mousePanStartCy = null;
+  svgEl.addEventListener('pointerdown', ev => {
+    if (ev.button !== 1) return;
+    ev.preventDefault();
+    svgEl.setPointerCapture(ev.pointerId);
+    mousePanStartX  = ev.clientX;
+    mousePanStartY  = ev.clientY;
+    mousePanStartCx = state.chart.cx || 0;
+    mousePanStartCy = state.chart.cy || 0;
+  });
+  svgEl.addEventListener('pointermove', ev => {
+    if (mousePanStartX == null) return;
+    const rect = svgEl.getBoundingClientRect();
+    const w = CHART_VB_SIZE / (state.chart.zoom || 1);
+    const kx = w / rect.width;
+    const ky = w / rect.height;
+    state.chart.cx = mousePanStartCx - (ev.clientX - mousePanStartX) * kx;
+    state.chart.cy = mousePanStartCy - (ev.clientY - mousePanStartY) * ky;
+    updateChartViewBox();
+  });
+  const stopPan = () => {
+    mousePanStartX = null;
+    mousePanStartY = null;
+    mousePanStartCx = null;
+    mousePanStartCy = null;
+  };
+  svgEl.addEventListener('pointerup',     stopPan);
+  svgEl.addEventListener('pointercancel', stopPan);
+  svgEl.addEventListener('auxclick', ev => { if (ev.button === 1) ev.preventDefault(); });
 }
 
 // Double-tap détection manuelle (dblclick natif est capricieux sur mobile).
@@ -1574,6 +1730,8 @@ function wireControls() {
   wireAsteroidSearch();
   wireProxySettings();
   wireScrapbookGestures();
+  wireChartInteraction();
+  updateChartViewBox();
   wireTimeSlider();
   wireDataExportImport();
   wireTimelineInteraction();

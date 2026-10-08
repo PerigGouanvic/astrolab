@@ -9,6 +9,7 @@
   --accent: #7a4a2a;
   --font-serif: Georgia, 'Times New Roman', serif;
   --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  --sidebar-w: 360px;
 }
 
 * { box-sizing: border-box; }
@@ -353,10 +354,11 @@ h1 {
   width: 100%;
   height: 100%;
   display: block;
-  /* Empêche le double-tap-to-zoom du navigateur mobile de manger le second
-     tap destiné à notre détection manuelle de double-tap (scrapbook).
-     `manipulation` garde pan et pinch-zoom à deux doigts. */
-  touch-action: manipulation;
+  /* `none` : on prend la main sur TOUS les gestes tactiles.
+     - 1 doigt → double-tap manuel pour le scrapbook (pointerdown JS)
+     - 2 doigts → pinch + pan via wireChartInteraction (viewBox dynamique)
+     Empêche aussi le double-tap-to-zoom du navigateur de manger le 2e tap. */
+  touch-action: none;
 }
 
 /* SVG element styles */
@@ -1140,46 +1142,42 @@ h1 {
   }
 }
 
-/* Desktop (≥ 900px) : le sheet n'a plus de sens vertical empilé — on l'étale
-   horizontalement. Pas de crans, pas de drag, poignée masquée. Hauteur auto
-   avec plafond pour que le chart reste visible. Les sections (mode, slider,
-   couches, aspects, config, recherche) s'étalent en flex-wrap. */
+/* Desktop (≥ 900px) : sidebar droite plein hauteur, pas de bottom sheet. Pas
+   de crans ni de drag (handlers early-return côté JS, poignée masquée en CSS).
+   Le header interne reprend son flux vertical normal — on neutralise les
+   overrides mobile de hauteurs fixes. Chart et frise restent centrés dans
+   l'espace restant via le padding-right du body. */
 @media (min-width: 900px) {
   body {
-    /* Réserve = plafond du sheet (35vh). Le sheet scrollera en interne si
-       son contenu dépasse — le chart n'est jamais recouvert. */
-    padding-bottom: calc(35vh + 0.5rem);
+    padding-bottom: 0.5rem;
+    padding-right: calc(var(--sidebar-w) + 0.5rem);
   }
   aside.sheet,
   aside.sheet.sheet-collapsed,
   aside.sheet.sheet-peek,
   aside.sheet.sheet-mid,
   aside.sheet.sheet-expanded {
-    height: auto;
-    max-height: 35vh;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: auto;
+    width: var(--sidebar-w);
+    height: 100vh;
+    max-height: none;
     overflow-y: auto;
+    border-top: none;
+    border-left: 1px solid var(--line-weak);
+    box-shadow: -2px 0 12px rgba(0, 0, 0, 0.08);
   }
   .sheet-handle { display: none; }
+  /* Header interne : flux vertical normal, scroll si contenu dépasse. */
   aside.sheet header,
   aside.sheet.sheet-peek header,
   aside.sheet.sheet-mid header {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: center;
-    gap: 0.6rem 1.5rem;
-    padding: 0.8rem 1rem;
+    display: block;
+    padding: 1rem;
     overflow-y: visible;
   }
-  /* Le titre et l'info-ligne restent visibles mais ne cassent plus le flux
-     en poussant tout vers le bas. Ils deviennent un bloc inline parmi les
-     autres. */
-  aside.sheet header h1 { margin: 0; font-size: 1.1rem; }
-  aside.sheet header .chart-info { font-size: 0.8rem; }
-  aside.sheet header .time-slider { min-width: 260px; }
-  aside.sheet header .asteroid-search-wrap { min-width: 240px; }
-  aside.sheet header .scrap-hint { font-size: 0.75rem; opacity: 0.7; }
 }
 
 /* ---------- Atelier de glyphes (modale plein écran) ---------- */
