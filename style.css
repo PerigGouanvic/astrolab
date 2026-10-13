@@ -1017,6 +1017,7 @@ h1 {
   max-width: 800px;
   margin: 1rem auto 0;
   aspect-ratio: 800 / 260;
+  position: relative;
 }
 
 #timeline {
@@ -1024,7 +1025,68 @@ h1 {
   height: 100%;
   display: block;
   touch-action: none;
-  cursor: col-resize;
+  cursor: grab;
+}
+
+#timeline:active { cursor: grabbing; }
+
+/* Poignée triangulaire au-dessus de la frise. Hit area 44x32 (tactile OK),
+   visuel = triangle 14x10 centré. Dédiée au curseur temporel : seul vecteur
+   qui recalcule la roue (évite les triggers accidentels dixit Perig). */
+#timeline-handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 44px;
+  height: 32px;
+  margin-left: -22px;
+  touch-action: none;
+  cursor: grab;
+  z-index: 5;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  pointer-events: auto;
+}
+
+#timeline-handle::before {
+  content: '';
+  width: 0;
+  height: 0;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: 12px solid var(--accent);
+  margin-top: 1px;
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,0.25));
+}
+
+#timeline-handle.dragging {
+  cursor: grabbing;
+}
+#timeline-handle.dragging::before {
+  border-top-color: var(--accent);
+  filter: drop-shadow(0 2px 3px rgba(0,0,0,0.35));
+}
+
+#timeline-handle.out-of-view {
+  display: none;
+}
+
+/* Toggle "voir aussi les observations datées" affiché seulement en mode
+   natal (hidden par JS). Petit, discret, sous les boutons de mode. */
+.natal-overlay-row {
+  margin: 0.25rem 0 0.5rem;
+}
+.natal-overlay-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--line-medium);
+  cursor: pointer;
+}
+.natal-overlay-label input {
+  margin: 0;
 }
 
 /* Bandes signes alternées : fond très discret pour baliser 12 régions

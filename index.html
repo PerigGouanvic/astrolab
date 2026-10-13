@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>astrolab — carte natale</title>
-  <link rel="stylesheet" href="style.css?v=44">
+  <link rel="stylesheet" href="style.css?v=45">
 </head>
 <body>
   <main>
@@ -20,6 +20,10 @@
     </div>
     <div id="timeline-container">
       <svg id="timeline" viewBox="0 0 800 260" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"></svg>
+      <!-- Poignée triangulaire ancrée en haut du conteneur, suit chartTime en
+           CSS px (positionnée par app.js). Seule à déclencher le recalcul de
+           la roue — le fond de la frise sert au pan uniquement. -->
+      <div id="timeline-handle" role="slider" aria-label="Curseur temporel — glisser pour changer de moment"></div>
     </div>
     <pre id="error-box" class="error-box" hidden></pre>
     <aside id="controls-sheet" class="sheet sheet-peek" aria-label="Contrôles">
@@ -30,6 +34,12 @@
         <button type="button" data-mode="natal">natal (Perig)</button>
         <button type="button" id="proxy-settings" class="proxy-btn" title="Configurer le proxy CORS pour astéroïdes">⚙</button>
       </nav>
+      <div id="natal-overlay-row" class="natal-overlay-row" hidden>
+        <label class="natal-overlay-label">
+          <input type="checkbox" id="show-timed-in-natal">
+          <span>voir aussi les observations datées</span>
+        </label>
+      </div>
       <div class="time-slider" aria-label="Navigation temporelle">
         <input type="range" id="time-slider" min="0" max="1000" value="1000" step="1">
         <span id="time-label" class="time-label">maintenant</span>
@@ -141,6 +151,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=49"></script>
+  <script type="module" src="app.js?v=50"></script>
 </body>
 </html>

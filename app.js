@@ -460,23 +460,29 @@ function drawChart({ cusps, ascendant, midheaven, bodies, asteroids }, layers) {
   // chartTime < retiredAt). Ainsi remonter le slider fait réapparaître
   // les items retirés temporellement.
   if (layers.scrapbook && state.scrapbook.length) {
-    const t = getChartTime();
     for (const it of state.scrapbook) {
-      if (!isItemVisibleAt(it, t)) continue;
+      if (!isScrapItemVisible(it)) continue;
       drawScrapItem(container, it);
     }
   }
 }
 
-// Temps courant du chart pour le filtre scrapbook. null en mode natal =
-// pas de filtre (les items sont montrés indépendamment de la date natale
-// de Perig, qui est totalement décorrélée du présent).
-function getChartTime() {
-  if (state.mode === 'natal') return null;
-  return state.chartTime != null ? state.chartTime : Date.now();
-}
-function isItemVisibleAt(item, t) {
-  if (t == null) return true;
+// Visibilité d'un item scrapbook, deux axes :
+//  - scope : 'natal' (lieu permanent du natal, hors frise) vs 'timed' (ancré
+//    à createdAt sur la frise, retiré à retiredAt). Legacy sans scope =
+//    'timed'. Items 'natal' créés avant la refonte restent 'timed' tant qu'ils
+//    ne sont pas requalifiés.
+//  - mode roue : 'natal' montre les items 'natal' par défaut, et les 'timed'
+//    seulement si state.showTimedInNatal (toggle). 'now' montre les 'timed'
+//    filtrés par chartTime, et jamais les 'natal' (hors contexte).
+function isScrapItemVisible(item) {
+  const scope = item.scope || 'timed';
+  if (state.mode === 'natal') {
+    if (scope === 'natal') return true;
+    return !!state.showTimedInNatal;
+  }
+  if (scope === 'natal') return false;
+  const t = state.chartTime != null ? state.chartTime : Date.now();
   if ((item.createdAt || 0) > t) return false;
   if (item.retiredAt != null && t >= item.retiredAt) return false;
   return true;
@@ -813,47 +819,47 @@ const SLOW_PLANETS = [
 function msToJd(ms) { return ms / 86400000 + 2440587.5; }
 function jdToMs(jd) { return (jd - 2440587.5) * 86400000; }
 
-// Vie complète du natif (naissance → maintenant). Base invariante utilisée
-// par le cache de courbes et comme bornes de clamp pour le zoom.
+// Fenêtre de référence autour du natal : -50 ans (contexte générationnel,
+// ancêtres) à +150 ans (prospective, transits à long terme). Fixe et large,
+// cache de courbes stable. Ce n'est plus un plafond : timelineRange() ne
+// clamp plus, le pan peut aller au-delà (courbes vides hors fenêtre, c'est
+// assumé). "À volonté dans les deux sens" = pas de butée dure.
+const TL_PAST_YEARS = 50;
+const TL_FUTURE_YEARS = 150;
+const MS_PER_YEAR = 365.25 * 86400000;
 function fullTimelineRange() {
-  const startMs = Date.UTC(
+  const natalMs = Date.UTC(
     NATAL_PERIG.yearUT, NATAL_PERIG.monthUT - 1, NATAL_PERIG.dayUT,
     Math.floor(NATAL_PERIG.hourUT),
     Math.round((NATAL_PERIG.hourUT % 1) * 60),
   );
-  const endMs = Date.now();
+  const startMs = natalMs - TL_PAST_YEARS * MS_PER_YEAR;
+  const endMs   = natalMs + TL_FUTURE_YEARS * MS_PER_YEAR;
   return { startMs, endMs, startJd: msToJd(startMs), endJd: msToJd(endMs) };
 }
 
 const TL_ZOOM_MIN = 1.0;
 const TL_ZOOM_MAX = 500;
 
-// Fenêtre VISIBLE sur la frise, dérivée du zoom et de chartTime (ou
-// maintenant si pas de curseur posé). zoom=1 → vie complète. zoom>1 →
-// sous-fenêtre centrée sur chartTime, clampée aux bornes.
+// Fenêtre VISIBLE sur la frise, dérivée du zoom et du centre de pan. zoom=1 +
+// pas de pan → fenêtre de référence (fullTimelineRange). Pas de clamp : pan
+// et zoom peuvent amener la fenêtre où le natif veut, y compris hors de la
+// fenêtre sondée (courbes finissent au bord des bornes de sampling).
 function timelineRange() {
   const full = fullTimelineRange();
   const zoom = Math.max(TL_ZOOM_MIN, Math.min(TL_ZOOM_MAX, state.timeline?.zoom || 1));
-  if (zoom <= 1) return full;
-
   const fullSpan = full.endMs - full.startMs;
   const visibleSpan = fullSpan / zoom;
-  // Centre indépendant via state.timeline.tlCenter (posé par pan). Sinon
-  // fallback sur chartTime, puis sur maintenant. tlCenter dissocie la vue
-  // frise du curseur de la roue : on peut pan sans déplacer le moment observé.
+  // Centre : tlCenter (posé par pan) sinon chartTime sinon maintenant. Au
+  // chargement initial (zoom=1, pas de pan, pas de chartTime), on vise
+  // "maintenant" pour que l'utilisateur voie son présent au centre plutôt
+  // que l'anchorage à mi-vie-de-référence.
   const center = state.timeline?.tlCenter != null
     ? state.timeline.tlCenter
-    : (state.chartTime != null ? state.chartTime : full.endMs);
+    : (state.chartTime != null ? state.chartTime : Date.now());
 
-  let startMs = center - visibleSpan / 2;
-  let endMs   = center + visibleSpan / 2;
-
-  // Clamp : si on dépasse à gauche, pousser à droite (et inversement),
-  // pour que la fenêtre visible reste de taille constante.
-  if (startMs < full.startMs) { endMs += (full.startMs - startMs); startMs = full.startMs; }
-  if (endMs   > full.endMs)   { startMs -= (endMs - full.endMs);   endMs   = full.endMs;   }
-  startMs = Math.max(startMs, full.startMs);
-  endMs   = Math.min(endMs,   full.endMs);
+  const startMs = center - visibleSpan / 2;
+  const endMs   = center + visibleSpan / 2;
 
   return { startMs, endMs, startJd: msToJd(startMs), endJd: msToJd(endMs) };
 }
@@ -996,6 +1002,10 @@ function drawTimeline() {
   // en <foreignObject> miniature avec le contenu réel manipulable.
   if (state.layers.scrapbook) {
     for (const it of state.scrapbook) {
+      // Items scope='natal' sont hors frise : lieu permanent du natal,
+      // pas de dimension temporelle à afficher. Les items legacy sans scope
+      // sont 'timed' par défaut (comportement d'avant la refonte préservé).
+      if ((it.scope || 'timed') === 'natal') continue;
       if (it.lon == null || it.createdAt == null) continue;
       if (it.createdAt > range.endMs) continue;
       // Pas de filtre isItemVisibleAt ici : la frise montre la vie entière
@@ -1039,14 +1049,20 @@ function drawTimeline() {
       class: 'tl-cursor',
     }));
   }
+
+  // Poignée triangulaire (HTML overlay) : repositionnée en CSS px à chaque
+  // re-render de la frise. Évite de reposer les gestes de drag sur le fond.
+  updateTimelineHandlePosition();
 }
 
 // Interactions frise :
-//  - 1 doigt / clic gauche drag → pose chartTime (curseur de la roue)
-//  - molette → zoom temporel autour de chartTime
-//  - 2 doigts (mobile) → zoom (écart) + pan (milieu) simultanés, ancrés sur
-//    la valeur temporelle qui était sous le milieu au début du geste
-//  - clic milieu drag (desktop) → pan de la vue sans toucher chartTime
+//  - 1 doigt / clic gauche drag sur le fond → pan de la vue (tlCenter).
+//    N'affecte PAS chartTime : la roue reste figée pendant l'exploration.
+//  - drag de la poignée triangulaire (#timeline-handle) → chartTime live
+//    (seul vecteur pour recalculer la roue), évite les triggers accidentels.
+//  - molette → zoom temporel.
+//  - 2 doigts (mobile) → zoom (écart) + pan (milieu) simultanés.
+//  - clic milieu drag (desktop) → pan (redondant avec 1 doigt, inoffensif).
 // Pan = déplacement de state.timeline.tlCenter, indépendant de chartTime.
 function wireTimelineInteraction() {
   const svgEl = document.getElementById('timeline');
@@ -1059,18 +1075,10 @@ function wireTimelineInteraction() {
   const pickTime = (clientX) => {
     const range = timelineRange();
     const t01 = (svgXFromClient(clientX) - TL_MARGIN_L) / TL_PLOT_W;
-    const clamped = Math.max(0, Math.min(1, t01));
-    return range.startMs + clamped * (range.endMs - range.startMs);
+    return range.startMs + t01 * (range.endMs - range.startMs);
   };
-  let dragging = false;
   let isPinching = false;
-  // Deux schedulers séparés, tous deux coalesced via RAF :
-  //  - scheduleTimelineRender : ne redessine QUE la frise (pan/zoom frise).
-  //    Pas de swe.houses, pas de computeBodies/Asteroids, pas de drawChart.
-  //  - scheduleFullRender : redessine tout (quand on bouge chartTime et donc
-  //    la roue). Reste coalesced à 1 frame max.
   let tlRaf = null;
-  let fullRaf = null;
   const scheduleTimelineRender = () => {
     if (tlRaf != null) return;
     tlRaf = requestAnimationFrame(() => {
@@ -1078,58 +1086,34 @@ function wireTimelineInteraction() {
       try { drawTimeline(); } catch (e) { showError('timeline error: ' + e.message); }
     });
   };
-  const scheduleFullRender = () => {
-    if (fullRaf != null) return;
-    fullRaf = requestAnimationFrame(() => {
-      fullRaf = null;
-      render().catch(e => showError('render error: ' + e.message));
-    });
-  };
   const ensureTl = () => { if (!state.timeline) state.timeline = { zoom: 1 }; };
 
-  // Pan middle-click (desktop) : on fixe tlCenter au centre courant au début
-  // du drag, puis on soustrait le déplacement souris converti en ms.
-  let mousePanStartClientX = null;
-  let mousePanStartCenter  = null;
+  // Pan : 1 doigt / clic gauche / clic milieu — tous font pareil (pan).
+  let panStartClientX = null;
+  let panStartCenter  = null;
 
   svgEl.addEventListener('pointerdown', ev => {
-    if (ev.button === 1) {
-      // Clic milieu = pan
-      ev.preventDefault();
-      svgEl.setPointerCapture(ev.pointerId);
-      const range = timelineRange();
-      mousePanStartClientX = ev.clientX;
-      mousePanStartCenter  = state.timeline?.tlCenter != null
-        ? state.timeline.tlCenter
-        : (range.startMs + range.endMs) / 2;
-      return;
-    }
     if (isPinching) return;
-    dragging = true;
+    ev.preventDefault();
     svgEl.setPointerCapture(ev.pointerId);
-    const t = pickTime(ev.clientX);
-    state.chartTime = (t >= Date.now() - 60000) ? null : t;
-    scheduleFullRender();
+    const range = timelineRange();
+    panStartClientX = ev.clientX;
+    panStartCenter  = state.timeline?.tlCenter != null
+      ? state.timeline.tlCenter
+      : (range.startMs + range.endMs) / 2;
   });
   svgEl.addEventListener('pointermove', ev => {
-    if (mousePanStartClientX != null) {
-      const range = timelineRange();
-      const dxSvg = svgXFromClient(ev.clientX) - svgXFromClient(mousePanStartClientX);
-      const msPerSvg = (range.endMs - range.startMs) / TL_PLOT_W;
-      ensureTl();
-      state.timeline.tlCenter = mousePanStartCenter - dxSvg * msPerSvg;
-      scheduleTimelineRender();
-      return;
-    }
-    if (!dragging || isPinching) return;
-    const t = pickTime(ev.clientX);
-    state.chartTime = (t >= Date.now() - 60000) ? null : t;
-    scheduleFullRender();
+    if (panStartClientX == null || isPinching) return;
+    const range = timelineRange();
+    const dxSvg = svgXFromClient(ev.clientX) - svgXFromClient(panStartClientX);
+    const msPerSvg = (range.endMs - range.startMs) / TL_PLOT_W;
+    ensureTl();
+    state.timeline.tlCenter = panStartCenter - dxSvg * msPerSvg;
+    scheduleTimelineRender();
   });
   const stop = () => {
-    dragging = false;
-    mousePanStartClientX = null;
-    mousePanStartCenter  = null;
+    panStartClientX = null;
+    panStartCenter  = null;
   };
   svgEl.addEventListener('pointerup',     stop);
   svgEl.addEventListener('pointercancel', stop);
@@ -1159,7 +1143,8 @@ function wireTimelineInteraction() {
   svgEl.addEventListener('touchstart', ev => {
     if (ev.touches.length >= 2) {
       isPinching = true;
-      dragging = false;
+      panStartClientX = null;
+      panStartCenter  = null;
       const t0 = ev.touches[0], t1 = ev.touches[1];
       pinchStartDist = Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY) || 1;
       pinchStartZoom = state.timeline?.zoom || 1;
@@ -1205,6 +1190,90 @@ function wireTimelineInteraction() {
   svgEl.addEventListener('touchcancel', endPinch);
 }
 
+// Position de la poignée en CSS px dans son conteneur. Appelée depuis
+// drawTimeline (après chaque re-render frise) et au resize fenêtre.
+function updateTimelineHandlePosition() {
+  const handleEl    = document.getElementById('timeline-handle');
+  const containerEl = document.getElementById('timeline-container');
+  if (!handleEl || !containerEl) return;
+  const cursorMs = state.chartTime != null ? state.chartTime : Date.now();
+  const range    = timelineRange();
+  // La poignée reste visible même hors fenêtre : si on pan loin du présent
+  // elle disparaît (sinon elle "pousse" visuellement sur le bord). On la
+  // garde présente dans le DOM pour que la ref soit stable.
+  if (cursorMs < range.startMs || cursorMs > range.endMs) {
+    handleEl.classList.add('out-of-view');
+  } else {
+    handleEl.classList.remove('out-of-view');
+    const cursorSvgX = tlX(cursorMs, range);
+    const cssX = cursorSvgX * containerEl.clientWidth / TL_VB_W;
+    handleEl.style.left = `${cssX}px`;
+  }
+}
+
+// Drag de la poignée triangulaire. Pendant le drag, on met à jour chartTime
+// mais on ne redessine QUE la frise (curseur + poignée) — la roue reste
+// figée. Au relâchement, un unique render() complet recalcule la roue à la
+// position finale : fini les cartes intermédiaires arbitraires, dixit Perig.
+function wireTimelineHandle() {
+  const handleEl    = document.getElementById('timeline-handle');
+  const containerEl = document.getElementById('timeline-container');
+  if (!handleEl || !containerEl) return;
+  let dragging = false;
+  let tlRaf = null;
+  let fullRaf = null;
+  const scheduleTimelineRender = () => {
+    if (tlRaf != null) return;
+    tlRaf = requestAnimationFrame(() => {
+      tlRaf = null;
+      try { drawTimeline(); } catch (e) { showError('timeline error: ' + e.message); }
+    });
+  };
+  const scheduleFullRender = () => {
+    if (fullRaf != null) return;
+    fullRaf = requestAnimationFrame(() => {
+      fullRaf = null;
+      render().catch(e => showError('render error: ' + e.message));
+    });
+  };
+  const pickFromClientX = (clientX) => {
+    const rect = containerEl.getBoundingClientRect();
+    const relX = clientX - rect.left;
+    const svgX = relX * TL_VB_W / rect.width;
+    const t01 = (svgX - TL_MARGIN_L) / TL_PLOT_W;
+    const range = timelineRange();
+    return range.startMs + t01 * (range.endMs - range.startMs);
+  };
+  handleEl.addEventListener('pointerdown', ev => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    dragging = true;
+    handleEl.setPointerCapture(ev.pointerId);
+    handleEl.classList.add('dragging');
+  });
+  handleEl.addEventListener('pointermove', ev => {
+    if (!dragging) return;
+    const t = pickFromClientX(ev.clientX);
+    // Snap to "maintenant" quand on relâche la poignée près du présent :
+    // chartTime null = suivi temps réel.
+    state.chartTime = (t >= Date.now() - 60000) ? null : t;
+    scheduleTimelineRender();
+  });
+  const commit = () => {
+    if (!dragging) return;
+    dragging = false;
+    handleEl.classList.remove('dragging');
+    scheduleFullRender();
+  };
+  handleEl.addEventListener('pointerup',     commit);
+  handleEl.addEventListener('pointercancel', commit);
+  // Resize : la poignée doit se repositionner. drawTimeline couvre déjà,
+  // mais le resize ne déclenche pas de redraw naturellement — on l'ajoute.
+  window.addEventListener('resize', () => {
+    updateTimelineHandlePosition();
+  });
+}
+
 // Migration des items existants : calcule it.lon à partir de (x+w/2, y+h/2)
 // et de l'ascendant qui prévalait à createdAt. Appelée après swe est prêt.
 // Pour les items déjà munis d'un lon, no-op.
@@ -1231,6 +1300,7 @@ const LAYERS_KEY     = 'astrolab.layers';
 const HARMONICS_KEY  = 'astrolab.harmonics';
 const ASPECT_STYLE_KEY = 'astrolab.aspectStyle';
 const SCRAPBOOK_KEY  = 'astrolab.scrapbook';
+const SHOW_TIMED_IN_NATAL_KEY = 'astrolab.showTimedInNatal';
 const DEFAULT_LAYERS = {
   signs: true, houses: true, planets: true,
   midpoints: false, asteroids: true, scrapbook: true, timeline: true,
@@ -1259,6 +1329,7 @@ let state = {
   asteroids: JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'),
   scrapbook: JSON.parse(localStorage.getItem(SCRAPBOOK_KEY) || '[]'),
   chartTime: null,  // null = temps réel ; sinon ms epoch (slider temporel)
+  showTimedInNatal: localStorage.getItem(SHOW_TIMED_IN_NATAL_KEY) === '1',
   timeline: { zoom: 1.0 },  // zoom frise, 1 = toute la vie, >1 = zoomé
   chart: { zoom: 1.0, cx: 0, cy: 0 },  // zoom cercle via viewBox ; cx/cy = centre visible (viewBox initial = -520..520)
 };
@@ -1368,6 +1439,11 @@ function createScrapItemAt(x, y) {
   // créés en mode scrubber s'accumulaient tous à "maintenant" et devenaient
   // invisibles tant qu'on restait dans le passé.
   const stamp = state.chartTime != null ? state.chartTime : Date.now();
+  // scope : en mode natal, l'item vit sur le natal (lieu permanent, hors
+  // frise). Sinon il est ancré à stamp (observation datée, segment sur frise).
+  // Perig revient souvent au natal pour écrire — le scope évite d'empiler
+  // ces écritures sur un même instant arbitraire de la frise.
+  const scope = state.mode === 'natal' ? 'natal' : 'timed';
   const item = {
     id: genId(),
     createdAt: stamp,
@@ -1378,6 +1454,7 @@ function createScrapItemAt(x, y) {
     lon,
     radius,
     text: '',
+    scope,
   };
   state.scrapbook.push(item);
   saveScrapbook();
@@ -1714,6 +1791,7 @@ function wireControls() {
     btn.addEventListener('click', () => {
       state.mode = btn.dataset.mode;
       document.querySelectorAll('.controls button[data-mode]').forEach(b => b.classList.toggle('active', b === btn));
+      updateShowTimedInNatalVisibility();
       render().catch(e => showError('render error: ' + e.message));
     });
   });
@@ -1735,8 +1813,31 @@ function wireControls() {
   wireTimeSlider();
   wireDataExportImport();
   wireTimelineInteraction();
+  wireTimelineHandle();
   wireControlsSheet();
   wireGlyphWorkshop();
+  wireShowTimedInNatal();
+}
+
+// Toggle "voir aussi les observations datées" affiché seulement en mode
+// natal. Visible une fois swe prêt (après init). Non-persistant par défaut
+// (localStorage key SHOW_TIMED_IN_NATAL_KEY). Décoché = scope='timed' masqué
+// en mode natal (le natal reste un lieu propre, non pollué par la frise).
+function wireShowTimedInNatal() {
+  const cb = document.getElementById('show-timed-in-natal');
+  if (!cb) return;
+  cb.checked = !!state.showTimedInNatal;
+  cb.addEventListener('change', e => {
+    state.showTimedInNatal = e.target.checked;
+    localStorage.setItem(SHOW_TIMED_IN_NATAL_KEY, state.showTimedInNatal ? '1' : '0');
+    render().catch(err => showError('render error: ' + err.message));
+  });
+  updateShowTimedInNatalVisibility();
+}
+function updateShowTimedInNatalVisibility() {
+  const row = document.getElementById('natal-overlay-row');
+  if (!row) return;
+  row.hidden = state.mode !== 'natal';
 }
 
 // Atelier de glyphes : modale plein écran qui harmonise la taille visuelle des

@@ -1,38 +1,53 @@
 # Prochaine session astrolab — à ouvrir en premier
 
-**Contexte** : clôture 2026-10-07 22h06, nuit après livraisons sidebar droite desktop + zoom cercle indépendant. Fil majeur ouvert : **marqueurs synastrie en urgence** (prérequis à une consultation réelle Perig↔consulté).
+**Contexte** : clôture 2026-10-12 soir, session étalée sur 3 jours (2026-10-09 → 2026-10-12) après annulation du rendez-vous consultation. Perig a résolu de **faire l'application pour lui-même d'abord**. Session s'est terminée par une **cristallisation majeure** : le scrapbook habite la bande zodiacale (pas le centre, pas la périphérie). Lire d'abord `memory/project_scrapbook_bande_zodiacale.md`.
 
-## 1. ⚡ URGENT — Marqueurs issus d'autres thèmes (synastrie)
+## 1. ⚡⚡ Préparer l'implémentation « scrapbook dans la bande zodiacale »
 
-**Pourquoi urgent** : sans ces marqueurs, une consultation co-évolutive n'a pas de forme pleine — on ne peut pas poser le ciel-du-moment sur le thème du consulté, ni mettre les planètes de Perig en regard des siennes. C'est le cœur du geste « circuit de retour au monde » pour ce projet (fiche `project_circuit_retour_au_monde.md`).
+**Prérequis** : trancher les questions ouvertes listées dans `project_scrapbook_bande_zodiacale.md`. Ne pas se lancer dans le code sans elles — toute la grammaire visuelle en dépend. Poser-les à Perig en début de session, chacune avec une option recommandée mais la case cocher-ouverte.
 
-**Décisions déjà prises en clôture** :
-- **Source du thème-autre en v1** = saisie manuelle date / heure / lieu (formulaire). Pas de JSON importable en v1.
-- **Import JSON** = reporté, à garder dans les choses en suspens (format astrolab-export existe déjà via `wireDataExportImport`, mais c'est un snapshot d'app, pas un thème individuel — architecture à repenser).
+**Questions à trancher (ordre proposé)** :
 
-**Décisions à trancher en ouverture** :
-- **Rendu visuel** des marqueurs sur le cercle : options à discuter —
-  - Bi-wheel (anneau extérieur dédié au thème-autre) ?
-  - Marqueurs superposés sur le cercle courant avec couleur/forme distincte ?
-  - Panneau latéral de légende ?
-- **Granularité** : afficher les 10 planètes du thème-autre d'un bloc, ou activables une par une (comme la couche astéroïdes) ?
-- **Nombre de thèmes-autres simultanés** : 1 seul (A posé sur B) ? Plusieurs ? Mécanisme de palette ?
+1. **Signature visuelle d'un contenu en vue plein cercle** — teinte du fond du signe ? pastille unique ? heatmap de densité (plus de contenu = plus dense) ? semis de points ? mix ? Options proposables en tasklist GFM.
+2. **Zoom par paliers ou continu** — paliers suggérés : vue signe (30°) / vue décan (10°) / vue degré (1°) / vue minute (1/60°). Pure continuité avec snap optionnel ? Important pour l'implémentation : si paliers, chaque palier peut avoir sa propre densité d'affichage.
+3. **Persistance du glyphe canonique** quand on zoome dans un signe peuplé — disparaît (ton mythographie *remplace* l'universel) ou reste (ta mythographie *enrichit* l'universel) ?
+4. **Co-évolution dans un arc** — une marque unique chargée qui résume la période ? Plusieurs marques individuelles éparpillées ? Un fil (plusieurs) + condensations (une) ?
+5. **Rendu sur la frise** d'un item ancré en bande zodiacale — à la position du moment où une planète lente passe sur son degré ? À la date de création ? Les deux (plusieurs apparitions pour un même item) ?
+6. **Scope natal (livré 2026-10-12)** — un item `scope: 'natal'` vit-il à sa position de longitude propre ou est-il « collé » à la position natale de Perig ? Articulation à poser.
 
-**Fiche de référence déjà en mémoire** : `project_feature_synastrie_integree.md` — intention posée dès 2026-08. Granularité par planète déjà envisagée.
+**Après tranchage** : esquisser un plan d'implémentation. Prévoir que ça touche `renderScrapItem`, `project(lon, ascLon, radius)` (contraindre radius à la bande), `drawTimeline`, probablement le système de zoom existant (`state.chart`).
 
-## 2. Pack triage mobile (loose ends restants)
+## 2. Tester les trois features livrées 2026-10-12
 
-- **Menu encombrant / sans hiérarchie** = refonte interne du sheet (essentiel visible / avancé repliable / rare dans un tiroir). V1-critique mobile. Déclenche aussi l'introduction du cran `mid-haut` noté dans `project_bottom_sheet_mobile_v1.md` et la section tailles personnalisables (`project_feature_section_configuration_tailles.md`).
-- **Frise plus haute** = conséquence directe de la refonte du sheet (si chrome rétrécit, frise respire). Lié au #2 ci-dessus.
+Non testées par Perig (pivot vers vision avant test). Rappel du cache-bust : `style.css?v=45`, `app.js?v=50`. Serveur dev probablement toujours up sur `http://perig:8787/`.
 
-## 3. Mode voyage temporel en bougeant les planètes
+- **Scope natal** : créer item en mode natal → ne doit pas apparaître sur la frise ; cocher « voir aussi les observations datées » en natal → les items `timed` réapparaissent ; items `natal` cachés en mode `now`.
+- **Frise étendue** : pan la frise vers le futur bien au-delà du présent (jusqu'à ~150 ans après natal) et vers le passé (jusqu'à ~50 ans avant natal). Vérifier que ça scrolle sans butée.
+- **Poignée commit-on-release** : traîner la poignée triangulaire au-dessus de la frise → la frise seule bouge pendant le drag (chart figé) → au relâchement, un seul recalcul plein du cercle. Toucher le fond de la frise = pan uniquement, ne doit **plus** déplacer `chartTime`.
 
-Fiche détaillée : `memory/project_feature_mode_voyage_planetes.md`. À concevoir calmement, pas urgent.
+## 3. Fils différés
+
+- **TikTok / vidéos embed** (point 4 de la liste 2026-10-09, jamais traité). Faisabilité technique dans `<foreignObject>` à investiguer uniquement si la vision bande zodiacale accepte des médias riches.
+- **Marqueurs synastrie** (ancien urgent du brief 2026-10-07) → **mis en veille** : rencontre consultation annulée, Perig construit pour lui d'abord. À reprendre quand une rencontre réelle redevient probable.
+- **Scrapbook fenêtres laides** (`project_scrapbook_fenetres_a_repenser.md`) : largement résolu par le pivot bande zodiacale — à relire pour voir si quelque chose reste pertinent.
+- **Section configuration tailles + mode apprentissage + mode voyage planètes** : fiches à relire en lumière de la nouvelle vision.
 
 ## État technique à l'ouverture
 
-- Branche `astrolab-2d`, commit à ouvrir = celui de "Jour 3 nuit" (sidebar + zoom cercle, 2026-10-07 22h).
-- Cache-bust : `style.css?v=44`, `app.js?v=49`. À bumper au prochain changement.
-- Serveur dev : `http://perig:8787/` (python http.server, probablement toujours up ; sinon `python3 -m http.server 8787` à la racine).
-- Variables CSS introduites : `--sidebar-w: 360px` dans `:root`. Constantes JS : `CHART_ZOOM_MAX = 50`, `TL_ZOOM_MAX = 500` (ajustables si Perig trouve l'un ou l'autre trop plafonné).
-- `state.chart = { zoom, cx, cy }` nouveau ; `state.timeline.zoom` existant. Les deux persistent en mémoire session mais **pas en localStorage** — rechargement = reset à zoom 1, centre 0,0.
+- Branche `astrolab-2d`, dernier commit (à bumper quand les features du 2026-10-12 seront commitées).
+- Cache-bust : `style.css?v=45`, `app.js?v=50`.
+- Serveur dev : `http://perig:8787/` (python http.server).
+- Nouveaux dans `state` : `state.showTimedInNatal` + `state.scrapItems[].scope`.
+- Nouvelles constantes JS : `TL_PAST_YEARS = 50`, `TL_FUTURE_YEARS = 150`, `MS_PER_YEAR`.
+- Clé localStorage ajoutée : `astrolab.showTimedInNatal`.
+- Nouveau DOM : `#timeline-handle` (HTML, positionné par JS en CSS px) + `#natal-overlay-row` (checkbox).
+- `wireTimelineInteraction` réécrite : 1-doigt sur fond frise = pan (ne touche plus `chartTime`).
+- `wireTimelineHandle` : nouvelle fonction, drag commit-on-release ; écoute `window.resize`.
+
+## À lire au premier tour
+
+Dans l'ordre :
+1. `memory/project_scrapbook_bande_zodiacale.md` — **lecture essentielle, elle structure toute la session à venir**
+2. `notes/2026-10-12-session-v04-vision-crystallisation.md` — récit de la session de clôture (code livré + genèse de la vision)
+3. `memory/project_marqueurs_typologie.md` + `memory/project_cercle_cristal_couches.md` — grammaire des marqueurs, toujours valides
+4. `memory/project_feature_planetes_perles.md` — superseded mais historiquement important pour comprendre le chemin
