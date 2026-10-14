@@ -303,6 +303,20 @@ h1 {
   text-align: center;
   font-style: italic;
 }
+.scrap-purge-btn {
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.5rem;
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-style: normal;
+  background: transparent;
+  border: 1px solid var(--line-medium);
+  border-radius: 3px;
+  color: var(--line-medium);
+  cursor: pointer;
+  opacity: 0.8;
+}
+.scrap-purge-btn:hover { opacity: 1; background: rgba(255,0,0,0.1); border-color: #c33; color: #c33; }
 
 /* Slider temporel : range du plus ancien createdAt du scrapbook à maintenant.
    Discret, ligne unique, avec label lisible et bouton reset ↻. */
@@ -515,6 +529,28 @@ h1 {
   overflow: visible;
 }
 
+/* Disque tangent à la bande zodiacale. Toujours rendu — joue à la fois le
+   rôle de signature visuelle en vue plein cercle et de bouton de fermeture
+   quand le cadre est déployé. */
+.scrap-dot {
+  fill: rgba(122, 74, 42, 0.18);
+  stroke: none;
+  filter: drop-shadow(0 0 3px rgba(122, 74, 42, 0.35));
+  cursor: pointer;
+  transition: fill 0.15s;
+}
+.scrap-dot:hover {
+  fill: rgba(122, 74, 42, 0.55);
+}
+/* Variante quand le cadre est ouvert : disque légèrement plus marqué,
+   signale son rôle de bouton de fermeture actif. */
+.scrap-dot-active {
+  fill: rgba(122, 74, 42, 0.45);
+  filter: drop-shadow(0 0 4px rgba(122, 74, 42, 0.5));
+}
+/* Cadres fixés (pointés vers le cercle) — pas de déplacement manuel. */
+.scrap-grip { display: none !important; }
+
 .scrap-frame {
   /* --scrap-scale est posé en inline par wireScrapItem/drawScrapItem
      (dérivé de sqrt(area / baseArea)) et pilote les tailles intérieures
@@ -523,9 +559,9 @@ h1 {
   --scrap-scale: 1;
   box-sizing: border-box;
   position: relative;
-  background: rgba(255, 253, 245, 0.92);
-  border: 1px solid rgba(122, 74, 42, 0.45);
-  border-radius: 8px;
+  background: rgba(255, 253, 245, 0.94);
+  border: 1px solid rgba(122, 74, 42, 0.22);
+  border-radius: 20px;
   font-family: var(--font-serif);
   font-size: calc(12px * var(--scrap-scale));
   color: var(--ink);

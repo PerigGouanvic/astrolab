@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>astrolab — carte natale</title>
-  <link rel="stylesheet" href="style.css?v=45">
+  <link rel="stylesheet" href="style.css?v=49">
 </head>
 <body>
   <main>
@@ -45,7 +45,9 @@
         <span id="time-label" class="time-label">maintenant</span>
         <button type="button" id="time-reset" title="Retour au présent" aria-label="Retour au présent">↻</button>
       </div>
-      <p class="scrap-hint">Double-tap pour ajouter · ✕ = retirer du moment · long-press ✕ = effacer</p>
+      <p class="scrap-hint">Double-tap pour ajouter · ✕ = retirer du moment · long-press ✕ = effacer
+        <button type="button" id="scrap-purge-all" class="scrap-purge-btn" title="Vider complètement le scrapbook (irréversible)">vider</button>
+      </p>
       <nav class="layers" aria-label="Couches visibles">
         <label class="layer"><input type="checkbox" data-layer="signs" checked> signes</label>
         <label class="layer"><input type="checkbox" data-layer="houses" checked> maisons</label>
@@ -151,6 +153,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=50"></script>
+  <script type="module" src="app.js?v=59"></script>
 </body>
 </html>

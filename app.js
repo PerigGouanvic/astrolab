@@ -503,18 +503,84 @@ function scrapContentScale(w, h) {
   return Math.max(0.4, Math.min(5, Math.sqrt((w * h) / SCRAP_BASE_AREA)));
 }
 
+// Rayon de base du disque "collapsed" avant application du scale par item.
+const SCRAP_DOT_BASE_R = 6;
+// Rayon où se place le centre du cadre quand l'item est déployé — à
+// l'intérieur du cercle, assez éloigné de la bande pour que le cadre tienne
+// sans mordre les signes. Le cadre reste axis-aligned (texte lisible), la
+// pointe de la goutte s'oriente dynamiquement vers lui.
+const SCRAP_FRAME_CENTER_R = 280;
+
+// Un seul <path> SVG pour la "signature" de l'item : cercle quand collapsed,
+// goutte avec pointe vers le cadre quand expanded. L'ouverture est un
+// changement de forme, pas l'apparition d'un triangle séparé.
+function drawScrapDot(container, it, dotRadius, dotCenter, expanded, pointDir) {
+  let d;
+  if (!expanded) {
+    // Cercle plein via deux arcs semi-circulaires.
+    const r = dotRadius;
+    const cx = dotCenter.x, cy = dotCenter.y;
+    d = `M ${cx - r} ${cy} A ${r} ${r} 0 1 0 ${cx + r} ${cy} A ${r} ${r} 0 1 0 ${cx - r} ${cy} Z`;
+  } else {
+    // Goutte : cercle à l'arrière + deux tangentes qui se rejoignent en pointe
+    // à `tailLen` au-delà du centre dans la direction du cadre. Formules
+    // standard d'une "pin SVG" classique.
+    const R = dotRadius;
+    const tailLen = R * 3;  // pointe modérément allongée
+    const D = R + tailLen;  // distance centre → apex
+    const dx = pointDir.x, dy = pointDir.y;  // direction unitaire vers cadre
+    const sinA = R / D;
+    const cosA = Math.sqrt(Math.max(0, 1 - sinA * sinA));
+    const pR = R * sinA;      // projection des points de tangence sur dx,dy
+    const pP = R * cosA;      // sur la perpendiculaire
+    const cx = dotCenter.x, cy = dotCenter.y;
+    const apexX = cx + dx * D;
+    const apexY = cy + dy * D;
+    // Perpendiculaire à (dx, dy) : (-dy, dx).
+    const tLx = cx + dx * pR + (-dy) * pP;
+    const tLy = cy + dy * pR +  dx  * pP;
+    const tRx = cx + dx * pR - (-dy) * pP;
+    const tRy = cy + dy * pR -  dx  * pP;
+    d = `M ${apexX} ${apexY} L ${tLx} ${tLy} A ${R} ${R} 0 1 1 ${tRx} ${tRy} Z`;
+  }
+  const dot = svg('path', {
+    d,
+    class: 'scrap-dot' + (expanded ? ' scrap-dot-active' : ''),
+    'data-id': it.id,
+  });
+  container.appendChild(dot);
+}
+
 // ---------- Scrapbook : rendu d'un item ----------
 function drawScrapItem(container, it) {
-  // L'item est ancré à sa longitude écliptique (it.lon) et à son rayon
-  // (it.radius), pas à (x, y) absolus. Au rendu on dérive (x, y) depuis
-  // (lon, radius, ascLon courant) → l'item suit son coin de zodiaque quand
-  // les signes tournent (changement de chartTime). (x, y) ne sont qu'un
-  // cache de rendu, recalculés à chaque frame.
-  if (it.lon != null && it.radius != null && state.currentAscLon != null) {
-    const p = project(it.lon, state.currentAscLon, it.radius);
-    it.x = p.x - it.width / 2;
-    it.y = p.y - it.height / 2;
-  }
+  // Position du disque toujours CLAMPÉE dans la bande, quel que soit le
+  // radius persisté — anciens items (créés avant le pivot 2026-10-13) avaient
+  // des radius variés ; au rendu on les ramène sur la couronne.
+  const ascLon = state.currentAscLon != null ? state.currentAscLon : 0;
+  const rawR   = it.radius != null ? it.radius : (R_ZODIAC_IN + R_ZODIAC_OUT) / 2;
+  const dotR   = Math.max(R_ZODIAC_IN, Math.min(R_ZODIAC_OUT, rawR));
+  const dotCenter = project(it.lon != null ? it.lon : 0, ascLon, dotR);
+  const scale    = it.scale || 1;
+  const dotPixR  = SCRAP_DOT_BASE_R * scale;
+
+  // Direction unitaire du disque VERS LE CENTRE du cercle = direction de la
+  // pointe de goutte quand expanded (le cadre est à l'intérieur).
+  const centerDist = Math.hypot(dotCenter.x, dotCenter.y) || 1;
+  const dirX = -dotCenter.x / centerDist;
+  const dirY = -dotCenter.y / centerDist;
+
+  // Disque toujours rendu — cercle en collapsed, goutte en expanded. Même
+  // path qui change de forme, pas d'ajout d'un triangle séparé.
+  drawScrapDot(container, it, dotPixR, dotCenter, !!it._expanded, { x: dirX, y: dirY });
+
+  if (!it._expanded) return;
+
+  // Cadre déployé : placé à l'intérieur du cercle, axis-aligned, sur le même
+  // rayon que le disque mais à SCRAP_FRAME_CENTER_R du centre.
+  const frameCenter = project(it.lon != null ? it.lon : 0, ascLon, SCRAP_FRAME_CENTER_R);
+  it.x = frameCenter.x - it.width / 2;
+  it.y = frameCenter.y - it.height / 2;
+
   const fo = svg('foreignObject', {
     x: it.x, y: it.y, width: it.width, height: it.height,
     class: 'scrap-fo', 'data-id': it.id,
@@ -558,6 +624,7 @@ function wireScrapItem(fo, frame, it) {
     const hasImg = !!textEl.querySelector('img');
     if (!stripped && !hasImg) {
       if (Date.now() < insertingImageUntil) return;
+      if (Date.now() < (it._graceUntil || 0)) return;
       removeScrapItem(it.id); return;
     }
     updateScrapItem(it.id, { html, text: stripped, updatedAt: Date.now() }, true);
@@ -1337,7 +1404,16 @@ function saveAsteroids()   { localStorage.setItem(STORAGE_KEY,       JSON.string
 function saveLayers()      { localStorage.setItem(LAYERS_KEY,        JSON.stringify(state.layers));    }
 function saveHarmonics()   { localStorage.setItem(HARMONICS_KEY,     JSON.stringify([...state.harmonics].sort((a,b)=>a-b))); }
 function saveAspectStyle() { localStorage.setItem(ASPECT_STYLE_KEY,  state.aspectStyle); }
-function saveScrapbook()   { localStorage.setItem(SCRAPBOOK_KEY,     JSON.stringify(state.scrapbook)); }
+// Les champs préfixés `_` sont RAM-only (ex. _expanded) : non persistés, pour
+// que l'état d'ouverture ne survive pas aux reloads.
+function saveScrapbook()   {
+  const clean = state.scrapbook.map(it => {
+    const out = {};
+    for (const [k, v] of Object.entries(it)) if (!k.startsWith('_')) out[k] = v;
+    return out;
+  });
+  localStorage.setItem(SCRAPBOOK_KEY, JSON.stringify(clean));
+}
 
 function computeBodies(jd) {
   const out = [];
@@ -1423,6 +1499,22 @@ function purgeScrapItem(id) {
 // Compat interne : les anciens appels blur (item vide) purgent définitivement.
 function removeScrapItem(id) { purgeScrapItem(id); }
 
+// Bouton « vider » (sheet contrôles) — purge tout le scrapbook après
+// confirmation. Utile en phase prototype où la data est jetable, et pour
+// nettoyer avant tests sérieux.
+function wireScrapPurge() {
+  const btn = document.getElementById('scrap-purge-all');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    const n = state.scrapbook.length;
+    if (!n) return;
+    if (!confirm(`Vider le scrapbook ? ${n} item(s) seront supprimés définitivement.`)) return;
+    state.scrapbook = [];
+    saveScrapbook();
+    render().catch(e => showError('render error: ' + e.message));
+  });
+}
+
 function createScrapItemAt(x, y) {
   // Dimensions par défaut modestes — la note démarre petite, l'utilisateur
   // étire via la poignée ⇲ (ratio libre, le texte scale avec la surface).
@@ -1432,7 +1524,13 @@ function createScrapItemAt(x, y) {
   // correspondant à sa position angulaire dans la roue.
   const ascLon = state.currentAscLon != null ? state.currentAscLon : 0;
   const lon    = xyToLon(x, y, ascLon);
-  const radius = Math.hypot(x, y);
+  // Pivot 2026-10-13 : l'item s'ancre dans la bande zodiacale, pas où le
+  // tap a eu lieu. (lon, radius) deviennent primaires ; (x, y) sont
+  // recalculés pour centrer le cadre sur la bande.
+  const radius = (R_ZODIAC_IN + R_ZODIAC_OUT) / 2;
+  const center = project(lon, ascLon, radius);
+  x = center.x;
+  y = center.y;
   // Horodatage = chartTime affiché (sinon maintenant). Permet de "revenir
   // dans le passé" via la frise ou le slider et déposer un item au moment
   // qu'on regarde, pas au moment du geste physique. Sans ça, les items
@@ -1453,8 +1551,15 @@ function createScrapItemAt(x, y) {
     width, height,
     lon,
     radius,
+    scale: 1,
     text: '',
     scope,
+    _expanded: true,     // RAM-only : nouveau né s'ouvre pour l'édition
+    _graceUntil: Date.now() + 3000,  // RAM-only : empêche l'auto-suppression
+                                     // par blur-sur-vide pendant 3s après
+                                     // création (le focus() programmatique
+                                     // sur contenteditable peut déclencher
+                                     // un blur immédiat sur certains browsers).
   };
   state.scrapbook.push(item);
   saveScrapbook();
@@ -1634,11 +1739,51 @@ function wireScrapbookGestures() {
   if (!svgEl) return;
   let lastTap = 0;
   let lastPt  = null;
+  let lastTouchPointerAt = 0;  // dédup touch → mouse synthétique (~300 ms)
   svgEl.addEventListener('pointerdown', ev => {
-    // Ignorer si sur un item existant ou un contrôle intérieur au chart.
+    // Les navigateurs mobiles émettent un pointerdown "mouse" synthétique
+    // ~300 ms après un pointerdown "touch", par compatibilité legacy. Ce
+    // synthétique faisait disparaître les items fraîchement créés : il tombe
+    // à côté du disque, entre dans la branche "collapse all" et replie
+    // immédiatement l'item que le double-tap venait de déployer.
+    if (ev.pointerType === 'mouse' && Date.now() - lastTouchPointerAt < 600) return;
+    if (ev.pointerType === 'touch') lastTouchPointerAt = Date.now();
+    // Clic sur un disque → toggle. Si l'item est déjà déployé, le disque
+    // sert de bouton de fermeture ; sinon il déploie (et replie les autres).
+    if (ev.target.classList && ev.target.classList.contains('scrap-dot')) {
+      const id = ev.target.getAttribute('data-id');
+      const target = state.scrapbook.find(x => x.id === id);
+      const willExpand = !(target && target._expanded);
+      for (const it of state.scrapbook) {
+        it._expanded = willExpand && it.id === id;
+      }
+      render().catch(e => showError('render error: ' + e.message));
+      lastTap = 0; lastPt = null;
+      return;
+    }
+    // Ignorer si sur un item déjà déployé ou un contrôle intérieur au chart.
     if (ev.target.closest('.scrap-fo, foreignObject')) return;
+
+    // Clic ailleurs sur le chart : replier tous les items ouverts. Le blur du
+    // contenteditable (déclenché par la perte de focus) va sauver via
+    // updateScrapItem(..., skipRender=true) avant que render() recrée le DOM.
+    const hadExpanded = state.scrapbook.some(it => it._expanded);
+    if (hadExpanded) {
+      for (const it of state.scrapbook) it._expanded = false;
+    }
+
     const now = Date.now();
     const pt  = screenToSvg(svgEl, ev.clientX, ev.clientY);
+    // Création uniquement si le tap tombe dans la bande zodiacale. Ailleurs,
+    // on ignore (pas de projection depuis le centre : le geste doit viser le
+    // lieu d'inscription, c'est la bande qui est le support).
+    const r = Math.hypot(pt.x, pt.y);
+    if (r < R_ZODIAC_IN || r > R_ZODIAC_OUT) {
+      lastTap = 0;
+      lastPt  = null;
+      if (hadExpanded) render().catch(e => showError('render error: ' + e.message));
+      return;
+    }
     if (now - lastTap < 400 && lastPt && Math.hypot(pt.x - lastPt.x, pt.y - lastPt.y) < 40) {
       // Double-tap confirmé — moyenner les deux positions pour lisser.
       const avgX = (pt.x + lastPt.x) / 2;
@@ -1649,6 +1794,7 @@ function wireScrapbookGestures() {
     } else {
       lastTap = now;
       lastPt  = pt;
+      if (hadExpanded) render().catch(e => showError('render error: ' + e.message));
     }
   });
 }
@@ -1808,6 +1954,7 @@ function wireControls() {
   wireAsteroidSearch();
   wireProxySettings();
   wireScrapbookGestures();
+  wireScrapPurge();
   wireChartInteraction();
   updateChartViewBox();
   wireTimeSlider();
