@@ -1905,3 +1905,224 @@ body.planet-info-open { overflow: hidden; }
   .pi-panel { margin-top: 4vh; margin-bottom: 4vh; max-height: 92vh; border-radius: 4px; }
 }
 
+/* ─── Modale natifs (switcher thèmes natals) ─────────────────────────────
+   Ouverte au clic sur #chart-title. Pattern repris de .positions-modal. */
+#chart-title.natives-switcher {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35em;
+  border-bottom: 1px dashed var(--line-weak);
+  padding-bottom: 1px;
+}
+#chart-title.natives-switcher::after {
+  content: "▾";
+  font-size: 0.7em;
+  color: var(--line-medium);
+  line-height: 1;
+}
+#chart-title.natives-switcher:hover,
+#chart-title.natives-switcher:focus-visible {
+  border-bottom-color: var(--line-medium);
+  outline: none;
+}
+#chart-title.natives-switcher:hover::after,
+#chart-title.natives-switcher:focus-visible::after {
+  color: var(--ink);
+}
+
+.natives-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(26, 26, 26, 0.55);
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+}
+.natives-modal[hidden] { display: none; }
+body.natives-modal-open { overflow: hidden; }
+
+.natives-panel {
+  background: var(--bg);
+  color: var(--ink);
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 4px 32px rgba(0, 0, 0, 0.25);
+}
+.natives-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.2rem 0.5rem;
+  border-bottom: 1px solid var(--line-weak);
+}
+.natives-header h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 400;
+  letter-spacing: 0.03em;
+}
+.natives-close {
+  background: transparent;
+  border: none;
+  font-size: 1.4rem;
+  color: var(--line-medium);
+  cursor: pointer;
+  padding: 0.1rem 0.4rem;
+  line-height: 1;
+}
+.natives-close:hover { color: var(--ink); }
+
+.natives-body {
+  padding: 0.8rem 1.2rem 1.4rem;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.natives-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.natives-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.3rem;
+  border: 1px solid var(--line-weak);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.natives-row.is-current {
+  border-color: var(--line-medium);
+  background: rgba(0, 0, 0, 0.02);
+}
+.natives-row-pick {
+  flex: 1 1 auto;
+  background: transparent;
+  border: none;
+  text-align: left;
+  padding: 0.5rem 0.8rem;
+  cursor: pointer;
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-family: inherit;
+}
+.natives-row-pick:hover { background: rgba(0, 0, 0, 0.04); }
+.natives-row-name {
+  font-size: 0.95rem;
+}
+.natives-row-info {
+  font-size: 0.72rem;
+  color: var(--line-medium);
+  letter-spacing: 0.02em;
+}
+.natives-row-edit {
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--line-weak);
+  color: var(--line-medium);
+  cursor: pointer;
+  padding: 0 0.7rem;
+  font-size: 0.95rem;
+}
+.natives-row-edit:hover { color: var(--ink); }
+
+.natives-add-btn {
+  background: transparent;
+  border: 1px dashed var(--line-weak);
+  color: var(--line-medium);
+  padding: 0.55rem 0.8rem;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.9rem;
+  border-radius: 3px;
+}
+.natives-add-btn:hover {
+  color: var(--ink);
+  border-color: var(--line-medium);
+}
+
+.natives-form-wrap { display: flex; flex-direction: column; gap: 0.7rem; }
+.natives-form-wrap[hidden] { display: none; }
+.natives-form-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 400;
+  letter-spacing: 0.03em;
+}
+.natives-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.natives-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.natives-field > span {
+  font-size: 0.72rem;
+  color: var(--line-medium);
+  letter-spacing: 0.02em;
+}
+.natives-field input {
+  background: transparent;
+  border: 1px solid var(--line-weak);
+  border-radius: 3px;
+  color: var(--ink);
+  padding: 0.4rem 0.5rem;
+  font-family: inherit;
+  font-size: 0.9rem;
+  min-width: 0;
+}
+.natives-field input:focus {
+  outline: none;
+  border-color: var(--line-medium);
+}
+.natives-field-row {
+  display: flex;
+  gap: 0.5rem;
+}
+.natives-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.3rem;
+}
+.natives-form-actions button {
+  background: transparent;
+  border: 1px solid var(--line-weak);
+  color: var(--line-medium);
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.85rem;
+  border-radius: 3px;
+}
+.natives-form-actions button:hover {
+  color: var(--ink);
+  border-color: var(--line-medium);
+}
+.natives-form-delete {
+  margin-right: auto;
+}
+.natives-form-save {
+  color: var(--ink) !important;
+  border-color: var(--line-medium) !important;
+}
+
+@media (min-width: 700px) {
+  .natives-panel { margin-top: 4vh; margin-bottom: 4vh; max-height: 92vh; border-radius: 4px; }
+}

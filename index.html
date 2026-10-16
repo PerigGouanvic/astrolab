@@ -16,6 +16,63 @@
       <p id="chart-info" class="chart-info"></p>
       <button type="button" id="positions-open" class="positions-open-btn" aria-label="Voir les positions planétaires">☉ positions</button>
     </div>
+    <!-- Modale natifs : liste des thèmes natals + formulaire ajout/édition.
+         S'ouvre au clic sur le titre (switcher). Scrapbook et planet-notes
+         sont scopés par natif ; les préférences utilisateur restent globales. -->
+    <div id="natives-modal" class="natives-modal" hidden aria-hidden="true" role="dialog" aria-label="Gestion des natifs">
+      <div class="natives-panel">
+        <header class="natives-header">
+          <h2>natifs</h2>
+          <button type="button" class="natives-close" aria-label="Fermer">×</button>
+        </header>
+        <div class="natives-body">
+          <div class="natives-list" role="list"></div>
+          <button type="button" class="natives-add-btn">+ nouveau natif</button>
+          <div class="natives-form-wrap" hidden>
+            <h3 class="natives-form-title">Nouveau natif</h3>
+            <form class="natives-form" autocomplete="off">
+              <label class="natives-field">
+                <span>nom</span>
+                <input type="text" name="name" required placeholder="Prénom, surnom, événement…">
+              </label>
+              <div class="natives-field-row">
+                <label class="natives-field">
+                  <span>date (locale)</span>
+                  <input type="date" name="date" required>
+                </label>
+                <label class="natives-field">
+                  <span>heure (locale)</span>
+                  <input type="time" name="time" required>
+                </label>
+              </div>
+              <label class="natives-field">
+                <span>décalage UTC (heures, ex : -5 Montréal hiver, 2 Paris été)</span>
+                <input type="number" name="tzOffset" step="0.5" min="-14" max="14" required>
+              </label>
+              <div class="natives-field-row">
+                <label class="natives-field">
+                  <span>latitude (° décimaux, N positif)</span>
+                  <input type="number" name="latitude" step="any" min="-90" max="90" required>
+                </label>
+                <label class="natives-field">
+                  <span>longitude (° décimaux, E positif)</span>
+                  <input type="number" name="longitude" step="any" min="-180" max="180" required>
+                </label>
+              </div>
+              <label class="natives-field">
+                <span>lieu (étiquette affichée)</span>
+                <input type="text" name="placeLabel" required placeholder="Montréal, Paris, mer…">
+              </label>
+              <div class="natives-form-actions">
+                <button type="button" class="natives-form-delete" hidden>supprimer</button>
+                <button type="button" class="natives-form-cancel">annuler</button>
+                <button type="submit" class="natives-form-save">enregistrer</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
     <div id="chart-container">
       <svg id="chart" viewBox="-520 -520 1040 1040" xmlns="http://www.w3.org/2000/svg"></svg>
     </div>
@@ -44,6 +101,7 @@
       </div>
       <p class="scrap-hint">Double-tap pour ajouter · ✕ = retirer du moment · long-press ✕ = effacer
         <button type="button" id="scrap-purge-all" class="scrap-purge-btn" title="Vider complètement le scrapbook (irréversible)">vider</button>
+        <button type="button" id="natives-open" class="scrap-purge-btn" title="Changer de natif / ajouter un natif">natifs ▾</button>
       </p>
       <nav class="layers" aria-label="Couches visibles">
         <label class="layer"><input type="checkbox" data-layer="signs" checked> signes</label>

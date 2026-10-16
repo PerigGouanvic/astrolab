@@ -66,13 +66,74 @@ async function initSwe() {
 // ---------- Lieux et modes ----------
 const MONTREAL = { latitude: 45.5017, longitude: -73.5673, tz: 'America/Montreal', label: 'Montréal' };
 
-const NATAL_PERIG = {
-  yearUT: 1972, monthUT: 1, dayUT: 22, hourUT: 12 + 25 / 60,
-  latitude: MONTREAL.latitude, longitude: MONTREAL.longitude,
-  title: 'Natal — Perig',
-  info: '22 janvier 1972 · 07 h 25 · Montréal',
+// ---------- Natifs (plusieurs thèmes natals, bascule par le header) ----------
+// Un natif = une personne/thème avec date/heure/lieu de naissance. Les items
+// scrapbook et observations planétaires sont scopés par natif (ils vivent sur
+// le ciel d'un natif donné). Les préférences utilisateur (couches, harmoniques,
+// atelier glyphes, astéroïdes montés) restent globales — elles traversent
+// les natifs. Stockage : `astrolab.natives` = { natives: [...], currentId }.
+const PERIG_SEED = {
+  id: 'perig-seed',
+  name: 'Perig',
+  date: '1972-01-22',      // local
+  time: '07:25',           // local
+  tzOffset: -5,            // heures depuis UTC (EST = -5)
+  latitude: MONTREAL.latitude,
+  longitude: MONTREAL.longitude,
+  placeLabel: 'Montréal',
 };
+const NATIVES_KEY = 'astrolab.natives';
+const MONTHS_FR = ['janvier','février','mars','avril','mai','juin',
+                   'juillet','août','septembre','octobre','novembre','décembre'];
 
+function loadNatives() {
+  try {
+    const raw = localStorage.getItem(NATIVES_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && Array.isArray(parsed.natives) && parsed.natives.length) {
+        const currentId = parsed.natives.find(n => n.id === parsed.currentId)
+          ? parsed.currentId : parsed.natives[0].id;
+        return { natives: parsed.natives, currentId };
+      }
+    }
+  } catch (e) {}
+  return { natives: [PERIG_SEED], currentId: PERIG_SEED.id };
+}
+let nativesState = loadNatives();
+
+function saveNatives() {
+  localStorage.setItem(NATIVES_KEY, JSON.stringify({
+    natives: nativesState.natives,
+    currentId: nativesState.currentId,
+  }));
+}
+function currentNative() {
+  return nativesState.natives.find(n => n.id === nativesState.currentId)
+      || nativesState.natives[0];
+}
+function nativeToUt(n) {
+  // Local date/time → UT. Normalise le débordement de jour quand l'offset
+  // fait passer la minute d'horloge au-dessus/au-dessous du minuit UT.
+  const [y, mo, d] = n.date.split('-').map(Number);
+  const [h, mi]    = n.time.split(':').map(Number);
+  const localH     = h + mi / 60;
+  let utH          = localH - n.tzOffset;
+  let dayShift     = 0;
+  while (utH >= 24) { utH -= 24; dayShift += 1; }
+  while (utH <  0)  { utH += 24; dayShift -= 1; }
+  const dateObj = new Date(Date.UTC(y, mo - 1, d + dayShift));
+  return {
+    yearUT:  dateObj.getUTCFullYear(),
+    monthUT: dateObj.getUTCMonth() + 1,
+    dayUT:   dateObj.getUTCDate(),
+    hourUT:  utH,
+  };
+}
+function formatNativeInfo(n) {
+  const [y, mo, d] = n.date.split('-').map(Number);
+  return `${d} ${MONTHS_FR[mo - 1]} ${y} · ${n.time} · ${n.placeLabel}`;
+}
 
 function nowConfig(place, timeMs = null) {
   // timeMs null = temps réel courant ; sinon date custom (slider temporel).
@@ -95,10 +156,13 @@ function nowConfig(place, timeMs = null) {
 }
 
 function natalConfig() {
+  const n = currentNative();
+  const u = nativeToUt(n);
   return {
-    jd: swe.julianDay(NATAL_PERIG.yearUT, NATAL_PERIG.monthUT, NATAL_PERIG.dayUT, NATAL_PERIG.hourUT),
-    latitude: NATAL_PERIG.latitude, longitude: NATAL_PERIG.longitude,
-    title: NATAL_PERIG.title, info: NATAL_PERIG.info,
+    jd: swe.julianDay(u.yearUT, u.monthUT, u.dayUT, u.hourUT),
+    latitude: n.latitude, longitude: n.longitude,
+    title: `Natal — ${n.name}`,
+    info: formatNativeInfo(n),
   };
 }
 
@@ -923,10 +987,11 @@ const TL_PAST_YEARS = 50;
 const TL_FUTURE_YEARS = 150;
 const MS_PER_YEAR = 365.25 * 86400000;
 function fullTimelineRange() {
+  const u = nativeToUt(currentNative());
   const natalMs = Date.UTC(
-    NATAL_PERIG.yearUT, NATAL_PERIG.monthUT - 1, NATAL_PERIG.dayUT,
-    Math.floor(NATAL_PERIG.hourUT),
-    Math.round((NATAL_PERIG.hourUT % 1) * 60),
+    u.yearUT, u.monthUT - 1, u.dayUT,
+    Math.floor(u.hourUT),
+    Math.round((u.hourUT % 1) * 60),
   );
   const startMs = natalMs - TL_PAST_YEARS * MS_PER_YEAR;
   const endMs   = natalMs + TL_FUTURE_YEARS * MS_PER_YEAR;
@@ -1422,7 +1487,32 @@ const STORAGE_KEY    = 'astrolab.asteroids';
 const LAYERS_KEY     = 'astrolab.layers';
 const HARMONICS_KEY  = 'astrolab.harmonics';
 const ASPECT_STYLE_KEY = 'astrolab.aspectStyle';
-const SCRAPBOOK_KEY  = 'astrolab.scrapbook';
+// Les clés scrapbook et planet-notes sont scopées par natif pour que les
+// contenus restent attachés au ciel qu'ils annotent. L'ancienne clé plate
+// `astrolab.scrapbook` (resp. `astrolab.planet-notes`) est migrée vers le
+// natif seed Perig au premier boot (voir migrateScopedKeys).
+const SCRAPBOOK_KEY_PREFIX    = 'astrolab.scrapbook.';
+const PLANET_NOTES_KEY_PREFIX = 'astrolab.planet-notes.';
+function scrapbookKey()    { return SCRAPBOOK_KEY_PREFIX    + nativesState.currentId; }
+function planetNotesKey()  { return PLANET_NOTES_KEY_PREFIX + nativesState.currentId; }
+
+function migrateScopedKeys() {
+  // Migration one-shot : si une clé plate existe et que la clé scopée pour
+  // perig-seed est absente, on bascule. Idempotent.
+  const legacyScrap = localStorage.getItem('astrolab.scrapbook');
+  const scopedScrap = localStorage.getItem(SCRAPBOOK_KEY_PREFIX + PERIG_SEED.id);
+  if (legacyScrap !== null && scopedScrap === null) {
+    localStorage.setItem(SCRAPBOOK_KEY_PREFIX + PERIG_SEED.id, legacyScrap);
+    localStorage.removeItem('astrolab.scrapbook');
+  }
+  const legacyNotes = localStorage.getItem('astrolab.planet-notes');
+  const scopedNotes = localStorage.getItem(PLANET_NOTES_KEY_PREFIX + PERIG_SEED.id);
+  if (legacyNotes !== null && scopedNotes === null) {
+    localStorage.setItem(PLANET_NOTES_KEY_PREFIX + PERIG_SEED.id, legacyNotes);
+    localStorage.removeItem('astrolab.planet-notes');
+  }
+}
+migrateScopedKeys();
 const DEFAULT_LAYERS = {
   signs: true, houses: true, planets: true, transits: true,
   midpoints: false, asteroids: true, scrapbook: true, timeline: true,
@@ -1448,7 +1538,7 @@ let state = {
   harmonics: loadHarmonics(),
   aspectStyle: localStorage.getItem(ASPECT_STYLE_KEY) || 'lines',  // 'lines' | 'digits'
   asteroids: JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'),
-  scrapbook: JSON.parse(localStorage.getItem(SCRAPBOOK_KEY) || '[]'),
+  scrapbook: JSON.parse(localStorage.getItem(scrapbookKey()) || '[]'),
   chartTime: null,  // null = temps réel ; sinon ms epoch (slider temporel) — pilote l'anneau transit
   timeline: { zoom: 20 },  // zoom frise, 1 = toute la vie (200 ans), 20 = ~10 ans pleine largeur
   chart: { zoom: 1.0, cx: 0, cy: 0 },  // zoom cercle via viewBox ; cx/cy = centre visible (viewBox initial = -520..520)
@@ -1465,7 +1555,7 @@ function saveScrapbook()   {
     for (const [k, v] of Object.entries(it)) if (!k.startsWith('_')) out[k] = v;
     return out;
   });
-  localStorage.setItem(SCRAPBOOK_KEY, JSON.stringify(clean));
+  localStorage.setItem(scrapbookKey(), JSON.stringify(clean));
 }
 
 function computeBodies(jd) {
@@ -2014,18 +2104,19 @@ const SIGN_KEYS = ['aries','taurus','gemini','cancer','leo','virgo','libra','sco
 const SIGN_LABELS_FR = ['Bélier','Taureau','Gémeaux','Cancer','Lion','Vierge','Balance','Scorpion','Sagittaire','Capricorne','Verseau','Poissons'];
 const HOUSE_ROMAN = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
 
-const PLANET_NOTES_KEY = 'astrolab.planet-notes';
 const planetNotes = {};
 function loadPlanetNotes() {
+  // Repart de zéro à chaque chargement (utile lors d'une bascule de natif).
+  for (const k of Object.keys(planetNotes)) delete planetNotes[k];
   try {
-    const raw = localStorage.getItem(PLANET_NOTES_KEY);
+    const raw = localStorage.getItem(planetNotesKey());
     if (!raw) return;
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === 'object') Object.assign(planetNotes, parsed);
   } catch (e) {}
 }
 function savePlanetNotes() {
-  try { localStorage.setItem(PLANET_NOTES_KEY, JSON.stringify(planetNotes)); } catch (e) {}
+  try { localStorage.setItem(planetNotesKey(), JSON.stringify(planetNotes)); } catch (e) {}
 }
 
 const planetInfoCache = new Map();
@@ -2375,6 +2466,7 @@ function wireControls() {
   wireGlyphWorkshop();
   wirePositionsModal();
   wirePlanetInfo();
+  wireNatives();
 }
 
 // Modale positions planétaires : extraite du sheet 2026-10-14 pour laisser
@@ -2843,6 +2935,212 @@ function wireProxySettings() {
     if (next.trim() === '') localStorage.removeItem('astrolab.proxyUrl');
     else localStorage.setItem('astrolab.proxyUrl', next.trim());
     location.reload();
+  });
+}
+
+// ---------- Natifs : bascule, CRUD, UI ----------
+// Switch de natif : persiste l'état courant (déjà en autosave sur chaque
+// mutation), bascule currentId, recharge scrapbook/planet-notes depuis les
+// clés scopées du nouveau natif, re-remonte les astéroïdes (globaux donc
+// inchangés) et re-render. chartTime (transit) et préférences utilisateur
+// sont conservés.
+async function switchNative(id) {
+  const target = nativesState.natives.find(n => n.id === id);
+  if (!target || id === nativesState.currentId) return;
+  nativesState.currentId = id;
+  saveNatives();
+  state.scrapbook = JSON.parse(localStorage.getItem(scrapbookKey()) || '[]');
+  loadPlanetNotes();
+  // Les migrations de scrapbook sont scopées sur state.scrapbook ; sûres à
+  // re-exécuter sur un nouveau tableau.
+  migrateScrapbookItems();
+  migrateScrapbookLon();
+  await render();
+}
+
+function addNative(data) {
+  const n = {
+    id: genId(),
+    name:       (data.name || '').trim() || 'Natif sans nom',
+    date:       data.date,
+    time:       data.time,
+    tzOffset:   Number(data.tzOffset) || 0,
+    latitude:   Number(data.latitude)  || 0,
+    longitude:  Number(data.longitude) || 0,
+    placeLabel: (data.placeLabel || '').trim() || 'Lieu inconnu',
+  };
+  nativesState.natives.push(n);
+  saveNatives();
+  return n;
+}
+
+function updateNative(id, patch) {
+  const idx = nativesState.natives.findIndex(n => n.id === id);
+  if (idx < 0) return;
+  const prev = nativesState.natives[idx];
+  nativesState.natives[idx] = {
+    ...prev,
+    ...patch,
+    tzOffset:   patch.tzOffset  !== undefined ? Number(patch.tzOffset)  : prev.tzOffset,
+    latitude:   patch.latitude  !== undefined ? Number(patch.latitude)  : prev.latitude,
+    longitude:  patch.longitude !== undefined ? Number(patch.longitude) : prev.longitude,
+  };
+  saveNatives();
+}
+
+function deleteNative(id) {
+  if (nativesState.natives.length <= 1) return false;  // garder au moins un natif
+  // Nettoie les clés scopées de ce natif.
+  localStorage.removeItem(SCRAPBOOK_KEY_PREFIX    + id);
+  localStorage.removeItem(PLANET_NOTES_KEY_PREFIX + id);
+  nativesState.natives = nativesState.natives.filter(n => n.id !== id);
+  if (nativesState.currentId === id) {
+    nativesState.currentId = nativesState.natives[0].id;
+  }
+  saveNatives();
+  return true;
+}
+
+function wireNatives() {
+  const title    = document.getElementById('chart-title');
+  const modal    = document.getElementById('natives-modal');
+  const closeBtn = modal && modal.querySelector('.natives-close');
+  const listEl   = modal && modal.querySelector('.natives-list');
+  const addBtn   = modal && modal.querySelector('.natives-add-btn');
+  const formWrap = modal && modal.querySelector('.natives-form-wrap');
+  const form     = modal && modal.querySelector('form.natives-form');
+  const formTitle = modal && modal.querySelector('.natives-form-title');
+  const cancelBtn = modal && modal.querySelector('.natives-form-cancel');
+  const deleteBtn = modal && modal.querySelector('.natives-form-delete');
+  if (!title || !modal || !listEl || !addBtn || !form) return;
+
+  // Rend `#chart-title` cliquable comme switcher.
+  title.classList.add('natives-switcher');
+  title.setAttribute('role', 'button');
+  title.setAttribute('tabindex', '0');
+  title.setAttribute('aria-label', 'Choisir ou gérer un natif');
+
+  let editingId = null;  // null = création, string = édition
+
+  function renderList() {
+    listEl.innerHTML = '';
+    for (const n of nativesState.natives) {
+      const row = document.createElement('div');
+      row.className = 'natives-row';
+      if (n.id === nativesState.currentId) row.classList.add('is-current');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'natives-row-pick';
+      btn.innerHTML = `<span class="natives-row-name">${escapeHtml(n.name)}</span>
+                       <span class="natives-row-info">${escapeHtml(formatNativeInfo(n))}</span>`;
+      btn.addEventListener('click', async () => {
+        await switchNative(n.id);
+        close();
+      });
+      const editBtn = document.createElement('button');
+      editBtn.type = 'button';
+      editBtn.className = 'natives-row-edit';
+      editBtn.setAttribute('aria-label', `Modifier ${n.name}`);
+      editBtn.textContent = '✎';
+      editBtn.addEventListener('click', () => openForm(n.id));
+      row.appendChild(btn);
+      row.appendChild(editBtn);
+      listEl.appendChild(row);
+    }
+  }
+
+  function openForm(id) {
+    editingId = id;
+    const n = id ? nativesState.natives.find(x => x.id === id) : null;
+    formTitle.textContent = n ? 'Modifier le natif' : 'Nouveau natif';
+    form.name.value       = n ? n.name       : '';
+    form.date.value       = n ? n.date       : '';
+    form.time.value       = n ? n.time       : '';
+    form.tzOffset.value   = n ? n.tzOffset   : 0;
+    form.latitude.value   = n ? n.latitude   : '';
+    form.longitude.value  = n ? n.longitude  : '';
+    form.placeLabel.value = n ? n.placeLabel : '';
+    deleteBtn.hidden = !n || nativesState.natives.length <= 1;
+    formWrap.hidden = false;
+    listEl.hidden   = true;
+    addBtn.hidden   = true;
+    form.name.focus();
+  }
+
+  function closeForm() {
+    editingId = null;
+    formWrap.hidden = true;
+    listEl.hidden   = false;
+    addBtn.hidden   = false;
+  }
+
+  function open() {
+    renderList();
+    closeForm();
+    modal.hidden = false;
+    modal.setAttribute('aria-hidden', 'false');
+  }
+  function close() {
+    modal.hidden = true;
+    modal.setAttribute('aria-hidden', 'true');
+  }
+
+  title.addEventListener('click', open);
+  title.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+  });
+  const sheetBtn = document.getElementById('natives-open');
+  if (sheetBtn) sheetBtn.addEventListener('click', open);
+  closeBtn.addEventListener('click', close);
+  modal.addEventListener('click', e => { if (e.target === modal) close(); });
+  addBtn.addEventListener('click', () => openForm(null));
+  cancelBtn.addEventListener('click', closeForm);
+
+  deleteBtn.addEventListener('click', async () => {
+    if (!editingId) return;
+    const n = nativesState.natives.find(x => x.id === editingId);
+    if (!n) return;
+    if (!confirm(`Supprimer « ${n.name} » et tout son scrapbook ? Irréversible.`)) return;
+    const wasCurrent = editingId === nativesState.currentId;
+    const ok = deleteNative(editingId);
+    if (!ok) return;
+    if (wasCurrent) {
+      // Après suppression de l'actif, forcer rechargement des contenus scopés.
+      state.scrapbook = JSON.parse(localStorage.getItem(scrapbookKey()) || '[]');
+      loadPlanetNotes();
+      migrateScrapbookItems();
+      migrateScrapbookLon();
+      await render();
+    }
+    renderList();
+    closeForm();
+  });
+
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const data = {
+      name:       form.name.value,
+      date:       form.date.value,
+      time:       form.time.value,
+      tzOffset:   form.tzOffset.value,
+      latitude:   form.latitude.value,
+      longitude:  form.longitude.value,
+      placeLabel: form.placeLabel.value,
+    };
+    if (!data.date || !data.time) {
+      alert('Date et heure sont requises.');
+      return;
+    }
+    if (editingId) {
+      updateNative(editingId, data);
+      if (editingId === nativesState.currentId) await render();
+    } else {
+      const n = addNative(data);
+      await switchNative(n.id);
+    }
+    renderList();
+    closeForm();
+    close();
   });
 }
 
