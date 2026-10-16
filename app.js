@@ -73,6 +73,7 @@ const NATAL_PERIG = {
   info: '22 janvier 1972 · 07 h 25 · Montréal',
 };
 
+
 function nowConfig(place, timeMs = null) {
   // timeMs null = temps réel courant ; sinon date custom (slider temporel).
   const dateObj = timeMs != null ? new Date(timeMs) : new Date();
@@ -176,21 +177,38 @@ async function mountAsteroid(mpc) {
 }
 
 // ---------- Géométrie ----------
-// Refonte : glyphes planètes à l'extérieur de la ceinture, ceinture 2× plus fine,
-// pas de cercle central, aspects tracés dans l'espace vide intérieur.
-// viewBox 1040×1040 (marge 20 pour accueillir les glyphes extérieurs).
-const R_ZODIAC_OUT   = 380;   // bord extérieur ceinture des signes
-const R_ZODIAC_IN    = 350;   // bord intérieur ceinture (épaisseur 30, 2× plus fine)
-const R_HOUSE_END    = 400;   // cusps de maisons dépassent 20 au-delà de la ceinture
+// Bi-wheel (2026-10-15) : anneau intérieur = thème choisi (natal), anneau
+// extérieur = transits à l'instant courant (null = maintenant, sinon chartTime
+// du curseur de frise). Bande zodiacale élargie, les deux anneaux de glyphes
+// l'encadrent. Les aspects et mi-points vivent sur l'anneau natal uniquement
+// (une étude croisée transit/natal reste à faire en v2).
+// viewBox 1040×1040 inchangé.
+const R_ZODIAC_OUT   = 365;   // bord extérieur bande zodiacale
+const R_ZODIAC_IN    = 268;   // bord intérieur bande (épaisseur 97, +50% depuis 2026-10-15)
+const R_HOUSE_END    = 390;   // cusps internes s'arrêtent avant l'anneau transit
 const R_ANGLE_EXTEND = 510;   // axes ASC/DSC/MC/IC traversent tout le viewBox
-const R_HOUSE_NUM    = 335;   // numéros de maisons juste sous la ceinture (dans l'anneau)
-const R_MIDPOINT     = R_ZODIAC_IN - 8;  // ticks mi-points côté intérieur ceinture
-const R_PLANET_TICK  = R_ZODIAC_OUT;     // tick de position sur le bord extérieur
-const R_PLANET_TICK_END = R_ZODIAC_OUT + 8;
-const R_PLANET       = 415;   // glyphes planètes à l'extérieur
-const R_PLANET_DEG   = 448;   // degrés au-delà du glyphe
-const R_ASTEROID_DOT = 465;   // astéroïdes encore plus à l'extérieur
-const R_ASTEROID_LBL = 488;   // labels courts
+const R_HOUSE_NUM    = 332;   // numéros de maisons au milieu de la bande
+const R_MIDPOINT_IN  = R_ZODIAC_IN - 8;  // ticks mi-points côté natal
+// Anneau natal (intérieur) — glyphes rapprochés du centre.
+const R_PLANET_NATAL      = 230;   // glyphes planètes natal (compressés 2026-10-15 pour bande zodiacale +50%)
+const R_PLANET_NATAL_DEG  = 198;   // degrés sous le glyphe natal
+const R_PLANET_NATAL_TICK = R_ZODIAC_IN;
+const R_PLANET_NATAL_TICK_END = R_ZODIAC_IN - 8;
+// Anneau transit (extérieur) — glyphes posés juste au-delà de la bande.
+const R_PLANET_TRANSIT      = 410;  // glyphes planètes transit
+const R_PLANET_TRANSIT_DEG  = 442;  // degrés plus loin du centre
+const R_PLANET_TRANSIT_TICK = R_ZODIAC_OUT;
+const R_PLANET_TRANSIT_TICK_END = R_ZODIAC_OUT + 8;
+const R_ASPECT       = 180;   // cercle interne des cordes d'aspects (natal only)
+// Astéroïdes dans les deux anneaux (choix Perig 2026-10-15).
+const R_ASTEROID_NATAL_TICK      = R_ZODIAC_IN;
+const R_ASTEROID_NATAL_TICK_END  = R_ZODIAC_IN - 6;
+const R_ASTEROID_NATAL_DOT       = 212;
+const R_ASTEROID_NATAL_LBL       = 190;
+const R_ASTEROID_TRANSIT_TICK      = R_ZODIAC_OUT;
+const R_ASTEROID_TRANSIT_TICK_END  = R_ZODIAC_OUT + 6;
+const R_ASTEROID_TRANSIT_DOT       = 462;
+const R_ASTEROID_TRANSIT_LBL       = 484;
 const R_SCRAP_ITEM   = 200;   // items scrapbook dans l'espace vide central
 const DEG = Math.PI / 180;
 
@@ -286,14 +304,65 @@ function computeAspectsForHarmonics(bodies, harmonicsSet) {
 }
 
 // ---------- Rendu SVG ----------
-// Refonte : le cercle est ouvert à l'intérieur (plus de sous-cercle central),
-// la ceinture des signes est fine, les astres vivent à l'extérieur, les
-// aspects traversent l'espace vide central de bord intérieur à bord intérieur.
+// Bi-wheel (2026-10-15) : anneau intérieur = natal, anneau extérieur = transit.
+// L'ascendant et les maisons viennent toujours du natal (frame standard astro).
+// Les aspects et mi-points vivent sur l'anneau natal uniquement en v1.
 // La logique soustractive reste le moteur : chaque couche est indépendamment
 // affichable / masquable via `layers` (aucun élément DOM si masquée).
-function drawChart({ cusps, ascendant, midheaven, bodies, asteroids }, layers) {
+function drawPlanetRing(container, bodies, asteroids, ascLon, layers, params) {
+  const { rGlyph, rDeg, rTick, rTickEnd,
+          rAstTick, rAstTickEnd, rAstDot, rAstLbl,
+          ringClass } = params;
+  // Astéroïdes de cet anneau — tick sur la bande + dot/label décalés vers
+  // le centre (natal) ou vers l'extérieur du viewBox (transit).
+  if (layers.asteroids) {
+    for (const a of asteroids) {
+      const tk1 = project(a.lon, ascLon, rAstTick);
+      const tk2 = project(a.lon, ascLon, rAstTickEnd);
+      container.appendChild(svg('line', { x1: tk1.x, y1: tk1.y, x2: tk2.x, y2: tk2.y, class: 'asteroid-tick ' + ringClass }));
+      const pt = project(a.lon, ascLon, rAstDot);
+      container.appendChild(svg('circle', { cx: pt.x, cy: pt.y, r: 3, class: 'asteroid-dot ' + ringClass }));
+      const lp = project(a.lon, ascLon, rAstLbl);
+      container.appendChild(svg('text', { x: lp.x, y: lp.y, class: 'asteroid-label ' + ringClass }, a.name.slice(0, 8)));
+    }
+  }
+  // Planètes — tri par longitude relative à ASC, décalage radial si collées.
+  // Côté natal (intérieur) le décalage pousse vers le centre ; côté transit
+  // (extérieur) il pousse vers l'extérieur, pour que les grappes restent dans
+  // leur demi-plan respectif sans mordre la bande.
+  if (layers.planets) {
+    const outward = ringClass === 'ring-transit' ? +1 : -1;
+    const sorted = [...bodies].sort((a, b) => normDeg(a.lon - ascLon) - normDeg(b.lon - ascLon));
+    const MIN_SEP = 8;
+    let lastLon = -999, ringOffset = 0;
+    for (const p of sorted) {
+      const sep = normDeg(p.lon - lastLon);
+      if (sep < MIN_SEP && lastLon > -999) ringOffset += outward * 28; else ringOffset = 0;
+      const rG = rGlyph + ringOffset;
+      const rD = rDeg + ringOffset;
+      const pt = project(p.lon, ascLon, rG);
+      const tk1 = project(p.lon, ascLon, rTick);
+      const tk2 = project(p.lon, ascLon, rTickEnd);
+      container.appendChild(svg('line', { x1: tk1.x, y1: tk1.y, x2: tk2.x, y2: tk2.y, class: 'planet-tick ' + ringClass }));
+      container.appendChild(svg('text', {
+        x: pt.x, y: pt.y, class: 'planet-symbol ' + ringClass,
+        'data-planet': p.key,
+        'data-ring': ringClass === 'ring-transit' ? 'transit' : 'natal',
+        style: `--planet-scale: ${PLANET_SCALES[p.key] || 1}`
+      }, p.glyph));
+      const degInSign = Math.floor(p.lon % 30);
+      const dp = project(p.lon, ascLon, rD);
+      container.appendChild(svg('text', { x: dp.x, y: dp.y, class: 'planet-degree ' + ringClass }, degInSign + '°' + (p.retro ? ' ℞' : '')));
+      lastLon = p.lon;
+    }
+  }
+}
+
+function drawChart({ natal, transit }, layers) {
   const container = document.getElementById('chart');
   container.innerHTML = '';
+  // Frame = natal : ascendant, maisons, zodiaque orientés par le natal.
+  const { cusps, ascendant, midheaven } = natal;
   const ascLon = ascendant;
 
   // Anneaux de fond : bord extérieur + bord intérieur de la ceinture (fine)
@@ -347,14 +416,6 @@ function drawChart({ cusps, ascendant, midheaven, bodies, asteroids }, layers) {
           class: 'house-cusp',
         }));
       }
-      // Numéro de maison au milieu de la tranche, juste sous la ceinture
-      const nextLon = cusps[(i + 1) % 12];
-      if (nextLon != null) {
-        const arc = normDeg(nextLon - lon);
-        const midLon = normDeg(lon + arc / 2);
-        const np = project(midLon, ascLon, R_HOUSE_NUM);
-        container.appendChild(svg('text', { x: np.x, y: np.y, class: 'house-number' }, String(i + 1)));
-      }
     }
     // Labels ASC/MC/DSC/IC au bout des axes (juste à l'intérieur du viewBox)
     const angleLabels = [
@@ -367,31 +428,26 @@ function drawChart({ cusps, ascendant, midheaven, bodies, asteroids }, layers) {
     }
   }
 
-  // Mi-points entre planètes majeures (ticks fins côté intérieur de la ceinture)
+  // Mi-points natal (ticks fins côté intérieur de la bande, anneau natal only)
   if (layers.midpoints && layers.planets) {
-    for (const m of computeMidpoints(bodies)) {
+    for (const m of computeMidpoints(natal.bodies)) {
       const t1 = project(m.lon, ascLon, R_ZODIAC_IN);
-      const t2 = project(m.lon, ascLon, R_ZODIAC_IN - 8);
+      const t2 = project(m.lon, ascLon, R_MIDPOINT_IN);
       container.appendChild(svg('line', { x1: t1.x, y1: t1.y, x2: t2.x, y2: t2.y, class: 'midpoint-tick' }));
     }
   }
 
-  // Aspects : cordes de bord intérieur à bord intérieur, dans l'espace vide central.
-  // Unifiés par harmonique (1..9) — les majeurs classiques sont juste H1..H4.
-  // Deux styles de rendu (state.aspectStyle) :
-  //   - 'lines'  : corde continue, palette par harmonique (aspect-h${n})
-  //   - 'digits' : chiffre d'harmonique répété le long du segment (aspect-digit-${n})
+  // Aspects natal uniquement en v1 (étude croisée transit→natal à faire plus tard).
   if (layers.planets && state.harmonics.size > 0) {
-    const aspects = computeAspectsForHarmonics(bodies, state.harmonics);
+    container.appendChild(svg('circle', { cx: 0, cy: 0, r: R_ASPECT, class: 'zodiac-ring' }));
+    const aspects = computeAspectsForHarmonics(natal.bodies, state.harmonics);
     const useDigits = state.aspectStyle === 'digits';
     for (const asp of aspects) {
-      const p1 = project(asp.a.lon, ascLon, R_ZODIAC_IN);
-      const p2 = project(asp.b.lon, ascLon, R_ZODIAC_IN);
+      const p1 = project(asp.a.lon, ascLon, R_ASPECT);
+      const p2 = project(asp.b.lon, ascLon, R_ASPECT);
       if (useDigits) {
         const dx = p2.x - p1.x, dy = p2.y - p1.y;
         const len = Math.hypot(dx, dy);
-        // Pas de 10 unités entre chiffres — assez dense pour lire la corde,
-        // assez espacé pour rester lisible en mode zoom.
         const step = 10;
         const k = Math.max(2, Math.floor(len / step));
         for (let i = 1; i < k; i++) {
@@ -410,46 +466,25 @@ function drawChart({ cusps, ascendant, midheaven, bodies, asteroids }, layers) {
     }
   }
 
-  // Astéroïdes : tick sur la ceinture pour marquer la position exacte,
-  // puis dot + label plus à l'extérieur (au-delà de l'anneau planétaire)
-  if (layers.asteroids) {
-    for (const a of asteroids) {
-      const tk1 = project(a.lon, ascLon, R_ZODIAC_OUT);
-      const tk2 = project(a.lon, ascLon, R_ZODIAC_OUT + 6);
-      container.appendChild(svg('line', { x1: tk1.x, y1: tk1.y, x2: tk2.x, y2: tk2.y, class: 'asteroid-tick' }));
-      const pt = project(a.lon, ascLon, R_ASTEROID_DOT);
-      container.appendChild(svg('circle', { cx: pt.x, cy: pt.y, r: 3, class: 'asteroid-dot' }));
-      const lp = project(a.lon, ascLon, R_ASTEROID_LBL);
-      container.appendChild(svg('text', { x: lp.x, y: lp.y, class: 'asteroid-label' }, a.name.slice(0, 8)));
-    }
-  }
-
-  // Planètes : glyphes à l'extérieur de la ceinture (plus gros, plus lisibles).
-  // Tick de position sur le bord extérieur de la ceinture pour ancrer visuellement
-  // la longitude exacte du corps. Décalage radial si plusieurs planètes serrées.
-  if (layers.planets) {
-    const sorted = [...bodies].sort((a, b) => normDeg(a.lon - ascLon) - normDeg(b.lon - ascLon));
-    const MIN_SEP = 8;
-    let lastLon = -999, ringOffset = 0;
-    for (const p of sorted) {
-      const sep = normDeg(p.lon - lastLon);
-      if (sep < MIN_SEP && lastLon > -999) ringOffset += 28; else ringOffset = 0;
-      const rGlyph = R_PLANET + ringOffset;
-      const rDeg   = R_PLANET_DEG + ringOffset;
-      const pt = project(p.lon, ascLon, rGlyph);
-      const tk1 = project(p.lon, ascLon, R_PLANET_TICK);
-      const tk2 = project(p.lon, ascLon, R_PLANET_TICK_END);
-      container.appendChild(svg('line', { x1: tk1.x, y1: tk1.y, x2: tk2.x, y2: tk2.y, class: 'planet-tick' }));
-      container.appendChild(svg('text', {
-        x: pt.x, y: pt.y, class: 'planet-symbol',
-        'data-planet': p.key,
-        style: `--planet-scale: ${PLANET_SCALES[p.key] || 1}`
-      }, p.glyph));
-      const degInSign = Math.floor(p.lon % 30);
-      const dp = project(p.lon, ascLon, rDeg);
-      container.appendChild(svg('text', { x: dp.x, y: dp.y, class: 'planet-degree' }, degInSign + '°' + (p.retro ? ' ℞' : '')));
-      lastLon = p.lon;
-    }
+  // Anneau natal (intérieur) — glyphes + ticks + astéroïdes natal.
+  drawPlanetRing(container, natal.bodies, natal.asteroids, ascLon, layers, {
+    rGlyph: R_PLANET_NATAL, rDeg: R_PLANET_NATAL_DEG,
+    rTick: R_PLANET_NATAL_TICK, rTickEnd: R_PLANET_NATAL_TICK_END,
+    rAstTick: R_ASTEROID_NATAL_TICK, rAstTickEnd: R_ASTEROID_NATAL_TICK_END,
+    rAstDot: R_ASTEROID_NATAL_DOT, rAstLbl: R_ASTEROID_NATAL_LBL,
+    ringClass: 'ring-natal',
+  });
+  // Anneau transit (extérieur) — glyphes + ticks + astéroïdes transit.
+  // Couche indépendante : toggle `transits` cache planètes+astéroïdes de
+  // l'anneau extérieur sans toucher au natal.
+  if (layers.transits) {
+    drawPlanetRing(container, transit.bodies, transit.asteroids, ascLon, layers, {
+      rGlyph: R_PLANET_TRANSIT, rDeg: R_PLANET_TRANSIT_DEG,
+      rTick: R_PLANET_TRANSIT_TICK, rTickEnd: R_PLANET_TRANSIT_TICK_END,
+      rAstTick: R_ASTEROID_TRANSIT_TICK, rAstTickEnd: R_ASTEROID_TRANSIT_TICK_END,
+      rAstDot: R_ASTEROID_TRANSIT_DOT, rAstLbl: R_ASTEROID_TRANSIT_LBL,
+      ringClass: 'ring-transit',
+    });
   }
 
   // Scrapbook (v1) : cadres textuels visuels positionnés librement dans
@@ -467,21 +502,14 @@ function drawChart({ cusps, ascendant, midheaven, bodies, asteroids }, layers) {
   }
 }
 
-// Visibilité d'un item scrapbook, deux axes :
-//  - scope : 'natal' (lieu permanent du natal, hors frise) vs 'timed' (ancré
-//    à createdAt sur la frise, retiré à retiredAt). Legacy sans scope =
-//    'timed'. Items 'natal' créés avant la refonte restent 'timed' tant qu'ils
-//    ne sont pas requalifiés.
-//  - mode roue : 'natal' montre les items 'natal' par défaut, et les 'timed'
-//    seulement si state.showTimedInNatal (toggle). 'now' montre les 'timed'
-//    filtrés par chartTime, et jamais les 'natal' (hors contexte).
+// Visibilité d'un item scrapbook (bi-wheel) :
+//  - scope 'natal' = ancré au thème choisi, toujours visible (le natal est
+//    maintenant toujours présent en anneau intérieur).
+//  - scope 'timed' = ancré à createdAt sur la frise, retiré à retiredAt :
+//    visible si chartTime courant tombe dans l'intervalle.
 function isScrapItemVisible(item) {
   const scope = item.scope || 'timed';
-  if (state.mode === 'natal') {
-    if (scope === 'natal') return true;
-    return !!state.showTimedInNatal;
-  }
-  if (scope === 'natal') return false;
+  if (scope === 'natal') return true;
   const t = state.chartTime != null ? state.chartTime : Date.now();
   if ((item.createdAt || 0) > t) return false;
   if (item.retiredAt != null && t >= item.retiredAt) return false;
@@ -866,11 +894,11 @@ function drawDataTable({ ascendant, midheaven }, bodies, asteroids) {
 // dans la roue, horodatés à createdAt.
 
 const TL_VB_W = 800;
-const TL_VB_H = 260;
+const TL_VB_H = 520;
 const TL_MARGIN_L = 42;
 const TL_MARGIN_R = 14;
 const TL_MARGIN_T = 10;
-const TL_MARGIN_B = 24;
+const TL_MARGIN_B = 40;
 const TL_PLOT_W = TL_VB_W - TL_MARGIN_L - TL_MARGIN_R;
 const TL_PLOT_H = TL_VB_H - TL_MARGIN_T - TL_MARGIN_B;
 const TL_SIGN_H = TL_PLOT_H / 12;
@@ -1030,13 +1058,17 @@ function drawTimeline() {
     }));
     if (isLabeled) {
       svgEl.appendChild(svg('text', {
-        x, y: TL_MARGIN_T + TL_PLOT_H + 14, class: 'tl-year-label',
+        x, y: TL_MARGIN_T + TL_PLOT_H + 20, class: 'tl-year-label',
       }, String(y)));
     }
   }
 
   // Courbes des planètes lentes. Path coupé à chaque saut > 180°
   // (traversée 0°/360°) pour éviter les cordes qui traversent le plot.
+  // Glyphes masqués par défaut, apparaissent au clic sur la courbe (toggle via
+  // state.timeline.visibleGlyphs). Hit-path transparent plus large pour
+  // faciliter le tap tactile sur une courbe fine.
+  if (!state.timeline.visibleGlyphs) state.timeline.visibleGlyphs = new Set();
   const curves = sampleSlowCurves();
   for (const c of curves) {
     if (c.points.length < 2) continue;
@@ -1053,11 +1085,35 @@ function drawTimeline() {
       prevLon = pt.lon;
     }
     svgEl.appendChild(svg('path', { d, class: `tl-curve tl-curve-${c.key}` }));
-    const last = c.points[c.points.length - 1];
-    svgEl.appendChild(svg('text', {
-      x: tlX(jdToMs(last.jd), range) + 2, y: tlY(last.lon),
-      class: `tl-curve-glyph tl-curve-${c.key}`,
-    }, c.glyph));
+    const hit = svg('path', { d, class: 'tl-curve-hit' });
+    hit.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (state.timeline.visibleGlyphs.has(c.key)) {
+        state.timeline.visibleGlyphs.delete(c.key);
+      } else {
+        state.timeline.visibleGlyphs.add(c.key);
+      }
+      drawTimeline();
+    });
+    svgEl.appendChild(hit);
+    if (state.timeline.visibleGlyphs.has(c.key)) {
+      // Glyphe placé à la position de la planète au moment du curseur
+      // (chartTime), ou à défaut au dernier point visible dans la fenêtre.
+      const cursorMs = state.chartTime != null ? state.chartTime : Date.now();
+      const targetJd = msToJd(cursorMs);
+      let anchor = null;
+      let bestDt = Infinity;
+      for (const pt of c.points) {
+        const dt = Math.abs(pt.jd - targetJd);
+        if (dt < bestDt) { bestDt = dt; anchor = pt; }
+      }
+      if (anchor) {
+        svgEl.appendChild(svg('text', {
+          x: tlX(jdToMs(anchor.jd), range) + 2, y: tlY(anchor.lon),
+          class: `tl-curve-glyph tl-curve-${c.key}`,
+        }, c.glyph));
+      }
+    }
   }
 
   // Items scrapbook : segments horizontaux de createdAt à retiredAt (ou
@@ -1367,9 +1423,8 @@ const LAYERS_KEY     = 'astrolab.layers';
 const HARMONICS_KEY  = 'astrolab.harmonics';
 const ASPECT_STYLE_KEY = 'astrolab.aspectStyle';
 const SCRAPBOOK_KEY  = 'astrolab.scrapbook';
-const SHOW_TIMED_IN_NATAL_KEY = 'astrolab.showTimedInNatal';
 const DEFAULT_LAYERS = {
-  signs: true, houses: true, planets: true,
+  signs: true, houses: true, planets: true, transits: true,
   midpoints: false, asteroids: true, scrapbook: true, timeline: true,
 };
 const DEFAULT_HARMONICS = [1, 2, 3, 4];  // majeurs classiques (conj, opp, tri, carré)
@@ -1389,15 +1444,13 @@ function loadHarmonics() {
   return new Set(DEFAULT_HARMONICS);
 }
 let state = {
-  mode: 'now',
   layers: loadStored(LAYERS_KEY, DEFAULT_LAYERS),
   harmonics: loadHarmonics(),
   aspectStyle: localStorage.getItem(ASPECT_STYLE_KEY) || 'lines',  // 'lines' | 'digits'
   asteroids: JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'),
   scrapbook: JSON.parse(localStorage.getItem(SCRAPBOOK_KEY) || '[]'),
-  chartTime: null,  // null = temps réel ; sinon ms epoch (slider temporel)
-  showTimedInNatal: localStorage.getItem(SHOW_TIMED_IN_NATAL_KEY) === '1',
-  timeline: { zoom: 1.0 },  // zoom frise, 1 = toute la vie, >1 = zoomé
+  chartTime: null,  // null = temps réel ; sinon ms epoch (slider temporel) — pilote l'anneau transit
+  timeline: { zoom: 20 },  // zoom frise, 1 = toute la vie (200 ans), 20 = ~10 ans pleine largeur
   chart: { zoom: 1.0, cx: 0, cy: 0 },  // zoom cercle via viewBox ; cx/cy = centre visible (viewBox initial = -520..520)
 };
 function saveAsteroids()   { localStorage.setItem(STORAGE_KEY,       JSON.stringify(state.asteroids)); }
@@ -1443,19 +1496,31 @@ function computeAsteroids(jd) {
 }
 
 async function render() {
-  const config = state.mode === 'natal' ? natalConfig() : nowConfig(MONTREAL, state.chartTime);
-  document.getElementById('chart-title').textContent = config.title;
-  document.getElementById('chart-info').textContent = config.info;
+  // Bi-wheel : natal = thème fixe (frame ASC/maisons), transit = instant courant
+  // (null = maintenant, sinon chartTime du curseur frise).
+  const natalCfg   = natalConfig();
+  const transitCfg = nowConfig(MONTREAL, state.chartTime);
+  document.getElementById('chart-title').textContent = natalCfg.title + ' × ' + transitCfg.title;
+  document.getElementById('chart-info').textContent  = natalCfg.info + ' — transit : ' + transitCfg.info;
 
-  const H = swe.houses(config.jd, config.latitude, config.longitude, sweMod.HouseSystem.Placidus);
+  const H = swe.houses(natalCfg.jd, natalCfg.latitude, natalCfg.longitude, sweMod.HouseSystem.Placidus);
   state.currentAscLon = H.ascendant;
-  const bodies = computeBodies(config.jd);
-  const asteroids = computeAsteroids(config.jd);
-  drawChart(
-    { cusps: H.cusps, ascendant: H.ascendant, midheaven: H.midheaven, bodies, asteroids },
-    state.layers,
-  );
-  drawDataTable({ ascendant: H.ascendant, midheaven: H.midheaven }, bodies, asteroids);
+  const natalBodies     = computeBodies(natalCfg.jd);
+  const natalAsteroids  = computeAsteroids(natalCfg.jd);
+  const transitBodies   = computeBodies(transitCfg.jd);
+  const transitAsteroids = computeAsteroids(transitCfg.jd);
+  // Contexte modale planète : natal par défaut. L'attribut data-ring sur le
+  // glyphe cliqué dira plus tard quel body sélectionner (natal vs transit).
+  currentChartContext = {
+    cusps: H.cusps, ascendant: H.ascendant,
+    bodies: natalBodies, transitBodies,
+  };
+  drawChart({
+    natal:   { cusps: H.cusps, ascendant: H.ascendant, midheaven: H.midheaven,
+               bodies: natalBodies, asteroids: natalAsteroids },
+    transit: { bodies: transitBodies, asteroids: transitAsteroids },
+  }, state.layers);
+  drawDataTable({ ascendant: H.ascendant, midheaven: H.midheaven }, natalBodies, natalAsteroids);
   renderAsteroidChips();
   // Frise : masquer le conteneur si la couche est coupée, sinon redessiner.
   const tlContainer = document.getElementById('timeline-container');
@@ -1537,11 +1602,11 @@ function createScrapItemAt(x, y) {
   // créés en mode scrubber s'accumulaient tous à "maintenant" et devenaient
   // invisibles tant qu'on restait dans le passé.
   const stamp = state.chartTime != null ? state.chartTime : Date.now();
-  // scope : en mode natal, l'item vit sur le natal (lieu permanent, hors
-  // frise). Sinon il est ancré à stamp (observation datée, segment sur frise).
-  // Perig revient souvent au natal pour écrire — le scope évite d'empiler
-  // ces écritures sur un même instant arbitraire de la frise.
-  const scope = state.mode === 'natal' ? 'natal' : 'timed';
+  // Bi-wheel : par défaut l'item s'ancre au thème (scope 'natal'), lieu
+  // permanent hors frise. Le ré-ancrage à un moment précis (scope 'timed')
+  // reste possible via un futur geste dédié ; en v1 bi-wheel on privilégie
+  // l'inscription dans le thème.
+  const scope = 'natal';
   const item = {
     id: genId(),
     createdAt: stamp,
@@ -1932,15 +1997,360 @@ async function wireAsteroidSearch() {
   input.addEventListener('blur', () => { setTimeout(() => dropdown.hidden = true, 200); });
 }
 
-function wireControls() {
-  document.querySelectorAll('.controls button[data-mode]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      state.mode = btn.dataset.mode;
-      document.querySelectorAll('.controls button[data-mode]').forEach(b => b.classList.toggle('active', b === btn));
-      updateShowTimedInNatalVisibility();
-      render().catch(e => showError('render error: ' + e.message));
-    });
+// ---------- Modale planète (fiche pédagogique multi-sources) ----------
+// S'ouvre au clic simple sur un glyphe planétaire du cercle. Contenu chargé
+// depuis content/planets/<key>.json (archetype + inSign + inHouse, chaque
+// entrée = liste de cartes-sources empilées). Observations personnelles
+// contenteditable persistées par planète (localStorage). Slider de taille
+// du glyphe migré depuis l'atelier (changements committés à la fermeture).
+//
+// Pipeline d'ingestion ultérieur : poser de nouveaux objets dans les tableaux
+// `archetype`, `inSign[signe]`, `inHouse[maison]` suffit, aucune retouche code.
+const PLANET_LABELS_FR = {
+  sun: 'Soleil', moon: 'Lune', mercury: 'Mercure', venus: 'Vénus', mars: 'Mars',
+  jupiter: 'Jupiter', saturn: 'Saturne', uranus: 'Uranus', neptune: 'Neptune', pluto: 'Pluton',
+};
+const SIGN_KEYS = ['aries','taurus','gemini','cancer','leo','virgo','libra','scorpio','sagittarius','capricorn','aquarius','pisces'];
+const SIGN_LABELS_FR = ['Bélier','Taureau','Gémeaux','Cancer','Lion','Vierge','Balance','Scorpion','Sagittaire','Capricorne','Verseau','Poissons'];
+const HOUSE_ROMAN = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
+
+const PLANET_NOTES_KEY = 'astrolab.planet-notes';
+const planetNotes = {};
+function loadPlanetNotes() {
+  try {
+    const raw = localStorage.getItem(PLANET_NOTES_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') Object.assign(planetNotes, parsed);
+  } catch (e) {}
+}
+function savePlanetNotes() {
+  try { localStorage.setItem(PLANET_NOTES_KEY, JSON.stringify(planetNotes)); } catch (e) {}
+}
+
+const planetInfoCache = new Map();
+async function loadPlanetInfo(key) {
+  if (planetInfoCache.has(key)) return planetInfoCache.get(key);
+  const res = await fetch(`content/planets/${key}.json`, { cache: 'no-cache' });
+  if (!res.ok) throw new Error(`content/planets/${key}.json : HTTP ${res.status}`);
+  const data = await res.json();
+  planetInfoCache.set(key, data);
+  return data;
+}
+
+// Contexte du chart courant stashé après chaque render() — permet à la modale
+// de connaître signe et maison de la planète cliquée pour le moment affiché.
+let currentChartContext = null;
+
+function signIndexOf(lon) {
+  const n = ((lon % 360) + 360) % 360;
+  return Math.floor(n / 30);
+}
+function houseIndexOf(lon, cusps) {
+  // Retourne 1..12. Parcourt les 12 secteurs cusp[i]→cusp[i+1] et trouve
+  // celui qui contient `lon` (arcs normalisés modulo 360).
+  const L = ((lon % 360) + 360) % 360;
+  for (let i = 0; i < 12; i++) {
+    const start = ((cusps[i] % 360) + 360) % 360;
+    const next  = ((cusps[(i + 1) % 12] % 360) + 360) % 360;
+    const arc = ((next - start) % 360 + 360) % 360;
+    const rel = ((L - start) % 360 + 360) % 360;
+    if (rel < arc) return i + 1;
+  }
+  return 1;
+}
+
+// Libellés FR des champs sémantiques issus de l'ingestion Banzhaf & al.
+// Clé absente ici → humanizeKey() en fallback.
+const PI_FIELD_LABELS_FR = {
+  title: 'Thèse', shadow: 'Ombre', principle: 'Principe',
+  strength: 'Force', problem: 'Problème', goal: 'But',
+  representatives: 'Représentants', physical: 'Corrélations physiques',
+  mythology: 'Mythologie', image: 'Image', dignity: 'Dignité',
+  resolution: 'Résolution', compulsion: 'Compulsion', danger: 'Danger',
+  theme: 'Thème', aggression: 'Agressivité', outlets: 'Exutoires',
+  fighting: 'Combativité', sexuality: 'Sexualité',
+  as_a_child: 'Comme enfant', as_a_mother: 'Comme mère',
+  key_principle: 'Principe-clé', style_of_living: 'Style de vie',
+  symbol: 'Symbole', inner_mother_image: 'Image intérieure de la mère',
+  learn: 'Apprentissage', threshold: 'Seuil', liberation: 'Libération',
+  task: 'Tâche', objective: 'Objectif', date_range: 'Période',
+  duality: 'Dualité', element: 'Élément', quality: 'Qualité',
+  nature_summary: 'Nature', ruling_planet: 'Planète maîtresse',
+  dominant_keyword: 'Mot-clé dominant',
+  polarity_sign: 'Signe polaire', polarity_note: 'Note de polarité',
+  body_part: 'Partie du corps', likeable_trait: 'Trait apprécié',
+  likeable_trait_body: 'Trait physique apprécié',
+  inhibition: 'Inhibition', ideal: 'Idéal', behavior: 'Comportement',
+  speakingStyle: 'Façon de parler',
+  attitude_toward_children: 'Attitude envers les enfants',
+  working_style: 'Style de travail',
+  finds_in_seclusion: 'Trouve dans la solitude',
+  way_of_dealing_with_money: 'Rapport à l’argent',
+  idea_of_partnership: 'Idée du partenariat',
+  role_in_the_group: 'Rôle dans le groupe',
+  prohibition: 'Interdit', eroticism: 'Érotisme',
+  styleOfArt: 'Style artistique', problem_areas: 'Zones problématiques',
+};
+const PI_ATTRIB_KEYS = new Set(['source', 'author', 'work', 'year', 'url']);
+function humanizeKey(k) {
+  return k.replace(/[_-]+/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/^./, c => c.toUpperCase());
+}
+
+function renderSourceCard(src) {
+  const card = document.createElement('article');
+  card.className = 'pi-source pi-collapsed';
+  card.addEventListener('click', (e) => {
+    if (e.target.closest('a, button, input, textarea, iframe')) return;
+    card.classList.toggle('pi-collapsed');
   });
+  const attribBits = [];
+  if (src.source) attribBits.push(`<strong>${escapeHtml(src.source)}</strong>`);
+  if (src.author) attribBits.push(escapeHtml(src.author));
+  if (src.work)   attribBits.push(`<em>${escapeHtml(src.work)}</em>`);
+  if (src.year)   attribBits.push(String(src.year));
+  if (src.url)    attribBits.push(`<a href="${encodeURI(src.url)}" target="_blank" rel="noopener">source ↗</a>`);
+  if (attribBits.length) {
+    const attrib = document.createElement('p');
+    attrib.className = 'pi-source-attrib';
+    attrib.innerHTML = attribBits.join(' · ');
+    card.appendChild(attrib);
+  }
+  const content = document.createElement('div');
+  content.className = 'pi-source-content';
+
+  if (src.html) {
+    content.innerHTML = src.html;
+  } else {
+    // Rendu structuré : parcourt les champs sémantiques dans l'ordre du JSON.
+    // `title` → titre de carte, les autres → paire label FR + valeur.
+    for (const key of Object.keys(src)) {
+      if (PI_ATTRIB_KEYS.has(key) || key === 'html') continue;
+      const raw = src[key];
+      if (raw == null || raw === '') continue;
+      const value = Array.isArray(raw) ? raw.join(', ')
+                  : (typeof raw === 'object' ? JSON.stringify(raw) : String(raw));
+      if (key === 'title') {
+        const h = document.createElement('h4');
+        h.className = 'pi-field-title';
+        h.textContent = value;
+        content.appendChild(h);
+        continue;
+      }
+      const field = document.createElement('div');
+      field.className = 'pi-field';
+      const label = document.createElement('div');
+      label.className = 'pi-field-label';
+      label.textContent = PI_FIELD_LABELS_FR[key] || humanizeKey(key);
+      const body = document.createElement('div');
+      body.className = 'pi-field-value';
+      body.textContent = value;
+      field.appendChild(label);
+      field.appendChild(body);
+      content.appendChild(field);
+    }
+  }
+  card.appendChild(content);
+  return card;
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function renderSourcesInto(container, sources, emptyLabel) {
+  if (!sources || !sources.length) {
+    const empty = document.createElement('p');
+    empty.className = 'pi-empty';
+    empty.textContent = emptyLabel;
+    container.appendChild(empty);
+    return;
+  }
+  for (const src of sources) container.appendChild(renderSourceCard(src));
+}
+
+async function openPlanetInfo(planetKey, ring = 'natal') {
+  const modal = document.getElementById('planet-info');
+  if (!modal) return;
+  const headerGlyph    = modal.querySelector('.pi-glyph');
+  const headerTitle    = modal.querySelector('.pi-title');
+  const headerSubtitle = modal.querySelector('.pi-subtitle');
+  const body           = modal.querySelector('.pi-body');
+
+  // Contexte chart courant : signe + maison. En bi-wheel on choisit l'anneau
+  // selon le glyphe cliqué (data-ring). Les maisons restent les maisons natal
+  // dans les deux cas (frame commun).
+  let planetBody = null, signIdx = null, houseNum = null;
+  if (currentChartContext) {
+    const pool = ring === 'transit'
+      ? (currentChartContext.transitBodies || [])
+      : currentChartContext.bodies;
+    planetBody = pool.find(b => b.key === planetKey);
+    if (planetBody) {
+      signIdx  = signIndexOf(planetBody.lon);
+      houseNum = houseIndexOf(planetBody.lon, currentChartContext.cusps);
+    }
+  }
+
+  // Header
+  const label = PLANET_LABELS_FR[planetKey] || planetKey;
+  let data;
+  try { data = await loadPlanetInfo(planetKey); }
+  catch (e) { showError('Fiche planète : ' + e.message); return; }
+  headerGlyph.textContent = data.glyph || '';
+  headerTitle.textContent = label;
+  const subBits = [];
+  if (signIdx != null)  subBits.push(`en ${SIGN_LABELS_FR[signIdx]}`);
+  if (houseNum != null) subBits.push(`maison ${HOUSE_ROMAN[houseNum - 1]}`);
+  headerSubtitle.textContent = subBits.join(' · ');
+
+  // Body — nettoyage puis sections
+  body.innerHTML = '';
+
+  const addSection = (title) => {
+    const s = document.createElement('section');
+    s.className = 'pi-section';
+    const h = document.createElement('h3');
+    h.className = 'pi-section-title';
+    h.textContent = title;
+    s.appendChild(h);
+    body.appendChild(s);
+    return s;
+  };
+
+  // 1 · Archétype
+  {
+    const sec = addSection('Archétype');
+    renderSourcesInto(sec, data.archetype, 'Aucune source pour l’archétype — ajoute une entrée dans ' + `content/planets/${planetKey}.json → "archetype".`);
+  }
+
+  // 2 · Planète en signe (si contexte dispo)
+  if (signIdx != null) {
+    const signKey = SIGN_KEYS[signIdx];
+    const sec = addSection(`${label} en ${SIGN_LABELS_FR[signIdx]}`);
+    renderSourcesInto(sec, (data.inSign || {})[signKey], `Aucune source pour ${label} en ${SIGN_LABELS_FR[signIdx]} — ajoute une entrée dans ` + `content/planets/${planetKey}.json → "inSign.${signKey}".`);
+  }
+
+  // 3 · Planète en maison (si contexte dispo)
+  if (houseNum != null) {
+    const sec = addSection(`${label} en maison ${HOUSE_ROMAN[houseNum - 1]}`);
+    renderSourcesInto(sec, (data.inHouse || {})[String(houseNum)], `Aucune source pour ${label} en maison ${HOUSE_ROMAN[houseNum - 1]} — ajoute une entrée dans ` + `content/planets/${planetKey}.json → "inHouse.${houseNum}".`);
+  }
+
+  // 4 · Observations personnelles (contenteditable, persist localStorage)
+  {
+    const sec = addSection('Observations personnelles');
+    const notes = document.createElement('div');
+    notes.className = 'pi-notes';
+    notes.contentEditable = 'true';
+    notes.setAttribute('data-placeholder', 'Tes observations ici — mises en forme libre, persistées localement.');
+    notes.innerHTML = planetNotes[planetKey] || '';
+    const status = document.createElement('p');
+    status.className = 'pi-notes-status';
+    status.textContent = '';
+    let saveTimer = null;
+    notes.addEventListener('input', () => {
+      status.textContent = '…';
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => {
+        planetNotes[planetKey] = notes.innerHTML;
+        savePlanetNotes();
+        status.textContent = 'enregistré';
+        setTimeout(() => { if (status.textContent === 'enregistré') status.textContent = ''; }, 1200);
+      }, 400);
+    });
+    sec.appendChild(notes);
+    sec.appendChild(status);
+  }
+
+  // 5 · Taille du glyphe (migré de l'atelier)
+  {
+    const sec = addSection('Taille du glyphe');
+    const row = document.createElement('div');
+    row.className = 'pi-scale-row';
+    const preview = document.createElement('span');
+    preview.className = 'pi-scale-preview';
+    preview.textContent = data.glyph || '';
+    const slider = document.createElement('input');
+    slider.type = 'range';
+    slider.min = '0.5';
+    slider.max = '2';
+    slider.step = '0.05';
+    slider.className = 'pi-scale-slider';
+    const value = document.createElement('span');
+    value.className = 'pi-scale-value';
+    const resetBtn = document.createElement('button');
+    resetBtn.type = 'button';
+    resetBtn.className = 'pi-scale-reset';
+    resetBtn.textContent = '↻';
+    resetBtn.title = 'Remettre à 1';
+    const refreshScale = () => {
+      const sc = PLANET_SCALES[planetKey] != null ? PLANET_SCALES[planetKey] : 1;
+      slider.value = String(sc);
+      value.textContent = sc.toFixed(2);
+      preview.style.setProperty('--planet-scale', sc);
+    };
+    refreshScale();
+    slider.addEventListener('input', () => {
+      const sc = parseFloat(slider.value);
+      PLANET_SCALES[planetKey] = sc;
+      value.textContent = sc.toFixed(2);
+      preview.style.setProperty('--planet-scale', sc);
+    });
+    resetBtn.addEventListener('click', () => {
+      PLANET_SCALES[planetKey] = 1;
+      refreshScale();
+    });
+    row.appendChild(preview);
+    row.appendChild(slider);
+    row.appendChild(value);
+    row.appendChild(resetBtn);
+    sec.appendChild(row);
+  }
+
+  modal.hidden = false;
+  modal.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('planet-info-open');
+}
+
+function closePlanetInfo() {
+  const modal = document.getElementById('planet-info');
+  if (!modal) return;
+  modal.hidden = true;
+  modal.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('planet-info-open');
+  // Commit taille du glyphe (si modifiée) + re-render carte.
+  savePlanetScales();
+  render().catch(e => showError('render error: ' + e.message));
+}
+
+function wirePlanetInfo() {
+  const modal = document.getElementById('planet-info');
+  if (!modal) return;
+  const closeBtn = modal.querySelector('.pi-close');
+  closeBtn.addEventListener('click', closePlanetInfo);
+  modal.addEventListener('click', ev => { if (ev.target === modal) closePlanetInfo(); });
+  document.addEventListener('keydown', ev => {
+    if (ev.key === 'Escape' && !modal.hidden) closePlanetInfo();
+  });
+
+  // Délégation sur le SVG : click sur un .planet-symbol ouvre la modale.
+  // Clic simple, pas pointerdown — on laisse le double-tap scrapbook intact
+  // (les glyphes sont hors bande zodiacale où le scrapbook accepte la création).
+  // data-ring (natal|transit) permet à la modale de pointer sur le bon corps.
+  const svgEl = document.getElementById('chart');
+  if (!svgEl) return;
+  svgEl.addEventListener('click', ev => {
+    const target = ev.target.closest('.planet-symbol');
+    if (!target) return;
+    const key  = target.getAttribute('data-planet');
+    const ring = target.getAttribute('data-ring') || 'natal';
+    if (!key) return;
+    openPlanetInfo(key, ring).catch(e => showError('planet modal: ' + e.message));
+  });
+}
+
+function wireControls() {
   document.querySelectorAll('.layers input[data-layer]').forEach(inp => {
     const key = inp.dataset.layer;
     inp.checked = !!state.layers[key];
@@ -1963,28 +2373,39 @@ function wireControls() {
   wireTimelineHandle();
   wireControlsSheet();
   wireGlyphWorkshop();
-  wireShowTimedInNatal();
+  wirePositionsModal();
+  wirePlanetInfo();
 }
 
-// Toggle "voir aussi les observations datées" affiché seulement en mode
-// natal. Visible une fois swe prêt (après init). Non-persistant par défaut
-// (localStorage key SHOW_TIMED_IN_NATAL_KEY). Décoché = scope='timed' masqué
-// en mode natal (le natal reste un lieu propre, non pollué par la frise).
-function wireShowTimedInNatal() {
-  const cb = document.getElementById('show-timed-in-natal');
-  if (!cb) return;
-  cb.checked = !!state.showTimedInNatal;
-  cb.addEventListener('change', e => {
-    state.showTimedInNatal = e.target.checked;
-    localStorage.setItem(SHOW_TIMED_IN_NATAL_KEY, state.showTimedInNatal ? '1' : '0');
-    render().catch(err => showError('render error: ' + err.message));
+// Modale positions planétaires : extraite du sheet 2026-10-14 pour laisser
+// place à la frise. Ouverte depuis #positions-open dans le header fixé en
+// haut à gauche. Backdrop + ESC + bouton close. Même pattern que la glyph-
+// workshop en plus simple (pas d'état à sauver).
+function wirePositionsModal() {
+  const openBtn  = document.getElementById('positions-open');
+  const modal    = document.getElementById('positions-modal');
+  if (!openBtn || !modal) return;
+  const closeBtn = modal.querySelector('.positions-close');
+
+  const close = () => {
+    modal.hidden = true;
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('positions-modal-open');
+  };
+  const open = () => {
+    modal.hidden = false;
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('positions-modal-open');
+  };
+
+  openBtn.addEventListener('click', open);
+  closeBtn.addEventListener('click', close);
+  // Clic sur backdrop (pas sur le panel) ferme aussi.
+  modal.addEventListener('click', ev => { if (ev.target === modal) close(); });
+  // ESC ferme si ouverte.
+  document.addEventListener('keydown', ev => {
+    if (ev.key === 'Escape' && !modal.hidden) close();
   });
-  updateShowTimedInNatalVisibility();
-}
-function updateShowTimedInNatalVisibility() {
-  const row = document.getElementById('natal-overlay-row');
-  if (!row) return;
-  row.hidden = state.mode !== 'natal';
 }
 
 // Atelier de glyphes : modale plein écran qui harmonise la taille visuelle des
@@ -2133,9 +2554,11 @@ function wireControlsSheet() {
   const handle = sheet.querySelector('.sheet-handle');
   if (!handle) return;
 
-  // Restaure dernier état (peek par défaut).
+  // Restaure dernier état (collapsed par défaut depuis 2026-10-14 : la frise
+  // vit dans le sheet, l'état initial le laisse replié pour maximiser l'espace
+  // consacré au cercle — Perig déplie à la demande pour naviguer entre moments).
   const saved = (() => { try { return localStorage.getItem('astrolab.sheet.state'); } catch (e) { return null; } })();
-  setSheetState(sheet, SHEET_STATES.includes(saved) ? saved : 'peek');
+  setSheetState(sheet, SHEET_STATES.includes(saved) ? saved : 'collapsed');
 
   // Nettoyage à chaque bascule desktop ↔ mobile : height inline résiduel du
   // drag mobile deviendrait absurde en desktop (et vice versa).
@@ -2424,13 +2847,40 @@ function wireProxySettings() {
 }
 
 async function main() {
+  const probe = document.getElementById('boot-probe');
+  const setProbe = (txt, color) => {
+    if (!probe) return;
+    probe.textContent = txt;
+    if (color) { probe.style.background = color; probe.style.color = '#fff'; }
+  };
+  setProbe('astrolab v69 — chargement Swiss Ephemeris…');
   await initSwe();
+  setProbe('astrolab v69 — Swiss Ephemeris OK, init…');
   loadPlanetScales();
+  loadPlanetNotes();
   migrateScrapbookItems();
   migrateScrapbookLon();
   wireControls();
   await remountSavedAsteroids();
   await render();
+  if (probe) {
+    // Transforme le probe en badge version permanent (coin bas-droit).
+    // Affiche à la fois la version JS et CSS pour détecter les désynchros
+    // de cache (Brave en particulier cache le CSS indépendamment du JS).
+    const JS_V = 69;
+    const CSS_EXPECTED = 57;
+    const cssVRaw = getComputedStyle(document.documentElement)
+      .getPropertyValue('--css-version').trim().replace(/^"|"$/g, '');
+    const cssV = cssVRaw || '?';
+    const synced = String(CSS_EXPECTED) === cssV;
+    probe.textContent = synced
+      ? `v${JS_V} / css${cssV}`
+      : `⚠ v${JS_V} / css${cssV} (attendu ${CSS_EXPECTED})`;
+    probe.style.cssText = 'position:fixed;bottom:4px;right:6px;left:auto;top:auto;'
+      + `z-index:9999;background:${synced ? 'rgba(0,0,0,0.35)' : 'rgba(180,40,40,0.85)'};color:#fff;`
+      + 'padding:1px 5px;font-family:ui-monospace,monospace;font-size:10px;'
+      + 'line-height:1.3;border-radius:2px;pointer-events:none;';
+  }
 }
 
 main().catch(e => showError('main() error: ' + (e.stack || e.message || e)));

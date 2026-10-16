@@ -7,39 +7,36 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>astrolab — carte natale</title>
-  <link rel="stylesheet" href="style.css?v=49">
+  <link rel="stylesheet" href="style.css?v=57">
 </head>
 <body>
   <main>
     <div id="chart-header-fixed">
       <h1 id="chart-title">Maintenant</h1>
       <p id="chart-info" class="chart-info"></p>
+      <button type="button" id="positions-open" class="positions-open-btn" aria-label="Voir les positions planétaires">☉ positions</button>
     </div>
     <div id="chart-container">
       <svg id="chart" viewBox="-520 -520 1040 1040" xmlns="http://www.w3.org/2000/svg"></svg>
     </div>
-    <div id="timeline-container">
-      <svg id="timeline" viewBox="0 0 800 260" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"></svg>
-      <!-- Poignée triangulaire ancrée en haut du conteneur, suit chartTime en
-           CSS px (positionnée par app.js). Seule à déclencher le recalcul de
-           la roue — le fond de la frise sert au pan uniquement. -->
-      <div id="timeline-handle" role="slider" aria-label="Curseur temporel — glisser pour changer de moment"></div>
-    </div>
+    <!-- Sonde temporaire : bannière visible au boot, cachée dès que render() a eu lieu.
+         Permet de confirmer que la version v63 du JS tourne (sinon la bannière reste). -->
+    <div id="boot-probe" style="position:fixed;top:0;left:0;right:0;z-index:9999;background:#ffe08a;color:#4a3400;padding:6px 10px;font-family:ui-monospace,monospace;font-size:12px;text-align:center;">astrolab v69 — booting… (si cette ligne reste, le JS ne finit pas d'init)</div>
     <pre id="error-box" class="error-box" hidden></pre>
     <aside id="controls-sheet" class="sheet sheet-peek" aria-label="Contrôles">
       <button type="button" class="sheet-handle" aria-label="Déplier ou replier les contrôles" aria-expanded="false"></button>
+      <!-- Frise temporelle : à l'intérieur du sheet (lecture B, 2026-10-14) —
+           instrument de navigation entre moments d'attention, pas permanent
+           sous la carte. Visible quand le sheet est déplié ; la poignée reste
+           positionnée par JS en CSS px, inchangé. -->
+      <div id="timeline-container">
+        <svg id="timeline" viewBox="0 0 800 520" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"></svg>
+        <div id="timeline-handle" role="slider" aria-label="Curseur temporel — glisser pour changer de moment"></div>
+      </div>
     <header>
       <nav class="controls">
-        <button type="button" data-mode="now" class="active">maintenant</button>
-        <button type="button" data-mode="natal">natal (Perig)</button>
         <button type="button" id="proxy-settings" class="proxy-btn" title="Configurer le proxy CORS pour astéroïdes">⚙</button>
       </nav>
-      <div id="natal-overlay-row" class="natal-overlay-row" hidden>
-        <label class="natal-overlay-label">
-          <input type="checkbox" id="show-timed-in-natal">
-          <span>voir aussi les observations datées</span>
-        </label>
-      </div>
       <div class="time-slider" aria-label="Navigation temporelle">
         <input type="range" id="time-slider" min="0" max="1000" value="1000" step="1">
         <span id="time-label" class="time-label">maintenant</span>
@@ -52,6 +49,7 @@
         <label class="layer"><input type="checkbox" data-layer="signs" checked> signes</label>
         <label class="layer"><input type="checkbox" data-layer="houses" checked> maisons</label>
         <label class="layer"><input type="checkbox" data-layer="planets" checked> planètes</label>
+        <label class="layer"><input type="checkbox" data-layer="transits" checked> transits</label>
         <label class="layer"><input type="checkbox" data-layer="midpoints"> mi-points</label>
         <label class="layer"><input type="checkbox" data-layer="asteroids" checked> astéroïdes</label>
         <label class="layer"><input type="checkbox" data-layer="scrapbook" checked> scrapbook</label>
@@ -104,14 +102,44 @@
         <div id="asteroid-dropdown" class="asteroid-dropdown" hidden></div>
       </div>
       <div id="asteroid-chips" class="asteroid-chips"></div>
-      <section id="chart-data" class="chart-data"></section>
     </header>
     </aside>
+    <!-- Modale positions planétaires : table extraite du sheet (2026-10-14) —
+         ouverte depuis le bouton ☉ positions dans le header. Pattern repris
+         de la glyph-workshop (backdrop + close). -->
+    <div id="positions-modal" class="positions-modal" hidden aria-hidden="true" role="dialog" aria-label="Positions planétaires">
+      <div class="positions-panel">
+        <header class="positions-header">
+          <h2>positions</h2>
+          <button type="button" class="positions-close" aria-label="Fermer">×</button>
+        </header>
+        <section id="chart-data" class="chart-data"></section>
+      </div>
+    </div>
   </main>
   <!-- Backdrop rendu au niveau body pour éviter tout containing block cassé
        par un ancêtre transformé/positionné. Toggle par JS quand le popup
        aspects est ouvert. -->
   <div class="aspects-backdrop" hidden aria-hidden="true"></div>
+
+  <!-- Modale planète : s'ouvre au clic simple sur un glyphe planétaire du
+       cercle. Pédagogique (archétype + planète-en-signe + planète-en-maison,
+       cartes empilées par source), observations personnelles persistées,
+       slider de taille du glyphe migré depuis l'atelier.
+       Contenu chargé depuis content/planets/<key>.json à l'ouverture. -->
+  <div id="planet-info" class="planet-info-modal" hidden aria-hidden="true" role="dialog" aria-label="Fiche planète">
+    <div class="pi-panel">
+      <header class="pi-header">
+        <span class="pi-glyph" aria-hidden="true"></span>
+        <div class="pi-title-wrap">
+          <h2 class="pi-title">—</h2>
+          <p class="pi-subtitle"></p>
+        </div>
+        <button type="button" class="pi-close" aria-label="Fermer">×</button>
+      </header>
+      <div class="pi-body"></div>
+    </div>
+  </div>
 
   <!-- Atelier de glyphes : modale plein écran, ouverte depuis la section
        configuration du sheet. Alimente PLANET_SCALES (localStorage). -->
@@ -153,6 +181,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=59"></script>
+  <script type="module" src="app.js?v=69"></script>
 </body>
 </html>

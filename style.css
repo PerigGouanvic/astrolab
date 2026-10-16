@@ -1,4 +1,5 @@
 :root {
+  --css-version: "57";
   --bg: #faf7f0;
   --ink: #1a1a1a;
   --line-strong: #333;
@@ -57,7 +58,7 @@ aside.sheet {
 }
 aside.sheet.sheet-collapsed { height: 32px; }
 aside.sheet.sheet-peek      { height: 110px; }
-aside.sheet.sheet-mid       { height: 220px; }
+aside.sheet.sheet-mid       { height: calc(32px + min(65vw, 520px)); }
 aside.sheet.sheet-expanded  { height: 85vh; }
 aside.sheet.sheet-dragging  { transition: none; }
 
@@ -357,16 +358,26 @@ h1 {
   border-color: var(--line-medium);
 }
 
+/* Zone cercle : 70vh en mobile (consigne Perig 2026-10-14). Le SVG garde son
+   aspect carré, contraint par la hauteur dispo (70vh) ou la largeur viewport
+   si écran étroit (min des deux). L'espace horizontal/vertical autour est
+   intentionnel — respiration + place laissée vide « en attendant la prochaine
+   tâche ». */
 #chart-container {
   width: 100%;
-  aspect-ratio: 1 / 1;
   max-width: 800px;
+  height: 60vh;
   margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 #chart {
-  width: 100%;
+  width: auto;
   height: 100%;
+  max-width: 100%;
+  aspect-ratio: 1 / 1;
   display: block;
   /* `none` : on prend la main sur TOUS les gestes tactiles.
      - 1 doigt → double-tap manuel pour le scrapbook (pointerdown JS)
@@ -458,6 +469,7 @@ h1 {
   text-anchor: middle;
   dominant-baseline: central;
   font-variant-emoji: text;
+  cursor: pointer;
 }
 
 .planet-degree {
@@ -481,9 +493,9 @@ h1 {
   opacity: 0.5;
 }
 
-/* Aspects unifiés par harmonique (1..9) — cordes traversant l'espace vide
-   central du bord intérieur de la ceinture à lui-même. Palette franche par
-   harmonique, opacité 1, épaisseurs variées selon la force traditionnelle. */
+/* Aspects unifiés par harmonique (1..9) — cordes à l'intérieur du cercle
+   d'aspects (classe zodiac-ring réutilisée, style astro.com). Palette franche
+   par harmonique, opacité 1, épaisseurs variées selon la force traditionnelle. */
 .aspect {
   fill: none;
   stroke-width: 0.9;
@@ -1034,7 +1046,12 @@ h1 {
 }
 
 .error-box {
-  margin-top: 1.5rem;
+  position: fixed;
+  top: 24px;      /* sous la sonde boot-probe si présente */
+  left: 0;
+  right: 0;
+  z-index: 9998;
+  margin: 0;
   padding: 1rem;
   background: #fff0f0;
   border-left: 3px solid #b00;
@@ -1043,17 +1060,23 @@ h1 {
   font-size: 0.85rem;
   white-space: pre-wrap;
   overflow-x: auto;
+  max-height: 60vh;
+  overflow-y: auto;
 }
 
 /* Frise du temps horizontale — vue 2D déployée des cycles lents.
    Empilée sous la roue, même largeur max. touch-action: none pour autoriser
    le drag du curseur sans que le scroll de la page intercepte le geste. */
+/* Frise temporelle : vit désormais dans le sheet (2026-10-14). Pleine largeur
+   du sheet, aspect-ratio préservé. La poignée est positionnée absolute dans
+   ce conteneur, JS calcule son offset en CSS px. */
 #timeline-container {
   width: 100%;
   max-width: 800px;
-  margin: 1rem auto 0;
-  aspect-ratio: 800 / 260;
+  margin: 0 auto;
+  aspect-ratio: 800 / 520;
   position: relative;
+  flex: 0 0 auto;
 }
 
 #timeline {
@@ -1108,23 +1131,6 @@ h1 {
   display: none;
 }
 
-/* Toggle "voir aussi les observations datées" affiché seulement en mode
-   natal (hidden par JS). Petit, discret, sous les boutons de mode. */
-.natal-overlay-row {
-  margin: 0.25rem 0 0.5rem;
-}
-.natal-overlay-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.85rem;
-  color: var(--line-medium);
-  cursor: pointer;
-}
-.natal-overlay-label input {
-  margin: 0;
-}
-
 /* Bandes signes alternées : fond très discret pour baliser 12 régions
    horizontales sans voler l'attention aux courbes. */
 .tl-sign-band {
@@ -1165,7 +1171,8 @@ h1 {
 .tl-year-label {
   fill: var(--line-medium);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 27px;
+  font-weight: 700;
   text-anchor: middle;
   dominant-baseline: central;
 }
@@ -1184,6 +1191,16 @@ h1 {
 .tl-curve-uranus  { stroke: #1e5b8f; }   /* bleu */
 .tl-curve-neptune { stroke: #2a7a3a; }   /* vert */
 .tl-curve-pluto   { stroke: #6a2a7a; }   /* violet */
+
+/* Hit-path transparent plus large par-dessus chaque courbe : facilite le
+   tap tactile pour toggler l'affichage du glyphe. */
+.tl-curve-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 14;
+  cursor: pointer;
+  pointer-events: stroke;
+}
 
 .tl-curve-glyph {
   font-family: var(--font-serif);
@@ -1232,12 +1249,8 @@ h1 {
   .planet-symbol { font-size: calc(84px * var(--planet-scale)); }
   .house-number { font-size: 17px; }
   .planet-degree { font-size: 14px; }
-  /* Frise haute mais sans dépasser sous le sheet. 35vh + body padding-bottom
-     dimensionné sur le sheet peek = frise entièrement visible par défaut. */
-  #timeline-container {
-    aspect-ratio: auto;
-    height: 35vh;
-  }
+  /* Frise à l'intérieur du sheet : aspect-ratio préservé (plus de 35vh en flux
+     principal depuis 2026-10-14). Taille modeste dans le sheet déployé. */
 }
 
 /* Desktop (≥ 900px) : sidebar droite plein hauteur, pas de bottom sheet. Pas
@@ -1550,3 +1563,345 @@ body.gw-modal-open { overflow: hidden; }
 @media (max-width: 420px) {
   .gw-reference { width: 180px; height: 180px; }
 }
+
+/* ---------- Modale positions planétaires ---------- */
+/* Extraction 2026-10-14 : la table des positions sort du sheet pour laisser
+   place à la frise. Ouverte depuis le bouton ☉ positions dans le header
+   fixé en haut à gauche. Pattern repris de .glyph-workshop. */
+.positions-open-btn {
+  display: inline-block;
+  margin-top: 0.3rem;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.72rem;
+  font-family: var(--font-serif);
+  background: transparent;
+  color: var(--line-medium);
+  border: 1px solid var(--line-weak);
+  border-radius: 3px;
+  cursor: pointer;
+  pointer-events: auto;  /* contrarie le pointer-events:none du header */
+  letter-spacing: 0.02em;
+}
+.positions-open-btn:hover,
+.positions-open-btn:focus-visible {
+  color: var(--ink);
+  border-color: var(--line-medium);
+}
+
+.positions-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(26, 26, 26, 0.55);
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: 0;
+}
+body.positions-modal-open { overflow: hidden; }
+
+.positions-panel {
+  background: var(--bg);
+  color: var(--ink);
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 4px 32px rgba(0, 0, 0, 0.25);
+}
+.positions-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.2rem 0.5rem;
+  border-bottom: 1px solid var(--line-weak);
+}
+.positions-header h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 400;
+  letter-spacing: 0.03em;
+}
+.positions-close {
+  background: transparent;
+  border: none;
+  font-size: 1.4rem;
+  color: var(--line-medium);
+  cursor: pointer;
+  padding: 0.1rem 0.4rem;
+  line-height: 1;
+}
+.positions-close:hover { color: var(--ink); }
+.positions-panel #chart-data {
+  padding: 0.8rem 1.2rem 1.4rem;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (min-width: 700px) {
+  .positions-panel { margin-top: 4vh; margin-bottom: 4vh; max-height: 92vh; border-radius: 4px; }
+}
+
+/* ─── Modale planète (fiche pédagogique) ─────────────────────────────────
+   Ouverture au clic simple sur un .planet-symbol du cercle.
+   Pattern repris de .positions-modal / .glyph-workshop. */
+.planet-info-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(26, 26, 26, 0.55);
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+}
+body.planet-info-open { overflow: hidden; }
+
+.pi-panel {
+  background: var(--bg);
+  color: var(--ink);
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 4px 32px rgba(0, 0, 0, 0.25);
+}
+.pi-header {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.9rem 1.1rem 0.7rem;
+  border-bottom: 1px solid var(--line-weak);
+  flex-shrink: 0;
+}
+.pi-glyph {
+  font-family: var(--font-serif);
+  font-size: 2.2rem;
+  line-height: 1;
+  color: var(--planet);
+  font-variant-emoji: text;
+}
+.pi-title-wrap { flex: 1; min-width: 0; }
+.pi-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 400;
+  letter-spacing: 0.03em;
+}
+.pi-subtitle {
+  margin: 0.1rem 0 0;
+  font-size: 0.78rem;
+  color: var(--line-medium);
+  font-family: var(--font-mono);
+}
+.pi-close {
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--line-medium);
+  cursor: pointer;
+  padding: 0.1rem 0.4rem;
+  line-height: 1;
+}
+.pi-close:hover { color: var(--ink); }
+
+.pi-body {
+  padding: 0.8rem 1.1rem 1.4rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.pi-section {
+  margin: 0 0 1.4rem;
+}
+.pi-section-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--line-medium);
+  font-family: var(--font-mono);
+  font-weight: 400;
+}
+
+/* Cartes-sources empilées (une par source). */
+.pi-source {
+  border: 1px solid var(--line-weak);
+  border-left: 3px solid var(--accent);
+  padding: 0.7rem 0.9rem;
+  margin: 0 0 0.7rem;
+  background: #fff;
+  font-family: var(--font-serif);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  cursor: pointer;
+  position: relative;
+}
+/* Repliée par défaut : ~3 lignes visibles + dégradé en bas pour signifier
+   qu'il y a de la suite. Clic sur la carte (hors liens/iframes) toggle. */
+.pi-source.pi-collapsed .pi-source-content {
+  max-height: 4.5em;
+  overflow: hidden;
+  position: relative;
+}
+.pi-source.pi-collapsed .pi-source-content::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1.6em;
+  background: linear-gradient(to bottom, rgba(255,255,255,0), #fff);
+  pointer-events: none;
+}
+.pi-source-attrib {
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  color: var(--line-medium);
+  margin: 0 0 0.1rem;
+  letter-spacing: 0.02em;
+  text-align: right;
+}
+.pi-source-attrib a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--accent);
+}
+.pi-source-content {
+  margin: 0;
+}
+.pi-field-title {
+  margin: 0 0 0.6rem;
+  font-size: 1rem;
+  font-weight: 600;
+  font-style: italic;
+}
+.pi-field {
+  margin: 0 0 0.55rem;
+}
+.pi-field:last-child {
+  margin-bottom: 0;
+}
+.pi-field-label {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--line-medium);
+  margin-bottom: 0.15rem;
+}
+.pi-field-value {
+  white-space: pre-line;
+}
+.pi-source-content p { margin: 0 0 0.6rem; }
+.pi-source-content p:last-child { margin-bottom: 0; }
+.pi-source-content h4 { margin: 0.6rem 0 0.3rem; font-size: 0.95rem; }
+.pi-source-content ul, .pi-source-content ol { margin: 0.3rem 0 0.6rem 1.2rem; padding: 0; }
+.pi-source-content iframe {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 0;
+  margin: 0.5rem 0;
+  display: block;
+}
+.pi-source-content img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0.5rem 0;
+}
+.pi-source-content blockquote {
+  margin: 0.5rem 0;
+  padding: 0.1rem 0 0.1rem 0.8rem;
+  border-left: 2px solid var(--line-weak);
+  color: var(--line-medium);
+  font-style: italic;
+}
+
+/* État vide : aucune source rédigée pour ce sous-sujet. */
+.pi-empty {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--line-medium);
+  padding: 0.5rem 0.7rem;
+  border: 1px dashed var(--line-weak);
+  margin: 0 0 0.7rem;
+}
+
+/* Observations — contenteditable persistée par planète. */
+.pi-notes {
+  border: 1px solid var(--line-weak);
+  padding: 0.7rem 0.9rem;
+  min-height: 4.5rem;
+  background: #fff;
+  font-family: var(--font-serif);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  outline: none;
+}
+.pi-notes:focus { border-color: var(--line-medium); }
+.pi-notes:empty::before {
+  content: attr(data-placeholder);
+  color: var(--line-weak);
+  font-style: italic;
+}
+.pi-notes-status {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--line-medium);
+  margin: 0.3rem 0 0;
+  text-align: right;
+  min-height: 1em;
+}
+
+/* Slider taille du glyphe (migré de l'atelier). */
+.pi-scale-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--line-weak);
+  background: #fff;
+}
+.pi-scale-preview {
+  font-family: var(--font-serif);
+  font-size: calc(28px * var(--planet-scale, 1));
+  color: var(--planet);
+  width: 2.4rem;
+  text-align: center;
+  line-height: 1;
+  font-variant-emoji: text;
+}
+.pi-scale-slider {
+  flex: 1;
+  min-width: 0;
+}
+.pi-scale-value {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--line-medium);
+  width: 2.6rem;
+  text-align: right;
+}
+.pi-scale-reset {
+  background: transparent;
+  border: 1px solid var(--line-weak);
+  color: var(--line-medium);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+}
+.pi-scale-reset:hover { color: var(--ink); border-color: var(--line-medium); }
+
+@media (min-width: 700px) {
+  .pi-panel { margin-top: 4vh; margin-bottom: 4vh; max-height: 92vh; border-radius: 4px; }
+}
+
