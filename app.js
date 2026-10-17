@@ -12,9 +12,9 @@ const SWE_URL = 'https://cdn.jsdelivr.net/npm/@kuntay/swisseph@0.2.2/+esm';
 
 // URL du proxy CORS pour les fichiers .se1 d'astéroïdes.
 // Format attendu : préfixe auquel on concatène l'URL upstream complète.
-// - Défaut : proxy.cors.sh — service public, marche out of the box.
-// - Alternative : ton propre Deno Deploy — voir proxy/README.md.
-const PROXY_URL = localStorage.getItem('astrolab.proxyUrl') || 'https://proxy.cors.sh/';
+// Défaut : Deno Deploy sous le compte de Perig, whitelist sur ephe.scryr.io.
+// Source : proxy/deno-cors-proxy.ts.
+const PROXY_URL = localStorage.getItem('astrolab.proxyUrl') || 'https://astrolab-ephe.periggouanvic.deno.net/';
 const UPSTREAM = 'https://ephe.scryr.io/ephe';
 
 const CATALOG_URL = 'asteroids.json';
@@ -2926,8 +2926,8 @@ function wireProxySettings() {
     const current = localStorage.getItem('astrolab.proxyUrl') || PROXY_URL;
     const next = prompt(
       'URL du proxy CORS (préfixe auquel on concatène l\'URL upstream) :\n\n' +
-      '• Défaut : https://proxy.cors.sh/\n' +
-      '• Ton Deno Deploy : https://<toi>.deno.dev/\n\n' +
+      '• Défaut : https://astrolab-ephe.periggouanvic.deno.net/\n' +
+      '• Ton propre Deno Deploy : https://<toi>.deno.net/\n\n' +
       'Laisse vide pour restaurer le défaut.',
       current
     );
