@@ -2212,7 +2212,7 @@ async function loadPlanetInfo(key) {
   let data = null;
   if (Drive.isAuthenticated()) {
     try { data = await Drive.loadPlanetFromDrive(key); }
-    catch (e) { console.warn('Drive loadPlanet échec, fallback bundled :', e.message); }
+    catch (e) { console.warn('Drive loadPlanet échec :', e.message); }
   }
   if (!data) {
     try {
@@ -2568,7 +2568,8 @@ function wireControls() {
 
 // ---------- Drive (fiches planètes sur Google Drive) ----------
 // MVP ce soir : auth + sync upload des 15 fiches planètes vers astrolab/planets/
-// dans le Drive du praticien. loadPlanetInfo essaie Drive d'abord, fallback bundled.
+// dans le Drive du praticien. loadPlanetInfo essaie Drive d'abord, fiches vides sinon
+// (sauf en dev local où content/planets/*.json gitignoré sert encore de fallback).
 // Modèle salon (multi-utilisateurs, Picker, partage) à venir dans une session dédiée.
 
 const PLANET_KEYS_FOR_SYNC = [
@@ -2588,7 +2589,7 @@ function wireDrive() {
   function refreshUI(authed) {
     toggleBtn.classList.toggle('connected', authed);
     toggleBtn.textContent = authed ? '☁ drive ✓' : '☁ drive';
-    statusEl.textContent = authed ? 'connecté — fiches lues depuis Drive' : 'non connecté — fiches lues depuis bundled';
+    statusEl.textContent = authed ? 'connecté — fiches lues depuis Drive' : 'non connecté — connecte-toi pour afficher tes fiches';
     signinBtn.hidden = authed;
     syncBtn.hidden = !authed;
     signoutBtn.hidden = !authed;
@@ -2641,7 +2642,7 @@ function wireDrive() {
   });
 
   signoutBtn.addEventListener('click', () => {
-    if (!confirm('Déconnecter Drive ? L\'app repassera sur les fiches bundled.')) return;
+    if (!confirm('Déconnecter Drive ? Les fiches planètes ne seront plus affichées.')) return;
     Drive.signOut();
   });
 }
