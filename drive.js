@@ -180,10 +180,16 @@ export async function syncPlanetsToDrive(planetKeys, fetchLocalRawText, onProgre
 }
 
 // Charge une fiche planète depuis Drive. Renvoie null si non connecté ou introuvable.
+// Si le folder ID n'est pas en cache (nav privée, APK fraîche, resign in après
+// signout qui l'a effacé), appelle ensurePlanetsFolder pour aller le chercher
+// sur Drive — findOrCreateFolder trouvera le dossier existant sous ce CLIENT_ID.
 export async function loadPlanetFromDrive(key) {
   if (!accessToken) return null;
   if (!planetsFolderId) planetsFolderId = localStorage.getItem(FOLDER_KEY) || null;
-  if (!planetsFolderId) return null;
+  if (!planetsFolderId) {
+    try { await ensurePlanetsFolder(); }
+    catch { return null; }
+  }
   const fileId = await findFileInFolder(planetsFolderId, `${key}.json`);
   if (!fileId) return null;
   const res = await driveFetch(`files/${fileId}?alt=media`);

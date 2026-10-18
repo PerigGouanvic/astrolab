@@ -8,7 +8,7 @@
 
 // Source Google Drive pour les fiches planètes (modèle salon à venir).
 // Si pas connecté, les fiches sont vides (fallback silencieux).
-import * as Drive from './drive.js?v=3';
+import * as Drive from './drive.js?v=4';
 
 // jsDelivr +esm : bundle self-contained avec process.browser=true.
 // esm.sh polyfille process.versions.node truthy → swisseph tente createRequire() → boom.
@@ -3507,6 +3507,10 @@ function wireNatives() {
   });
 }
 
+// Version JS dérivée du query param ?v=N de l'import HTML — source unique.
+// Évite que le badge mente quand on bump index.html sans toucher cette constante.
+const JS_V = new URL(import.meta.url).searchParams.get('v') || '?';
+
 async function main() {
   const probe = document.getElementById('boot-probe');
   const setProbe = (txt, color) => {
@@ -3514,9 +3518,9 @@ async function main() {
     probe.textContent = txt;
     if (color) { probe.style.background = color; probe.style.color = '#fff'; }
   };
-  setProbe('astrolab v70 — chargement Swiss Ephemeris…');
+  setProbe(`astrolab v${JS_V} — chargement Swiss Ephemeris…`);
   await initSwe();
-  setProbe('astrolab v70 — Swiss Ephemeris OK, init…');
+  setProbe(`astrolab v${JS_V} — Swiss Ephemeris OK, init…`);
   loadPlanetScales();
   loadPlanetNotes();
   migrateScrapbookItems();
@@ -3529,7 +3533,6 @@ async function main() {
     // Transforme le probe en badge version permanent (coin bas-droit).
     // Affiche à la fois la version JS et CSS pour détecter les désynchros
     // de cache (Brave en particulier cache le CSS indépendamment du JS).
-    const JS_V = 70;
     const CSS_EXPECTED = 58;
     const cssVRaw = getComputedStyle(document.documentElement)
       .getPropertyValue('--css-version').trim().replace(/^"|"$/g, '');
