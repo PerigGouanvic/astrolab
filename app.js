@@ -6,6 +6,10 @@
 //   - Aspects majeurs (conjonction, opposition, trigone, carré, sextile)
 //   - Rétrogrades ℞
 
+// Source Google Drive pour les fiches planètes (modèle salon à venir).
+// Fallback transparent vers content/planets/ bundled si pas connecté.
+import * as Drive from './drive.js?v=1';
+
 // jsDelivr +esm : bundle self-contained avec process.browser=true.
 // esm.sh polyfille process.versions.node truthy → swisseph tente createRequire() → boom.
 const SWE_URL = 'https://cdn.jsdelivr.net/npm/@kuntay/swisseph@0.2.2/+esm';
@@ -2205,9 +2209,16 @@ function savePlanetNotes() {
 const planetInfoCache = new Map();
 async function loadPlanetInfo(key) {
   if (planetInfoCache.has(key)) return planetInfoCache.get(key);
-  const res = await fetch(`content/planets/${key}.json`, { cache: 'no-cache' });
-  if (!res.ok) throw new Error(`content/planets/${key}.json : HTTP ${res.status}`);
-  const data = await res.json();
+  let data = null;
+  if (Drive.isAuthenticated()) {
+    try { data = await Drive.loadPlanetFromDrive(key); }
+    catch (e) { console.warn('Drive loadPlanet échec, fallback bundled :', e.message); }
+  }
+  if (!data) {
+    const res = await fetch(`content/planets/${key}.json`, { cache: 'no-cache' });
+    if (!res.ok) throw new Error(`content/planets/${key}.json : HTTP ${res.status}`);
+    data = await res.json();
+  }
   planetInfoCache.set(key, data);
   return data;
 }
@@ -2550,6 +2561,87 @@ function wireControls() {
   wirePositionsModal();
   wirePlanetInfo();
   wireNatives();
+  wireDrive();
+}
+
+// ---------- Drive (fiches planètes sur Google Drive) ----------
+// MVP ce soir : auth + sync upload des 15 fiches planètes vers astrolab/planets/
+// dans le Drive du praticien. loadPlanetInfo essaie Drive d'abord, fallback bundled.
+// Modèle salon (multi-utilisateurs, Picker, partage) à venir dans une session dédiée.
+
+const PLANET_KEYS_FOR_SYNC = [
+  'sun','moon','mercury','venus','mars','jupiter','saturn',
+  'uranus','neptune','pluto','chiron','ceres','pallas','juno','node'
+];
+
+function wireDrive() {
+  const toggleBtn = document.getElementById('drive-toggle');
+  const menu = document.getElementById('drive-menu');
+  const statusEl = document.getElementById('drive-menu-status');
+  const signinBtn = document.getElementById('drive-signin');
+  const syncBtn = document.getElementById('drive-sync');
+  const signoutBtn = document.getElementById('drive-signout');
+  if (!toggleBtn || !menu) return;
+
+  function refreshUI(authed) {
+    toggleBtn.classList.toggle('connected', authed);
+    toggleBtn.textContent = authed ? '☁ drive ✓' : '☁ drive';
+    statusEl.textContent = authed ? 'connecté — fiches lues depuis Drive' : 'non connecté — fiches lues depuis bundled';
+    signinBtn.hidden = authed;
+    syncBtn.hidden = !authed;
+    signoutBtn.hidden = !authed;
+    // Vide le cache pour que les prochaines ouvertures de fiche relisent la source
+    planetInfoCache.clear();
+  }
+
+  Drive.initDrive(refreshUI).catch(e => {
+    statusEl.textContent = 'Erreur init : ' + e.message;
+  });
+
+  toggleBtn.addEventListener('click', () => {
+    menu.hidden = !menu.hidden;
+  });
+
+  document.addEventListener('click', (e) => {
+    if (menu.hidden) return;
+    if (menu.contains(e.target) || toggleBtn.contains(e.target)) return;
+    menu.hidden = true;
+  });
+
+  signinBtn.addEventListener('click', async () => {
+    try {
+      statusEl.textContent = 'connexion…';
+      await Drive.signIn();
+    } catch (e) {
+      statusEl.textContent = 'Erreur : ' + e.message;
+    }
+  });
+
+  syncBtn.addEventListener('click', async () => {
+    if (!confirm(`Uploader les ${PLANET_KEYS_FOR_SYNC.length} fiches planètes locales vers ton Drive ?\n\nCela remplacera les fiches existantes dans astrolab/planets/ si elles sont déjà là.`)) return;
+    const fetchLocalRawText = async (key) => {
+      const res = await fetch(`content/planets/${key}.json`, { cache: 'no-cache' });
+      if (!res.ok) throw new Error(`${key}.json : HTTP ${res.status}`);
+      return res.text();
+    };
+    try {
+      syncBtn.disabled = true;
+      await Drive.syncPlanetsToDrive(PLANET_KEYS_FOR_SYNC, fetchLocalRawText, (i, n, k) => {
+        statusEl.textContent = `sync ${i}/${n} (${k})…`;
+      });
+      statusEl.textContent = 'sync terminée — fiches à présent sur Drive';
+      planetInfoCache.clear();
+    } catch (e) {
+      statusEl.textContent = 'Erreur sync : ' + e.message;
+    } finally {
+      syncBtn.disabled = false;
+    }
+  });
+
+  signoutBtn.addEventListener('click', () => {
+    if (!confirm('Déconnecter Drive ? L\'app repassera sur les fiches bundled.')) return;
+    Drive.signOut();
+  });
 }
 
 // Modale positions planétaires : extraite du sheet 2026-10-14 pour laisser

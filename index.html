@@ -12,6 +12,7 @@
   <meta name="theme-color" content="#1a1a1a">
   <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
   <main>
@@ -19,6 +20,14 @@
       <h1 id="chart-title">Maintenant</h1>
       <p id="chart-info" class="chart-info"></p>
       <button type="button" id="positions-open" class="positions-open-btn" aria-label="Voir les positions planétaires">☉ positions</button>
+      <button type="button" id="drive-toggle" class="drive-toggle-btn" aria-label="Google Drive" title="Google Drive — source des fiches planètes">☁ drive</button>
+    </div>
+    <div id="drive-menu" class="drive-menu" hidden>
+      <div class="drive-menu-status" id="drive-menu-status">non connecté</div>
+      <button type="button" id="drive-signin">connecter Google Drive</button>
+      <button type="button" id="drive-sync" hidden>synchroniser les planètes vers Drive</button>
+      <button type="button" id="drive-signout" hidden>déconnecter</button>
+      <p class="drive-menu-hint">Les fiches planètes vivent dans ton Drive, dossier <code>astrolab/planets/</code>. Scope <code>drive.file</code> : l'app ne voit aucun autre fichier.</p>
     </div>
     <!-- Modale natifs : liste des thèmes natals + formulaire ajout/édition.
          S'ouvre au clic sur le titre (switcher). Scrapbook et planet-notes
@@ -244,7 +253,7 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=70"></script>
+  <script type="module" src="app.js?v=71"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {

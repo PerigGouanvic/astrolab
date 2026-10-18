@@ -4,3 +4,8 @@ node_modules/
 *.log
 content/_raw/
 content/_scripts/
+.keystore/
+*.keystore
+*.jks
+android/
+!android/twa-manifest.json
