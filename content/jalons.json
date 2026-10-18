@@ -1,0 +1,93 @@
+[
+  {
+    "id": "poietic-naissance",
+    "scope": "moment",
+    "createdAt": "2026-01-08T20:55:00-05:00",
+    "label": "Naissance Poietic",
+    "note": "Initial commit — Poietic Phase 0 (51fbf07). Lendemain : scène 3D multi-agents posée, le mot « florilège » déjà dans un nom de branche. Concept Florilège précède de ~6 ans (article fondateur 2020, DOI 10.5281/zenodo.3660062)."
+  },
+  {
+    "id": "poietic-style-florilege-mention",
+    "scope": "moment",
+    "createdAt": "2026-01-09T03:06:00-05:00",
+    "label": "« style Florilège »",
+    "note": "Premier commit mentionnant explicitement « style Florilège » (navigation pan-only, pas de rotation). Le mot est présent dès le deuxième jour du dépôt."
+  },
+  {
+    "id": "poietic-insights-system",
+    "scope": "moment",
+    "createdAt": "2026-01-10T14:32:00-05:00",
+    "label": "Système d'insights",
+    "note": "Premier type de panneau non-agent. Feature aujourd'hui marquée morte dans CLAUDE.md."
+  },
+  {
+    "id": "poietic-documents-janus",
+    "scope": "moment",
+    "createdAt": "2026-01-16T16:15:00-05:00",
+    "label": "Documents Janus",
+    "note": "Premiers documents Janus — effet repli/dépli 3D."
+  },
+  {
+    "id": "poietic-premier-claude-md",
+    "scope": "moment",
+    "createdAt": "2026-01-16T16:24:00-05:00",
+    "label": "Premier CLAUDE.md",
+    "note": "Premier CLAUDE.md du projet (fichier guide des agents IA)."
+  },
+  {
+    "id": "poietic-supports-mobiles",
+    "scope": "moment",
+    "createdAt": "2026-01-23T12:00:00-05:00",
+    "label": "Premiers supports mobiles",
+    "note": "Interactions tactiles, boutons mobile, calcul zoom adapté. Travail étalé du 2026-01-23 au 2026-01-25."
+  },
+  {
+    "id": "poietic-agent-jardinier",
+    "scope": "moment",
+    "createdAt": "2026-01-31T12:00:00-05:00",
+    "label": "Agent Jardinier",
+    "note": "Premier agent spécialisé + réorganisation docs."
+  },
+  {
+    "id": "poietic-import-batch-ombres",
+    "scope": "moment",
+    "createdAt": "2026-02-14T12:00:00-05:00",
+    "label": "Import batch d'ombres",
+    "note": "Premier import batch d'ombres depuis extension navigateur (Perplexity)."
+  },
+  {
+    "id": "poietic-naissance-poros",
+    "scope": "moment",
+    "createdAt": "2026-02-17T12:00:00-05:00",
+    "label": "Naissance Poros",
+    "note": "App Expo React Native mobile. Consolidation architecture Poros / Florilège / Poiesis."
+  },
+  {
+    "id": "poietic-florilink-serpent-clavi",
+    "scope": "moment",
+    "createdAt": "2026-03-05T12:00:00-05:00",
+    "label": "Florilink + serpent + clavi",
+    "note": "Phase 7 Florilège : premier florilink, premier serpent, premier clavi."
+  },
+  {
+    "id": "poietic-clavi-grappes",
+    "scope": "moment",
+    "createdAt": "2026-03-10T12:00:00-04:00",
+    "label": "Clavi en grappes",
+    "note": "Pipeline serpent — clavi en grappes."
+  },
+  {
+    "id": "poietic-premier-lemma",
+    "scope": "moment",
+    "createdAt": "2026-03-20T12:00:00-04:00",
+    "label": "Premier lemma",
+    "note": "Premier lemma nommé explicitement : « Taxonomie lemma/glossa/nota — lemmata, clavi notae, vinculum covalens ». C'est l'entrée du vocabulaire lemmatique."
+  },
+  {
+    "id": "poietic-naissance-flora",
+    "scope": "moment",
+    "createdAt": "2026-04-19T12:00:00-04:00",
+    "label": "Naissance Flora",
+    "note": "Agent du seuil : recherche, aide, scène, langage naturel."
+  }
+]

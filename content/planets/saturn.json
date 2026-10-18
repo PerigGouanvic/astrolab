@@ -1,0 +1,284 @@
+{
+  "key": "saturn",
+  "name": "Saturne",
+  "glyph": "♄",
+  "archetype": [
+    {
+      "source": "banzhaf-1996",
+      "title": "The old, wise man, the hermit.",
+      "shadow": "The embittered person, the adversary.",
+      "principle": "Saturn represents structure, steadfastness, and limitation. It therefore means security, stability, stamina, and consistency. Saturn also represents the ability of a person to set boundaries, but also the boundaries you experience as unpleasant, those which do not let you reach what you desire. Saturn is the ruler of time, who sees to it that everything comes to an end at some point. As a result, Saturn symbolizes separations and farewells. As ruler of “the great silence,” it also represents seclusion, which can be experienced as being painfully abandoned or as inner composure in stillness. Furthermore, Saturn means conscience, form, structure, compression, concentration, crystallization, obligation, deceleration, justice, law and order.",
+      "strength": "The bumble individual. Authentic humility, genuine modesty. The power to be true to oneself and the willingness to face the most difficult jobs. Greatly developed ambition combined with immense endurance. Takes duties unusually seriously. Extremely disciplined, achievement-oriented, and dependable. Mature contentment. Aspires toward material security and public recognition. Sets rules and boundaries, creates clear structures, imposes and monitors laws, takes care of order and safety. Willing to take on responsibility. Conscientiousness, patience, wisdom, dependability, consistency, and content modesty.",
+      "problem": "The hard-hearted person. Afraid to live, most of all afraid to fail, to not be good enough or lovable enough. Conflicts with authority. Determined hardness, obstinate inflexibility, dark ambition, and a cold need for admiration. Strangles all living impulses with the danger of losing oneself in depression, melancholy, bitter negation of life, or self-destructive drudgery. Compulsiveness to achieve, rigidity, inferiority complex, ingratiating subservience, shabbiness, lack of success, embitterment, and loneliness. Wasted, suppressed emotional life, and rigid behavior. Complete deficit human warmth and sincerity as well as the playful elements in life. Inhibited, constrained, awkward, cruel, evil, cold, narrow-minded, stubborn, reticent, irreconcilable, and relentless.",
+      "goal": "Development of the autonomous personality and a steadfast character through the actualization of existing capabilities and your true calling. Increase of experience and wisdom in life. Clarity, self-control, and self-restraint. Recognition of the unvarnished truth, naked reality, and concentration on what is most essential.",
+      "representatives": "Philosophers, wise men and wise women, hermits, monks and nuns, elderly people, ancestors. Lawmakers and keepers of the law, judges, critics, bosses, gray eminences, mentors, sculptors, architects, and builders.",
+      "physical": "Skeleton, bone marrow, calcium balance, teeth, structural and connective tissue, spleen, ears.",
+      "mythology": "Cronus (Greek)/Saturn (Roman)—the god who rebelled against his father Uranus, but also ate his own children. Ruler of time and keeper of threshold between life and death, between time and eternity. Also the ruler of Elysium, the island of the blessed, and the ruler of the Golden Age. SATURNI IN THE SIGNS See pages 92 to 97. In its most difficult form, Saturn means a block opposing the typical qualities of the prevailing sign, which are listed under PROHIBITION OR DISDAIN OF. The corresponding fear is under the heading of THRESHOLD. Experience shows that Saturn, on its way toward freedom, turns to compulsive behavior, somewhat in opposition to its original bans, and more or less lives as if it were a compulsion. This phase is described in the section COMPULSION, while the behavior of a liberated and transformed Saturn is portrayed in the section on LIBERATION. ​"
+    }
+  ],
+  "inSign": {
+    "aries": [
+      {
+        "source": "banzhaf-1996",
+        "title": "",
+        "prohibition": "Aggression, strife, egotism, spontaneity.",
+        "threshold": "Fear of defeat, difficulties in assertion.",
+        "compulsion": "Self-assertion at any cost, exaggerated demands. Merciless, cruel, violent.",
+        "liberation": "Self-confidence, inner strength, personal initiative, dynamics, healthy aggression."
+      }
+    ],
+    "taurus": [
+      {
+        "source": "banzhaf-1996",
+        "title": "PROHIBITION OR DISDAIN OF: Enjoyment in life, laziness, sensuality, faithfulness.",
+        "threshold": "Fear of losing security, fear of ruin, fear of privations, and other fears of loss.",
+        "compulsion": "Striving for security or enjoyment at any cost. Compulsive about faithfulness.",
+        "liberation": "Satisfied modesty, healthy consciousness of reality, appropriate striving for security, balanced ability to enjoy. Clear sense of self-worth."
+      }
+    ],
+    "gemini": [
+      {
+        "source": "banzhaf-1996",
+        "title": "",
+        "prohibition": "Versatility, intellectual doubt, curiosity.",
+        "threshold": "Fear of losing intellectual freedom, being dense or at a loss for words.",
+        "compulsion": "Cynical thinking, embittered and sarcastic, entangled in extremes and contradictions.",
+        "liberation": "Concentrated, serious, consequential thinking. Always prepared to consider the other side and letting it have its say."
+      }
+    ],
+    "cancer": [
+      {
+        "source": "banzhaf-1996",
+        "title": "",
+        "dignity": "Detriment",
+        "prohibition": "Deep feelings, sentimentality, motherliness, family, romanticism, a feeling of being rooted in the homeland.",
+        "threshold": "Fear of the depths of feelings, of emotional attachments, of the confines of the family. Fear of being “eaten up” by the feminine element.",
+        "compulsion": "Sentimental emotional exhibitionism instead of expressing deep, true feelings. Feeling oneself at the mercy of heavy, negative feelings and depressive moods. Starting a family for compulsive reasons.",
+        "liberation": "Taking one's own feelings seriously, healthy self-control without frustrating suppression. Inner peace, feeling of emotional safety and security without fear of dependency."
+      }
+    ],
+    "leo": [
+      {
+        "source": "banzhaf-1996",
+        "title": "",
+        "dignity": "Detriment",
+        "prohibition": "Luxury, showmanship, pompousness.",
+        "threshold": "The fear of not being respected, admired, and loved. The fear of being insignificant, but also the fear of having to be at the focus of attention. Fear of authorities.",
+        "compulsion": "Having to be generous and magnificent at any cost. The oppressive duty of having to find life exciting and wonderful every day.",
+        "liberation": "Dignified modesty, humble superior style, mature self-confidence, willingness to take responsibility, and healthy self-criticism. Free expression of personal uniqueness."
+      }
+    ],
+    "virgo": [
+      {
+        "source": "banzhaf-1996",
+        "title": "PROHIBITION OR DISDAIN OF: Domesticity, precision, flexibility.",
+        "threshold": "Fear of tests. Fear of being useless, awkward, maladjusted, or inappropriate. Fear of illness.",
+        "compulsion": "Obtrusive perfectionism, exaggerated organization, pedanticism, and fault-finding that criticizes everything. Fanaticism for what is utilitarian. Fitness addiction. Extreme modesty.",
+        "liberation": "Awareness of social responsibility, sensible love of order, stable health. Synthesis of mind and body."
+      }
+    ],
+    "libra": [
+      {
+        "source": "banzhaf-1996",
+        "title": "",
+        "dignity": "Exaltation",
+        "prohibition": "Grace, charm, aesthetic, willingness to compromise, peacemaking, art, playfulness.",
+        "threshold": "The fear of having to be considerate or becoming dependent on another person.",
+        "compulsion": "Forcing oneself into a partnership or entering into too many social obligations.",
+        "liberation": "Seriousness and maturing in relationships with other people. Commitment and responsibility in one's partnership. Clear discernment and distinct sense of justice."
+      }
+    ],
+    "scorpio": [
+      {
+        "source": "banzhaf-1996",
+        "title": "PROHIBITION OR DISDAIN OF: Taboos, borderline areas, minorities, sexuality, power, esoteric",
+        "threshold": "The fear of destructive forces, of emotional commitment, sexual devotion,",
+        "compulsion": "Feeling oneself attracted to what is dark and forbidden. Dogged striving the depth and passion of one's own feelings. Fear of emotional entanglements and dependencies. Fear of death. for power. Sexual collecting mania. Being obsessed by occult or sexual topics. Compulsively overstepping taboos.",
+        "liberation": "Mature, chastened treatment of power. Overcoming the fantasies of dependency and helplessness. Growing trust and willingness to be devoted in the partnership, Deep sexual satisfaction. Saturn in Sagittarius",
+        "prohibition": "Religiousness, faith, search for meaning, moral values, everything foreign and strange, distant journeys."
+      }
+    ],
+    "sagittarius": [],
+    "capricorn": [
+      {
+        "source": "banzhaf-1996",
+        "title": "",
+        "dignity": "Dignity",
+        "prohibition": "Ambition, awareness of one's duty, reliability, willingness to take responsibility.",
+        "threshold": "Fear of failing. Fear of being controlled, limited, or repressed by others. Fear of being bound to do something.",
+        "compulsion": "Dogged career planning. Rigid strictness with oneself and others. Enslaving oneself.",
+        "liberation": "Healthy self-discipline and willingness to take responsibility. Far-sighted and prudent determination. Matured authority. Sober clarity and down-to-earth view of the world."
+      }
+    ],
+    "aquarius": [
+      {
+        "source": "banzhaf-1996",
+        "title": "",
+        "dignity": "Dignity",
+        "prohibition": "Freedom, extravagance, individuality, progress, Utopia.",
+        "threshold": "The fear of loneliness, of being deserted, of being inferior to someone else, or of developing individual peculiarities and becoming an outsider who doesn't belong anywhere as a result. Fear of innovations.",
+        "compulsion": "Pathological obstinacy and constant, stubborn insistence on always having special treatment. Doing crazy things in order to be something special. Obsessed by ideas of reform.",
+        "liberation": "Mature and relaxed manner of living out independence and peculiar characteristics. Sober attitude toward all experiments and innovations. Inventor and developer of truly useful innovations."
+      }
+    ],
+    "pisces": [
+      {
+        "source": "banzhaf-1996",
+        "title": "PROHIBITION OR DISDAIN OF: Devotion, selflessness, chaos, mystic tendencies, and mediumistic",
+        "threshold": "The fear of losing oneself in chaos, in the inexplicable, or in what cannot be seen at a glance. Fear of deep emotions and sympathy. Fear of becoming helpless and a slave to others or of being used by other people.",
+        "compulsion": "Self-sacrifice at any cost. Deep feelings of guilt and experiences of pain. Extreme interest in mystic or mediumistic topics to the point of craziness.",
+        "liberation": "True brotherly love, deep sensitivity, selfless love, mature trust in the Higher Self, and the honest willingness to pardon and forgive. Uranus, Neptune, and Pluto The three outer planets move extremely slowly. This means that Uranus spends an average of seven years in each sign of the zodiac. Neptune takes fourteen years and Pluto twenty-one years. As a result, aspects from these planets to each other often remain in orb for years. The respective position of the sign the slow moving planet is in therefore makes a statement about the generation coming into the world during this period of time. The individual significance of such an aspect can only be read from the house position in the personal horoscope and by cross-linking it with the aspects to the personal planets. For this reason, the following tables only show the themes typical for the sign that are characteristic for the respective generation. Uranus in Strengths/Advocacy for Problems Aries Freedom of the will, freedom to conquer new territory. Inconsiderate individualism. Taurus​ F ALL Freedom to enjoy life according to your own tastes; freedom of possessions. Becoming a burden for others instead of securing the foundation of your own life. Gemini Freedom of opinion, thought, and speech. Heartless intellectualism. Cancer Freedom of the homeland, the free development of children and the soul. Fleeing the nest; the rigorous bursting of family ties and structures. Leo​ D ETRIMENT Free development of personality; for the individual happiness in life. Development of own happiness in life at the cost of others. Virgo Freedom of science and teaching; freedom in education. Feeling superior to necessities of everyday life, obsessively non-conformist. Libra Free choice of partner and freedom within the partnership; freedom of the arts. Inability to commit to a relationship. Scorpio​ E XALTATION Freedom to research, break taboos, undertake occult studies; sexual freedom. Massive suppressed desires, uncontrolled overstepping of all prohibitions. Sagittarius Religious freedom, freedom of opinion, freedom of movement. Idolatrous glorification of individuality. Capricorn Freedom to choose your own duries and responsibilities. Freedom from laws, norms, and any type of responsibility. Aquarius​ D IGNITY Freedom for everyone, freedom of opinion, and freedom of development. The isolated loner, solipsist. Pisces Freedom to take your own path of redemption; freedom to follow your own vision. Chaotic tendencies; “self-redemption” through intoxicants. Neptune in Dissolution of Idealization of Aries​ 1861/62-1872/75 Old images of the enemy. The fighting spirit, freedom of will. Taurus​ 1874/75-1887/88 Encrusted property structures, traditional values. Tradition, spiritual security, sensuality. Gemini​ 1888/89-1901/02 Old thought patterns and habits of thought. Inspired perceptions, harmonious connection of fantasy and intellect. Cancer​ 1901/02-1914/15​ E XALTATION Family structures and rootedness in the homeland. Motherhood, family warmth, romanticism. Leo​ 1914/15-1928/29 Superficial splendor. Examples, luxury, snobbishness, or the superman. Virgo​ 1928/29-1942/43​ E XILE Old methods of working and teaching; social differences between the classes. Order, striving for practicality, utilitarian thinking, health consciousness. Libra​ 1942/43-1956/57 Old forms of relationships; the previous understanding of art. Peacefulness, love, and art. Scorpio​ 1956/57-1970/71 Old fixations and power structures. Archaic powers, magic, and sexuality. Sagittarius​ 1970/71-1984/85 Dogmas and old concepts of faith. Noble-mindedness, religious striving, ethical consciousness of values. Capricorn​ 1984/85-1998/99​ F ALL Hierarchies and laws. Law, order, duty, awareness of responsibility. Aquarius​ 1998/99-2011/12 Individualism and striving for independence. Equality, freedom, brotherhood of all human beings. Pisces​ 2011/12-2024/25​ D IGNITY Old dream images and concepts of redemption. Willingness to sacrifice; brotherly love, mysticism. Lack of Self-Discipline Weakening Boundless inconsideration. Weak ego, lack of assertiveness. Getting off the track in area of sensuality. Weak ability to set limits, weak feeling of security. Dishonesty, boundless doubt, or transfiguration of the intellect. Limited intellectual abilities; nebulous, unrealistic thinking. Fantasies that get out of hand; blurring of boundary between fiction and reality. Weak feeling of being safe and secure; weak trust in one's own emotional world. Narcissism, self-glorification that gets out of hand, megalomania. Weakness of ego; lack of self-worth. Spineless, exaggerated conformity, narrow-mindedness, and uncritical belief in science. Diminished sense of order; weak ability to differentiate. Boundless emotional freedom, independence, and unfaithfulness. Limited ability to commit to a relationship; lack of good taste. Outgrowths of perverse striving for power; extreme sexual excesses. Shallow expression of passion; weakening of power. Outgrowths of arrogant sectarianism, fundamentalist excesses. Reduced ability to have faith and nebulous search for meaning. Uncontrolled authoritarian and reactionary tendencies. Irresponsibility. Untenable utopias, unrealistic egalitarianism, and eccentricity. Clouding of individual consciousness. Consumption of intoxicants, vulnerability to seduction; airy-fairy concept of the world. Blurred sense of reality. Pluto in Themes of Transformation Experiences Power & Helplessness Through Aries​ 1823-1852 and​ 2068-2096 The power and courage to take truly new, unfamiliar, as well as revolutionary paths, and overcome the past. Arbitrariness. Taurus​ 1852-1884 and​ 2096-2128​ D ETRIMENT Experiences of radical change in connection with possessions and money; fundamental transformation of traditional concepts of values. Money and possessions. Gemini​ 1640-1669 and​ 1884-1914 Breakthrough and new perceptions in research and science, uncompromising translation of new insights, ideas, and thoughts. Intellectual superiority. Cancer​ 1669-1694 and​ 1914-1939 Complete destruction and transformation of current attitude toward family, keeping family, homeland, the people of one's nation, and one's own origins together. Emotional ties and solidarity of the clan. Leo​ 1694-1711 and​ 1939-1957​ E XALTATION Deep-reaching transformation in the self-image of human beings and their possibilities of self-development. Development of self. Virgo​ 1711-1726 and​ 1957-1972 Deep-reaching changes and radical challenges in the scope of working conditions, through questions regarding health, and as a result of ecological problems. Necessity of integration and conformity to society. Libra​ 1726-1737 and​ 1972-1984 Deep-reaching transformation of previous forms and concepts of relationships, as well as changes in the area of art. Marriage and other forms of partnership. Scorpio​ 1737-1749 and​ Things that have been blocked, believed to be lost, and concealed come to light; knowledge that has been kept secret, rituals that have been Outward and inward striving for power. 1984-1995​ D IGNITY passed clown, and original healing powers experience new valuation. Sagittarius​ 1749-1762 and​ 1995-2008 Fundamental radical changes and transformation regarding religious and moral values, as well as in the area of search for meaning and discovery of meaning. Religious concepts and questions of finding meaning. Capricorn​ 1762-1777 and​ 2008-2023 Deep-reaching transformation of the social order, hierarchies, and laws, as well as in the area of personal responsibility, fulfillment of duties, and general understanding of destiny. Laws and norms. Aquarius​ 1777-1799 and​ 2023-2044​ F ALL Deep-reaching transformation in the valuation of freedom and independence, as well as in the individual possibilities of development for each human being. Intellectual superiority. Pisces​ 1799-1823 and​ 2044-2068 Understanding of the world of the unconscious and the inexplicable, above all in the areas of mediumism, mysticism, and trance. Power of the unconscious mind. The​ CARDINAL AXIS The Rising Sign or Ascendant The Ascendant (AC) is the sign of the zodiac that was rising on the eastern horizon at the time of birth. The time and place of birth determine which sign this is. Because of the apparent rotation of the ecliptic around the Earth in a period of 24 hours, a new sign of the zodiac rises on the eastern horizon on an average of every two hours, which means that the Ascendant changes every two hours in purely mathematical terms. However, based on the slanted position of the ecliptic, the signs rise at various speeds when seen from Earth. Pisces is the quickest sign in the northern hemisphere, rising in about 30 minutes, while Virgo is the slowest to rise, with a time of more than three hours. In accordance with this, the Pisces Ascendant is relatively rare in the northern hemisphere, while the Virgo Ascendant is quite widespread. This ratio is reversed in the southern hemisphere. The sign of the Ascendant represents the way in which you spontaneously approach your surrounding world, and the basic mood and manner with which you start something new. It also describes the experience that you had with your birth. This can be a fighting nature (Aries-Mars) or reserved and hesitant (Capricorn-Saturn). In the truest sense of the word, this could be a matter of life and death (Scorpio-Pluto) or a liberating experience (Aquarius-Uranus). This first impression of life, embodied by the Ascendant, is taken on the path through life and re-experienced in every new beginning. In the following portrayal, the attitude that results from it will be described under IMAGE, FEELING TOWARD LIFE, and APHORISM. As the basic mood of life and the feeling of self, the Ascendant also shows the ATTITUDE TOWARD MARRIAGE AND PARTNERSHIP, the individual themes expressed by the Descendant. The Ascendant stands for the image of the personality that the surrounding world often experiences as the initial impression of the individual. Of all the horoscope factors, the Ascendant has the greatest significance for the appearance of an individual. This is why the typical characteristics of a sign are listed under the heading of EXTERNAL APPEARANCE in the following chapter. Appearance is not just dependent on one individual factor, but is also influenced by other important configurations, such as planets in the 1st house, the Sun, or—in the female horoscope—by the Moon. In this respect, the signature listed here is only typical of the sign and should not be understood as compulsory of the Ascendant. The entire horoscope is ultimately expressed through the various aspects of the body. When considering the Ascendant, it is important to analyze the corresponding ruling planets, their signs and house positions, as well as the aspects of the Ascendant and the ruling planets. The position of the Ascendant ruler shows where and in which manner the original energy of the Ascendant can best be expressed. One example of this, depicted in a simplified manner, is that someone with a Gemini Ascendant and Mercury in Virgo in the 3rd house encounters life with curiosity and interest (Gemini Ascendant), is capable of analytical, critical thinking (Virgo), and desires to establish contact with her surrounding world using talents relating to the spoken and written word, and enjoys presenting herself or himself (3rd house). Planets close to the Ascendant—in the 1st or 12th house—complement and highlight the qualities of the Ascendant. But they can also mean conflicts when their themes are in contradiction to those of the Ascendant. Because many horoscope factors are reflected in a person's appearance, the characteristics listed on the following pages for the various signs are not to be found in every person with that particular Ascendant. However, the signature specific to each sign does permit the conclusion that people with the appearance described by the sign will have a strong emphasis on that sign's energy in the horoscope. Aries Ascend ant The Fighter ELEMENT : Fire TEMPERA",
+        "ment": "Choleri c (quick- temper ed) RULER:",
+        "theme": "Leader ship, initiati ve, activity.",
+        "strength": "The go-getter. Doesn't give up and doesn't resign (“never-say-die”). Very lively, active, direct, and creative. Goes his or her own way (above all, takes new paths) and asserts himself or herself. Courageous, proud, energetic, strong-willed, enterprising, and passionate.",
+        "problem": "The inconsiderate person. Aggressive, egotistical, hurried, inconsiderate—above all, rude and destructive, even personally. Tolerates no frustrations. No ability to compromise, but a blunt either-or conduct. Tends to be arbitrary, violent, misuse power, or show off. Wants to go at everything head first.",
+        "image": "I am the first.",
+        "feeling_toward_life": "Here I come! And: Let's get going!",
+        "aphorism": "Nothing ventured, nothing gained.",
+        "attitude_toward_marriage_and_partnership": "Tends to experience a committed life partnership as confinement and imprisonment. Seeks the element of tranquillity in the relationship, but cannot enjoy it. Needs a serene and understanding partner to whom one can always return after excursions.",
+        "external_appearance": "Lean, muscular body. Thick, straight, sometimes jagged eyebrows. Prominent facial features. “Butting bumps” on the forehead. Decisive, intense movements. Goose-step.​ Note: see also pages 106–107. Taurus Ascend ant The Connois seur ELEMENT : Earth TEMPERA",
+        "temperament": "Slightly choleric RULER:",
+        "detrimient": "​ FALL:​ ELEMENT:​ Fire QUALITY:​ Cardinal GENDER:​ Masculine",
+        "general": "The Appearance. The basic mood in life, outer appearance, type, personality, vital energy, awareness of life, physical constitution, vitality, expression of self, temperament, power of assertion, independence, and way of approaching other people and plans.",
+        "polarity": "The feeling for oneself in contrast to the experience of the other person in the 7th house."
+      }
+    ]
+  },
+  "inHouse": {
+    "1": [
+      {
+        "source": "banzhaf-1996",
+        "title": "Mistrust",
+        "dignity": "Fall",
+        "objective": "Development of a positive sense of self-assertion.",
+        "inhibition": "The Reserved Individual, The Misanthrope, Fear of being hurt. Deep sensitivity concealed behind a facade of self-control and apparent toughness. Or fear of conflicts causes person to appear selfless. Very little self-assurance, but mistrusting and skeptical about life. Suffers because of self and constantly sees self surrounded by a pack of wolves. Difficulties in getting started asserting self. Lifeless, dry, pessimistic, slow, without spirit and élan, joyless, depressed, serious, gloomy, shy, resigned. Often a loner. Constantly worrying. Twists things around until they become impossible to solve.",
+        "compulsion": "The Stiff Person, Tries to forcibly overcome inhibitions, but gives the impression of being awkward, clumsy, rough, stiff, and sometimes even aggressive in the process. Being lively becomes a duty. Offense is considered the best defense.",
+        "resolution": "The Great Thaw, Sober and realistic attitude toward life. Willing to open up to new things after taking a critical, clever look at them. Then consistent, self-controlled, tough, responsible, straightforward, reliable, discreet.",
+        "behavior": "Inhibited, mistrustful, rigid."
+      }
+    ],
+    "2": [
+      {
+        "source": "banzhaf-1996",
+        "title": "",
+        "objective": "Development of a true feeling of self-worth.",
+        "inhibition": "The Short-Changed Person. Fear of poverty; distinct mistrust of everything that could offer security. Feels impoverished—regardless of bank balance (Uncle Scrooge McDuck syndrome). Even with enormous assets, always concerned everything could be lost, stolen, dispossessed, destroyed, or eaten away by inflation. Insecure regarding personal value and abilities. Sells self for sake of security. Mistrustingly fearful and inhibited, allows self and others nothing. Envy, penny-pinching, stinginess (materially and intellectually) or exactly the opposite: vehement rejection of material values.",
+        "compulsion": "The Pseudo-Generous Individual. Acts like he or she doesn't worry about money. Forces self to be generous, but gives impression of being clumsy and artificial (shakes when signing the check). Gets involved in risks and speculations in order to not be seen as stiff, fossilized, or antiquated.",
+        "resolution": "The Value-Conscious Person. Realistic attitude toward everything that embodies security. Responsible, healthy, sober way of handling assets. Understands how to view talents and abilities as lasting values and inner possessions that are to be developed and cared for. Thorough, matter-of-fact, careful, conscientious, and prudent, confident, rich, emotionally free.",
+        "way_of_dealing_with_money": "Fearful, reserved, circumspect."
+      }
+    ],
+    "3": [
+      {
+        "source": "banzhaf-1996",
+        "title": "Methodical Thinking",
+        "objective": "Concentrated, consistent, profound thinking.",
+        "inhibition": "The Ponderous Person. Slow and dense in conversations, as well as when reading and studying. Clings to each letter. Hangs on too tightly to everything, which also causes speech defects and expressive disorders (stuttering). Tends to be mistrustful and reserved in everyday life and in contacts with surroundings, initially at least. Strong doubt about own intellectual abilities and verbal skills. Inflexible thinking. The Cinderella of the family. Finds no open doors. Must constantly wait longer than other people (who are allowed to go first) wherever he or she is",
+        "compulsion": "The Wind-Bag, Communication at any price. The obtrusive person who always talks without having anything to say and who believes he or she knows everything. The phrase-monger who always just mechanically repeats everything he or she hears.",
+        "solution": "The Experienced Speaker, The ability to think in a careful, profound, concentrated, objective, and serious manner without losing the red thread. Clear and practiced in verbal expression. Demosthenes symptom.3",
+        "speakingStyle": "Structured, chronological, sober."
+      }
+    ],
+    "4": [
+      {
+        "source": "banzhaf-1996",
+        "title": "The Meager or Cold Home",
+        "dignity": "Detriment",
+        "objective": "Development of inner stability and independence.",
+        "inhibition": "The Unwanted Individual, Difficult childhood, painful feelings of not being safe and secure, emotional injuries, rejection, repression, not being loved, frustrations, and emotional insecurity. Being deeply stricken by life. Wishes he or she had never been born. Fear of intimacy and closeness. Difficulties in permitting and expressing feelings. Sees self as being very weighty, serious, and important. Shifts the search for emotional security to the outside world, such as through the acquisition of real estate as a substitute. Has a hard time finding a place to live. Usually lives below means, sometimes even spartanly (the eternal student's pad) or in cold, impersonal, comfortable surroundings.",
+        "compulsion": "Emotional Exhibitionism. Violent attempt to express feelings and permit closeness. Group experiences or other “training grounds” as a mandatory program.",
+        "resolution": "Genuine Inner Security, When inner inhibitions have been reduced and mistrust toward intimacy and closeness has melted away, trust m one's own inner security gradually grows. The deeply understood insight that only the person who deserts himself or herself has been deserted by everyone leads to the grateful feeling of inner security without outer support.",
+        "image": "Strict, reserved, authoritarian, or absent.​"
+      }
+    ],
+    "5": [
+      {
+        "source": "banzhaf-1996",
+        "title": "Stage Fright or “Playing Prohibited!”",
+        "objective": "Trust in one's own self and one's own center. The willingness to put in an appearance and show oneself.",
+        "inhibition": "The Unlucky Devil. Always takes everything too hard, too seriously, and too tragically. Every game (and each flirt) immediately turns into something serious and usually turns out badly. Secret feelings of guilt and (unconscious) desire to be penitent. Keeps betting on the same card even in hopeless cases and after the game is lost. Lack of recognition and admiration. Believes one is not lovable or even likable. Fear of showing oneself or making an appearance (stage fright). Unapproachable, shy, reserved, strict, stiff, envious, petty, cold. Disappointments in love.",
+        "compulsion": "Playing as a Duty. Tries with all one's might to come on strong I and not take life seriously. Frantically attempts to step nonchalantly into the limelight or become a carefree, cheerful master of the art of living and playing.",
+        "resolution": "Sensible Behavior. Has learned to give in to the unpredictable turns of a game. Shows what he or she can do, but not without adequate practice and preparation. Stands behind personal mistakes and doesn't need to be perfect. Aware of personal uniquenness; likes to spontaneously open up and express self in an uninhibited manner. Plays prudently—instead of doggedly—with a high degree of endurance. Warm-hearted, open, congenial.",
+        "attitude_toward_children": "Serious, responsible, or possibly fearful, disapproving, strict."
+      }
+    ],
+    "6": [
+      {
+        "source": "banzhaf-1996",
+        "title": "The Crisis at Work",
+        "objective": "Developing true integrity and inner cheerfulness, even in fulfilling “lowly” tasks as well (the happy street-sweeper).",
+        "inhibition": "The Drudge. Is always ordered to do the most difficult tasks, has to do work no one else wants to do, and is even assigned something else when the others have long gone home. Has no sense of trust in one's professional position. Fears that resistance would cause one to become unemployed. Prefers to cling to the familiar misery, Joyless drudgery, caught in routine and apathy. Escapes into illness. Resigned, subservient, dissatisfied, dependent, as well as tyrannically controlling others. Fear of inner chaos. Not a good boss.",
+        "compulsion": "The Highflier. Works on career with a grim smile. Lets no one help and especially doesn't permit anyone to give anything. Is merciless with self and hard on others. Represses and covers up signals of poor health.",
+        "resolution": "The Conscientious Worker. Accepts every task—no matter how much prestige value it has—reliably, with humor or inner cheerfulness, Has a sense of work rituals and therefore doesn't shy away from “boring” assignments. Tenacious, with an eye for detail. Responsible, a good boss, incorrigible examiner, and experienced specialist.",
+        "working_style": "Diligent, concentrated, tenacious."
+      }
+    ],
+    "7": [
+      {
+        "source": "banzhaf-1996",
+        "title": "The Serious",
+        "objective": "Trust in a responsible, mature relationship. INHIBITION; The Orphan. Lacking in contact; reserved and cautious in relationships for fear of closeness or being hurt; afraid of being lonely. Strong mistrust of the other person. As a result, avoids relationships or always comes a moment too late. Only falls in love in hopeless cases, waits a long time in vain for the desired person, and quickly backs down if the tide should actually turn in his or her favor. Can't believe he or she is loved on own account. Searches for guarantees and proof of love. Will unconditionally try to maintain the outer form even if the relationship has long been dead in terms of emotions. Regiments and dominates the partner.",
+        "compulsion": "The Fake Don Juan. Breaks out of personal reserve and plays Don Juan. At the same time, is always in control, remains cold on the inside, and only opens up to short encounters in which no true closeness is created.",
+        "resolution": "The Responsible Person. Sees through own avoidance strategy that led to earlier disappointments. Carefully and slowly grows into a relationship and continually gains deeper confidence in it. Overcomes old fears and develops steadfastness. Is responsible, caring, faithful, reliable, patient.",
+        "idea_of_partnership": "The solid relationship."
+      }
+    ],
+    "8": [
+      {
+        "source": "banzhaf-1996",
+        "title": "Fear of Death",
+        "objective": "Overcoming the fear of death and developing emotional stability",
+        "inhibition": "The Stick-in-the-Mud. Unable to really let go because of an (unconscious) fear of death. Fear of deep emotions and overwhelming, uncontrollable (sexual) experiences, as well as the fear of failure. Inwardly self-conscious, stiff, standoffish, inhibited, hardened, always unsatisfied, and often awkward. Emotional coldness, impotence, or frigidity. Increasing fear of inexplicable phenomenon and magical powers. Fear of falling into a crisis about the meaning of life. Fear of poverty in old age and loss of control. Incapable of simply letting important things happen.",
+        "compulsion": "The “Perfect” Lover. The active player in the area of sexuality. Perfect on the physical level, but cut off emotionally. Compulsive erotic ideas and actions. Promiscuity as an obligation. Also compulsive confrontation with previously avoided (but always tempting) taboo areas.",
+        "resolution": "Emotional Strength, Insight into reality. Overcomes the fear of death (through crises in life) to allow outer hardening to become an inner strength of character. Hits made peace with the imponderables of life. Can open up and let go. Emotionally capable of devotion. Open, and inwardly deeply willing to have overwhelming, ecstatic, spiritual, and/or sexual experiences. At the same time, responsible, resolute, and trustworthy.",
+        "image": "Death as a bitter truth and ultimately a serene certainty."
+      }
+    ],
+    "9": [
+      {
+        "source": "banzhaf-1996",
+        "title": "Religious Crises",
+        "objective": "Finding one's personal view of the world beyond all doubts and imponderables, and having a deep experience of meaning",
+        "inhibition": "Limited Vision. Fixed view of the world with extremely rigid concepts and values. Black-and-white categories. Strict, inhuman religious values that constantly lead to a bad conscience, feelings of guilt, and depression, Serious self-reproach because of one's own shortcomings. Losing the faith and feeling oneself to be mercilessly at the hands of life's absurdity. Mistrusting everything that can't be explained. Failing in the question of meaning. Rejecting everything that is unfamiliar.",
+        "compulsion": "The Dogmatic Atheist. Believing m nothing at all anymore and advocating atheism or nihilism with religious fervor. Or joining a movement or sect in which extremely strict morals and difficult rituals are practiced with prescribed penance exercises hostile to life itself.",
+        "resolution": "Strength of Faith. A mature, clear view of the world, free of superficialities or Baroque varnish. Standing as firm as a rock in a deep faith with simplicity, earnestness, and humility.",
+        "image": "The strict God."
+      }
+    ],
+    "10": [
+      {
+        "source": "banzhaf-1996",
+        "title": "Staying Power",
+        "dignity": "Dignity",
+        "objective": "Overcoming fear of failure; willingness to assume responsibility; the ability to measure achievements by more than just external factors.",
+        "inhibition": "The Walking Disaster. Deep mistrust in the possibilities of professional advancement. Receives no support whatsoever because no one can help. Feels inadequate; has a great fear of failing. Only registers what one has been unsuccessful at. Stubborn and unpopular. Much bad luck and weak achievements. Inflexible, unsuccessful, dictatorial, authoritarian, and inconsiderate.",
+        "compulsion": "The Downtrodden. Makes it a point of great honor to fight one's way doggedly up the ladder alone and with one's own strength despite all resistance. In the process, enslaves oneself to the utmost degree. Joyless career person. Easily gets dizzy because of the heights for fear of a sudden fall.",
+        "resolution": "The Master. Succeeds in gradually developing enough trust in the idea that the rungs of the ladder of professional success will also hold him or her. Dedicates self to a task with total consistency and develops—even against all opposition—true mastery there. Responsible, dutiful, objective, honest, ambitious, just, fatherly, consistent, decisive.",
+        "image": "Reliable, dominating, hard, strict, cold, restrictive."
+      }
+    ],
+    "11": [
+      {
+        "source": "banzhaf-1996",
+        "title": "The Solid Friendship",
+        "dignity": "Dignity",
+        "objective": "Overcoming distance and coldness in the encounter with others, becoming trusting beyond fears of closeness, and starting up friendships.",
+        "inhibition": "The Lonesome Wolf. Mistrust of potential friends. Fear of not being accepted, not being good enough for a friendship, or not being able to give enough. Retreat into isolation. Painful feelings of loneliness, but frequently with a resigned pride. Fear of groups.",
+        "compulsion": "The Proper Companion. Violently forces oneself to change, is present at all social occasions, and also invites others to one's home. Very proper, but always somewhat standoffish and far from developing true feelings of friendship.",
+        "resolution": "The Steady Friend. Has overcome mistrust of people and placed deep trust in a few good friends. Sincere and honest in friendship. Seeks mutuality and reliability. Is faithful, steadfast, and serious. Tends to be modest and thankful. Seeks connections with and within serious communities—such as a Zen brotherhood.",
+        "role_in_the_group": "The scapegoat, the supervisor."
+      }
+    ],
+    "12": [
+      {
+        "source": "banzhaf-1996",
+        "title": "The Old Soul",
+        "objective": "Growing trust in being upheld by higher forces.",
+        "inhibition": "The Helpless or Unstable Individual. Lack of stability and firmness. Uncanny fear that something unknown and incomprehensible could dominate or destroy life. Dread of loneliness, chaos, loss of the self, and above all, feat of the irrational. Fear of losing control over oneself and of ending up in isolation or imprisonment. Inexplicable feelings of guilt.",
+        "compulsion": "The Grim One. Tries to pull oneself together with total stubbornness and toughness and prove that one can master life. Takes a spiritual path as the “best pupil” with steely single-mindedness and an ambitiously lowered gaze.",
+        "resolution": "The Steadfast Person. Overcomes the fear of fear and gradually opens up to what is vast, unknown, and the chaotic depths of one's own unconscious mind. In silent exercise, finds inner strength and trust in the forces that uphold human beings. Humble and capable of honest service, selflessness, and devotion, Experiences aloneness as “all-one-ness.”",
+        "finds_in_seclusion": "Structure and resolve."
+      }
+    ]
+  }
+}

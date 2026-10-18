@@ -1,0 +1,167 @@
+{
+  "key": "mercury",
+  "name": "Mercure",
+  "glyph": "☿",
+  "archetype": [
+    {
+      "source": "banzhaf-1996",
+      "title": "The trader, the navigator, the scout.",
+      "shadow": "The crook, the liar.",
+      "principle": "Mercury stands for mind and intellect, for the theory of combinations, speech, communication, mediation, tactics, knowledge, mental flexibility, orientation facility, analytical and logical thought, and the manner of judging and deciding. Mercury is also the negotiator between the conscious and the unconscious mind because its powers of thought support the recognition and understanding of the images of the unconscious, such as dreams. Mercury also represents expression in speech, curiosity, the thirst for knowledge, and a certain readiness, ambition, and ability to learn.",
+      "strength": "The clever person. Quick, clear ascertaining of thoughts and ideas. Ingenious capacity for following a train of thought; combining, analyzing, and differentiating. Talent for observing and having a “good grasp.” Excellent capacity to adapt or orient oneself. Collects information with great curiosity. Pursues knowledge and enjoys the pleasure of recognition. Nimbleness of language, quick-wittedness, and rhetorical knowledge. Smooth sales person and negotiator. Methodical doubt which leads to steadily increasing insight. Carefully thinks through and weighs ideas and examines for accuracy and usefulness.",
+      "problem": "The trickster. Interest in everything is only superficial and passing. Cunning, sly bluffer. Calculating, corruptible, crafty, audacious, false, and wily. Cannot see the whole picture. Feels no obligation to honor values. Profanes the holy, is ice-cold in business, and would “sell his grandmother.”",
+      "goal": "Collecting, mediating, and distributing knowledge and information. Search for new perceptions and new paths. Critical examination and fine differentiation of thoughts, ideas, and theories, as well as logical points of view, including their usefulness. But, also bluffing, deceiving, and tricking.",
+      "representatives": "Teachers, school children, university students, poets, salespeople, analysts, doctors, critics, scientists, researchers, journalists, linguists, orators, translators, attorneys, but also forgers, counterfeiters, cheaters, thieves, liars, and swindlers.",
+      "physical": "Respiratory system, nervous system, speech center.",
+      "mythology": "Hermes (Greek)/Mercury (Roman)—messenger of the gods with winged shoes, mediator between heaven and earth. God of paths and journeys, business people and artisans, shepherds, thieves, and highwaymen. God of speech and guide for souls into the underworld. Messenger of dreams."
+    }
+  ],
+  "inSign": {
+    "aries": [
+      {
+        "source": "banzhaf-1996",
+        "title": "The Argumentative Type",
+        "strength": "Snappy thinking. Subjective and combative thinking, loves discussions. Gives an opinion spontaneously, articulately, openly, honestly, directly, in a committed fashion, and with sarcasm. Willful thinking process.",
+        "problem": "Arbitrary thinking. Impatient thinker, quarrelsome, inclined to being opinionated. Exaggerates and delivers verbal knock-out punches. Quick but often rash judgments. Loud argumentation. Always thinks of self first. NARRATIVE STYLE : Exciting, adventurous. MAKES DECISIONS : Spontaneously. BETWEEN : I want this and I don't want that."
+      }
+    ],
+    "taurus": [
+      {
+        "source": "banzhaf-1996",
+        "title": "The Patient Listener",
+        "strength": "Down-to-earth thinking. Healthy common sense. Deliberate, sometimes slow, but thorough, logical, and persevering perceptive faculty. Realistically, materialistically, and sensually oriented. Practical rather than abstract intelligence. Thinks in tried and true lines and concepts. Avoids versatility, preferring to build on a single foundation.",
+        "problem": "Simplistic thinking. Narrow-minded, dogmatic, stubborn, immovable, inflexible, incorrigibly rigid, and conservative. Suspicious of all theories and new ideas. NARRATI VE",
+        "style": "Relaxe d, sensual . MAKES DECISION S: Deliber ately, but irrevoc ably. BETWEE N: Valuabl e and worthl ess (financi ally). Mercu ry in Gemini The Quick Thinker",
+        "problem_areas": "Illusory thinking. The mind is flooded with fantasies. Easily influenced, uncritical, over-sensitive, dishonest, and quirky. NARRATI VE",
+        "image": "The direct individual, the tough girl. Courageous, strong, impulsive, self-assured, and honest. A lively, adventurous woman who would rather (or more quickly) seduce than be seduced, and with whom one can go through hell and high water.​",
+        "shadow": "The radical feminist.",
+        "eroticism": "Demanding, loves touch and go situations.",
+        "styleOfArt": "Action painting, happenings.",
+        "dignity": "Dignity"
+      }
+    ],
+    "gemini": [],
+    "cancer": [],
+    "leo": [],
+    "virgo": [],
+    "libra": [],
+    "scorpio": [],
+    "sagittarius": [],
+    "capricorn": [],
+    "aquarius": [],
+    "pisces": []
+  },
+  "inHouse": {
+    "1": [
+      {
+        "source": "banzhaf-1996",
+        "title": "Tactics",
+        "strength": "The Clever One. Talented and clever in the way he or she presents self, looks after personal affairs and asserts self. Crafty, sharp as a tack, sociable, and quick to act. Tactically skilled and ready to adapt, if necessary. Well-pondered conduct. Intellectual behavior. Precocious thinker.",
+        "problem": "The Calculating Mind. Wily, sly, knows all the tricks of the trade, is cold as ice when it comes to own advantages; opportunistic, and too talkative. Phony and cunning. Never makes a mistake! Always claims to already have said what he or she just heard.",
+        "behavior": "Smart, experienced, agile."
+      }
+    ],
+    "2": [
+      {
+        "source": "banzhaf-1996",
+        "title": "Business Acumen",
+        "strength": "The Resourceful Person. Wealth of ideas and skill in developing and dealing with everything that means security. Practical, economic way of thinking and a good sense of economic fluctuations. Feeling secure thanks to clever mind. Resourceful, experienced, and sharp in dealing with property assets.",
+        "problem": "The Trickster. Dubious, shady tricks in money-making. Coldblooded, nasty, untruthful business practices. Financial trap-setter, as well as reckless and incautious approach to money. Losses as a result of presumptuous overestimation of one's own shrewdness.",
+        "way_oe_dealing_witii_money": "Clever."
+      }
+    ],
+    "3": [
+      {
+        "source": "banzhaf-1996",
+        "title": "The Inquisitive Individual",
+        "strength": "The Articulate One. Skillful in negotiations and discussions. Quickly and adroitly speaks the language of the person he or she is talking to. May easily persuade other people. Ability to show interest in the mental habits of another and beating him at his own game or coolly letting him trap himself. Never at a loss for arguments. Often has a special intellectual talent. Constant studiousness.",
+        "problem": "The Sophist. Hair-splitter for whom the discussion is of more significance than the content. More interested in rhetorical superiority than the truth. Superficial, flighty, and loquacious. Premature judgments.",
+        "speakingStyle": "Objective, witty, lively."
+      }
+    ],
+    "4": [
+      {
+        "source": "banzhaf-1996",
+        "title": "Thinking Along Familiar",
+        "strength": "Sensitive Thought. Deep understanding of the image language of the soul. Good interpreter of dreams, fairy tales, and symbols. Imaginative storyteller. Likes to work at home. Mediumistic gifts if Mercury is located close to the IC (up to 5°).​",
+        "problem": "The Intellectually Retarded. Uncritically assumes the thought patterns and conceptual world of the family. Aversion to outside ideas. Narrow-minded, old-fashioned, unimaginative way of thinking.​",
+        "image": "Clever, smart, skillful."
+      }
+    ],
+    "5": [
+      {
+        "source": "banzhaf-1996",
+        "title": "Playful Thinking",
+        "strength": "Creative Thoughts. Can easily be preoccupied with a number of things at the same time. Creative in thought and action. Likes to show everything he or she knows. Quickly overcomes interim failures. Very clever at playing. Knows all the tricks of the trade, particularly in the game of love. Physical and intellectual agility.",
+        "problem": "The Con Man. Unscrupulous gambler, shrewd, foolhardy, mean, arrogant. Skillful imitator of thought and action, but without individuality.",
+        "attitude_toward_children": "Promotes intellectual inclinations."
+      }
+    ],
+    "6": [
+      {
+        "source": "banzhaf-1996",
+        "title": "Cleverness at Work Dignity &",
+        "dignity": "Exaltation",
+        "strength": "The Useful Person. Easily becomes familiar with any field of work and quickly makes oneself useful. Easily copes in all areas. Can also move in a great variety of social circles without any effort, which often makes one an excellent advisor. Flexible mind that is always open and cleverly analyzes. Finds skillful solutions, suggests astounding improvements, and makes crystal-clear decisions.",
+        "problem": "The Man with a Price. (Quickly) betrays own principles. Lives according to the motto of: “I dance to the tune of the piper that pays me!” Values and convictions are—if the money is good enough—adapted to the respective environment in a flash.",
+        "working_style": "Quick, clever, with business acumen, skilled at negotiations."
+      }
+    ],
+    "7": [
+      {
+        "source": "banzhaf-1996",
+        "title": "Relationship Talk",
+        "strength": "The Good Mixer. Can easily start relationships and knows how to discover the other person anew time and again. Experiences diversity in the partner's many facets. Needs a lively intellectual exchange in the partnership. Is also good at bringing other people together (match-making).",
+        "problem": "The Eternal Fiancée Likes to talk about relationships and think about the various forms they can take. But isn't in a hurry to go beyond the intention to marry. Seeks variety through contacts to further partners. Is coldly calculating, insincere, unfaithful, and commits breach of contract in difficult cases.",
+        "idea_of_partnership": "The business relationship."
+      }
+    ],
+    "8": [
+      {
+        "source": "banzhaf-1996",
+        "title": "Profound Thought",
+        "strength": "The Solver of the Mystery of the Universe. Inquiring mind and Faustian thinking. Loves to spy and discover what is concealed. Urge to perceive and interpret images of the depths. Distinct intuition and sureness of instinct. Ability to think in contradictions and express the profound in paradoxes. Can give words a magical power.",
+        "problem": "The Pigheaded. Narrow-minded, dogmatic, compulsive thinking. Has a rigid notion of reality and tyrannizes everyone else with it. Refuses to realize that reality is much more complex than the personal concept of it and the way other people look at things can be just as justified and correct as one's own. Resentful, scheming, and mean.",
+        "image": "Death as an object of curiosity, as a business, or as a teacher."
+      }
+    ],
+    "9": [
+      {
+        "source": "banzhaf-1996",
+        "title": "Religious Thinking",
+        "dignity": "Detriment",
+        "strength": "The Tour Manager. Likes to be on the road. Skillful at organizing trips. Good at orienting oneself while traveling and making oneself at least adequately understood in the foreign language. Desire to discover something while traveling and show it to others. This also applies to the inner journey in the figurative sense. Interest in culture, philosophy, religious issues, and higher education in general.",
+        "problem": "The Phrasemonger, Empty words instead of the experience of meaning. Wanting to missionize others with hollow platitudes. Profiteering without scruples in questions of faith. Quickly changing “convictions.” Also empty talk in questions of culture and general education.",
+        "image": "Logos as the divine child and the rational and provable God."
+      }
+    ],
+    "10": [
+      {
+        "source": "banzhaf-1996",
+        "title": "The Talent for Everything",
+        "strength": "The jack-of-all-trades. Can easily train for any profession and quickly make oneself useful in it. All-round talent. Professional agility. Skillful organizer and work-simplifier. Has a good grasp of how to delegate. Likes to employ intellectual and verbal fluency for professional purposes (as an expert, reviewer, editor). Is well-informed about everything and good at giving advice. Loves contact with the public.",
+        "problem": "The Weather Vane. Can't decide on any profession (because one can imagine doing them all). Overestimates both abilities and possibilities. Tends to be superficial and not really on the ball, Cold and calculating when it comes to own advantage.",
+        "image": "Clever and well-versed, perhaps also moody."
+      }
+    ],
+    "11": [
+      {
+        "source": "banzhaf-1996",
+        "title": "The Travel Companion",
+        "strength": "The Clever Friend. Very good mixer, sociable arid entertaining. Establishes friendships easily, but these aren't always necessarily deep and tend to be more rational than emotional. Like to share experiences, seeks and gives clever advice and exciting impulses. Likes to be with people of the same convictions. Loves obvious agreements (clear scores = good friendship).",
+        "problem": "The Business Friend. Cool, calculating, and reserved. Community of interests or loyalty toward colleagues instead of friendship. Benefit of friendship stands in the foreground and not the friend. Problems are ignored. No room for familiarity or true sympathy.",
+        "role_in_the_group": "The (detached) observer, mediator, or wise guy."
+      }
+    ],
+    "12": [
+      {
+        "source": "banzhaf-1996",
+        "title": "Exploring Chaos Detriment &",
+        "dignity": "Fall",
+        "strength": "The Paradoxical Thinker. Great spiritual intuition. May do well at thinking in apparent contradictions and expressing deep insights in a paradoxical, allegoric, or symbolic manner. Can reconcile greatly varying schools of thought. Understands how to beat the opponent in confrontations with their own weapons (the other person's logic). Very scholarly. Good nose when it comes to revealing secrets, but also well-versed in search for transcendental experiences.",
+        "problem": "The Plagiarist. Engages in intellectual thievery without necessarily noticing it. Often has the impression of having known everything at a much earlier point in time. Also intellectual timidity, secrecy, and illusionary thinking.",
+        "finds_in_seclusion": "Clear thoughts and good ideas."
+      }
+    ]
+  }
+}

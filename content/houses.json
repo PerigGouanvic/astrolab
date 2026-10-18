@@ -1,0 +1,114 @@
+{
+  "source_default": "banzhaf-1996",
+  "houses": {
+    "1": [
+      {
+        "source": "banzhaf-1996",
+        "title": "I Am Ascendant (AC)",
+        "keyword": "I Am",
+        "detrimient": "​ FALL:​ ELEMENT:​ Fire QUALITY:​ Cardinal GENDER:​ Masculine",
+        "general": "The Appearance. The basic mood in life, outer appearance, type, personality, vital energy, awareness of life, physical constitution, vitality, expression of self, temperament, power of assertion, independence, and way of approaching other people and plans.",
+        "polarity": "The feeling for oneself in contrast to the experience of the other person in the 7th house."
+      }
+    ],
+    "2": [
+      {
+        "source": "banzhaf-1996",
+        "title": "I Have",
+        "keyword": "I Have",
+        "general": "Assets. Assets in both senses of the word as the foundation of material, intellectual, and emotional security. Wealth and possessions, finances, social background, money-making and dealing with money, income and expenses, profit and loss, talents, abilities, physical awareness.",
+        "polarity": "The tangible values in contrast to the subtle values in the 8th house."
+      }
+    ],
+    "3": [
+      {
+        "source": "banzhaf-1996",
+        "title": "I Think",
+        "keyword": "I Think",
+        "general": "The Mind. Healthy common sense. Learning, communicating, thinking, perceiving, differentiating. Exchange of thoughts, correspondence, everyday contacts, everyday experiences, intellectual abilities and the capacity to learn, logic, power of expression, business acumen—particularly trade, brokerage business, business trips, and short journeys.",
+        "polarity": "Prosaic thought and the kind of newspaper reality valid for just one day in contrast to higher thinking and the true convictions in the 9th house."
+      }
+    ],
+    "4": [
+      {
+        "source": "banzhaf-1996",
+        "title": "I Feel Imum Coeli (IC)",
+        "keyword": "I Feel",
+        "general": "The Soul. The depths of the soul, premonitions and dreams, the origins, the home, the need for a feeling of security, well-being, homeland and homesickness, the evening of life, family roots, the image of the father, tradition, the way of living",
+        "polarity": "The origin in contrast to the goal in life in the 10th house."
+      }
+    ],
+    "5": [
+      {
+        "source": "banzhaf-1996",
+        "title": "I Show Myself",
+        "keyword": "I Create",
+        "general": "Self-Expression. The joy of showing who you are, what you have, and what you can do. You do everything for fun and not because it's your duty. Self-expression and joy in life. The inner child. Play and pleasure, from playing with children to gambling for money, acting, and the game of love. Flirting, eroticism, sexuality, love affairs, children, creative expression, speculation, hobbies.",
+        "polarity": "Emphasis on self and self-expression in contrast to the integration in a group in the 11th house."
+      }
+    ],
+    "6": [
+      {
+        "source": "banzhaf-1996",
+        "title": "I Integrate Myself",
+        "keyword": "I Serve",
+        "general": "Health and Work. Physical health, the relationship between body and mind, consciousness of health, disposition to illness, traditional and alternative medicine. Everyday working life, place of work, work contents, way of working, working methods, and result of work. Class-consciousness. Social integration and adaptation.",
+        "polarity": "The integration of the self in contrast to the self-sacrifice in the 12th house."
+      }
+    ],
+    "7": [
+      {
+        "source": "banzhaf-1996",
+        "title": "I Commit Myself Descendant (DC)",
+        "keyword": "I Relate",
+        "general": "The Partnership. The ability and willingness to commit, marriage, lasting relationships, partnership (also professional), working together, associates. Willingness to adapt within a partnership. Giving and taking in interpersonal relationships. The other person as a surface for projection. Conflict and reconciliation.",
+        "polarity": "The “victim of accommodation” in contrast to unlimited development of the self in the 1st house."
+      }
+    ],
+    "8": [
+      {
+        "source": "banzhaf-1996",
+        "title": "I Probe",
+        "keyword": "I Transform",
+        "general": "Life's Enigmas. All taboos and their transgression, borderline experiences, death and rebirth, deepest experiences of sexuality, orgasm as the experience of death and birth, overcoming oneself, transformation, the ability to regenerate, crises about the meaning of life and overcoming them, everything that is cryptic and profound, inheritances, other people's possessions and money.",
+        "polarity": "The assets of the soul in contrast to the concrete assets in 2nd house."
+      }
+    ],
+    "9": [
+      {
+        "source": "banzhaf-1996",
+        "title": "I Believe",
+        "keyword": "I Believe",
+        "general": "Higher Thinking and the Worldview. The expansion of horizons through inner and outer journeys, finding a purpose, and one's own philosophy of life. Search for truth and meaning, faith, religion, and the personal image of God, ethics, higher values and perceptions, higher education, insight, intuition and inspiration, ideals, metaphysics. Long journeys and experiences in foreign countries.",
+        "polarity": "Deep convictions and fundamental conceptions of values in contrast to the sober and objective information in the 3rd house."
+      }
+    ],
+    "10": [
+      {
+        "source": "banzhaf-1996",
+        "title": "I Feel That I Am Called Medium Coeli (MC).",
+        "keyword": "I Achieve",
+        "general": "Catching the Public Eye. Vocation and calling, public recognition, social position, fame and honor, life objective, success in life, career, power and authority, responsibility, achievement, popularity. Things that become increasingly important in the course of a lifetime.",
+        "polarity": "The crown of the Tree of Life as a counterpart to the roots in the 4th house."
+      }
+    ],
+    "11": [
+      {
+        "source": "banzhaf-1996",
+        "title": "I Make Friends",
+        "keyword": "I Connect",
+        "general": "The Circle of Friends. Experience of friendship, group experiences, team spirit, affinity, hospitality, patrons, spiritual brotherhoods, cosmopolitanism, support of humanitarian goals. Spirit of the times, reforms, emancipation.",
+        "polarity": "Community spirit and cooperation in contrast to the competition and domination of the self in the 5th house."
+      }
+    ],
+    "12": [
+      {
+        "source": "banzhaf-1996",
+        "title": "I Dream",
+        "keyword": "I Dissolve",
+        "general": "Seclusion from the World. Transcendental experiences, mysticism, trance, ecstasy, purification, sacrifice, transfiguration, withdrawal from the world. Secrets and clandestine enemies. Voluntary isolation (hermitage, monastery) or involuntary isolation (hospital, prison). Longing for the “roof of the world.” Configurations in this house are shown to outer world with shyness—if they are shown at all. They can also be experienced as nonexistent for a long time, yet still develop in silence. Or they can be discovered and developed in seclusion.",
+        "polarity": "All things incomprehensible and boundless and dissolution in contrast to the order, clarity, and limitation in the 6th house."
+      }
+    ]
+  }
+}

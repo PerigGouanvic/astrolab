@@ -1,0 +1,146 @@
+{
+  "key": "uranus",
+  "name": "Uranus",
+  "glyph": "♅",
+  "archetype": [
+    {
+      "source": "banzhaf-1996",
+      "title": "The (wise) fool, the hero of freedom.",
+      "shadow": "The revolutionary, the traitor.",
+      "principle": "Uranus represents the ideals of the French Revolution—freedom, equality, and brotherhood. It embodies what is ingenious in human beings, their striving for independence and individual freedom. Uranus is also considered to be the great liberator. It stands for surprising changes, flashes of inspiration, and sudden upheavals.",
+      "strength": "The individualist. Striving for independence and freedom on all levels (mental, emotional, and material). Split-second perceptions, spontaneous solutions, and the spirit of discovery. Intuitive perceptions at the right moment. Urge toward cosmic consciousness and expansion of consciousness. Original, unconventional, enjoyment of experimentation. The gift of the “seventh sense.”",
+      "problem": "The person who changes viewpoints. Restless and constantly “charged up.” Unsettled and always searching for something new, for change, revolution, and subversion. Arbitrary, unpredictable, inconsiderate, destructive, and extremely willful. Compulsive aversion to everything obligatory. Freedom at any cost, which frequently causes a breach of contract to be committed so that others feel betrayed. Unwilling or incapable of being concerned with the “banal” problems of everyday life.",
+      "goal": "Realization of democracy, freedom, and human rights, Overcoming old structures, attitudes, ideas, and opinions on an individual and collective level. Liberation from old ties. Disintegration of all bonds.",
+      "representatives": "Inventors, technicians, pilots, artists, revolutionaries, anarchists, astrologers, futurists, mental acrobats, yogis with double consciousness (for this world and other worlds), eccentrics, philosophers, and recluses.",
+      "physical": "Nervous system, tension and discharging of tension, rhythm.",
+      "mythology": "Ouranous (Greek)/Uranus (Roman)—lord of the heavens, son of chaos, husband of Gaea (Earth), and father of Cronus. Original ruler. Symbol of mental fertility, creative ideas, and the lofty standpoint"
+    }
+  ],
+  "inSign": {
+    "aries": [],
+    "taurus": [],
+    "gemini": [],
+    "cancer": [],
+    "leo": [],
+    "virgo": [],
+    "libra": [],
+    "scorpio": [],
+    "sagittarius": [],
+    "capricorn": [],
+    "aquarius": [],
+    "pisces": []
+  },
+  "inHouse": {
+    "1": [
+      {
+        "source": "banzhaf-1996",
+        "title": "Uniqueness",
+        "strength": "The Free Spirit. Lives and loves freedom and uniqueness. Unconventional, original, quick to make decisions, full of ideas, and always open to everything new. Tolerates no constriction or imposed duties. Completely convinced of own uniqueness and importance. Only acts in accordance with own free will.",
+        "problem": "The Troublemaker. Cool, impenetrable, incalculable, impatient, erratic, and shows little willingness to integrate or even subordinate within a system. Seditious, rebellious, superficial, reclusive. Exaggerated need for freedom and extravagant sense of self-worth lead to blatant unreliability and the breaking of agreements, contracts, and commitments.",
+        "behavior": "Eccentric, alert, restless."
+      }
+    ],
+    "2": [
+      {
+        "source": "banzhaf-1996",
+        "title": "Financial Surprises",
+        "dignity": "Fall",
+        "strength": "The Financially-Independent Individual. Imaginative and inventive in money matters. Strong urge for financial independence. Uncommon ways of making (and spending) money. Courage and joy in trying out and exploring unfamiliar things and new areas. Unusual talents. Strong and rapidly fluctuating bank balance. Financial fireworks.",
+        "problem": "The Unpredictable Person. Eccentric way of dealing with money. Blatantly disregards prevailing norms. Too special to have to earn money like everyone else, which frequently causes financial problems. Love of freedom is more important than reliability. Result is often breach of contract.",
+        "way_of_dealing_with_money": "Unconventional to crazy."
+      }
+    ],
+    "3": [
+      {
+        "source": "banzhaf-1996",
+        "title": "The (Unrecognized) Genius",
+        "strength": "The Self-Taught Person. Original, imaginative, but completely erratic thinking that is frequently a step ahead of its time or other people. Sudden ideas, perceptions, and inventions (Eureka effect4 ). A free-thinker. The impromptu speaker who doesn't follow any type of speaking concept. An autodidact who quickly comprehends and learns in accordance with a personal—mostly unusual—manner. Spreads a lively atmosphere. Eternal desire to learn.",
+        "problem": "The Recluse. An eccentric, even among siblings. Isolated, mysterious, unappreciated, which frequently results in tormenting sell-criticism. Crazy, high-flown thinking that often disregards all the norms. Suffers strongly under the customary school system that imposes too many standards, demands too many restrictions, and progresses much too slowly. Not concentrated, restless, has too many irons in the fire (tries to think several thoughts at the same time).",
+        "speakingStyle": "Spontaneous, original, lively, capricious."
+      }
+    ],
+    "4": [
+      {
+        "source": "banzhaf-1996",
+        "title": "The Homeless or Stateless",
+        "strength": "The Person With No Strings Attached. Leaves home at an early age and then goes own way completely. Needs the feeling of absolute freedom, particularly from family ties and obligations within the clan. Only likes to join forces with kindred spirits on own accord. Lives in a highly individualistic, original environment. Always mobile. Surprising moves.",
+        "problem": "The Test-Tube Baby. As a child, often doubts whether parents are really his or her own. Distanced relationship to the family, homeland, and tradition. Often feels like he or she doesn't belong, but is rather an alien element. Therefore no feeling of obligation to parental home or homeland. The family suddenly loses its hold. Without a homeland, uprooted, completely alienated. Vagabond.",
+        "image": "Original, but unreliable and unpredictable."
+      }
+    ],
+    "5": [
+      {
+        "source": "banzhaf-1996",
+        "title": "Personal Rules of the",
+        "strength": "The Fireworks of Love. Loves craziness, variety, and flirting, but above all personal freedom and personal rules in the game of love and life. Always has something dazzling. Tends to make original, spontaneous appearances, but can only participate if personally interested. As a result, tends to avoid routine and obligations of every sort. Experiences many surprises.",
+        "problem": "The Disappointed One. Cannot stick to one thing faithfully or for a long time. Doesn't like to get completely involved with one person or one plan. Never succumbs to intoxication to the point of being out of control. Knows that sooner or later every experience results in disappointment or separation. Maintains own inner independence and distance toward everything and everyone. Leaves the other person or people quickly, before being deserted (or thrown out). Mistrustful and suspicious. Never completely trusts and loves. Ultimately always disappointing, disappointed, and lonely.",
+        "attitude_toward_children": "“Progressive” and changeable. Children are often also experienced as burdensome and restricting."
+      }
+    ],
+    "6": [
+      {
+        "source": "banzhaf-1996",
+        "title": "Innovation",
+        "strength": "The Creative Self-Motivator. Contributes original ideas and problem solutions, but needs a great deal of space to do so. For this reason, it is better if one works freelance. Develops new concepts, creates progressive working conditions, and has a good antenna for the spirit of the times and future trends. Can very purposively draw attention to human and social grievances and put a finger on sore points.",
+        "problem": "The Squabbler. Just simply can't be like the others. Doesn't adhere to the rules of the job. Always needs something extra. Not able to withstand any type of strain. Quickly irritated and rebellious. Unreliable.",
+        "working_style": "Intuitive, crazy, changeable, imaginative."
+      }
+    ],
+    "7": [
+      {
+        "source": "banzhaf-1996",
+        "title": "The Free Relationship",
+        "strength": "The Bird of Paradise. Lives and loves an original partnership of own accord, without limiting obligations. Tolerates no chains or cages for they would cause death like bird of paradise. Doesn't let self be “enslaved” by saying “I do” and signing his or her name. Can stay in a lasting relationship and remain faithful, as long as it is voluntary and all the doors are open. Brings a great deal of liveliness, variety, and excitement into any relationship.",
+        "problem": "The Island. Very difficult relationship problems. Unwilling and unable to commit to a relationship. Strives for complete independence. Considers self something special and looks down on conventional ideals of relationships, which are meant for the “broad masses” at best. Always stays single, even within the scope of a possible marriage. Immediately breaks all agreements and promises if feelings of freedom are infringed on too much. Unreliable. Can't be held onto!",
+        "idea_of_partnership": "The single relationship; the companionable relationship."
+      }
+    ],
+    "8": [
+      {
+        "source": "banzhaf-1996",
+        "title": "The License",
+        "dignity": "Exaltation",
+        "strength": "The Self-Liberator. Is intensively concerned with one's dark side in order to purposefully free self from unconscious compulsions and the violence of one's own shadow. Struggles for autonomy from sexual drives. Strong confrontation with death and very independent attitude about this last, inevitable necessity. The alchemist's search for the elixir of life. Very reserved and withdrawn in one's inner depths. Quickly comes to the point of needing to retreat and permits no one admission to innermost feelings or even one's soul.",
+        "problem": "The Immortal. Believes one has the license to do everything. Feels completely independent and even freed of the most fundamental conditions and necessities of life. Makes use of every sexual freedom and recklessly disregards the threshold of all taboos. Also wants to liberate self from the inevitability of death and only die through own free will. In extreme cases, even considers oneself too special to even have to die at all.",
+        "image": "The sudden death and death as liberation."
+      }
+    ],
+    "9": [
+      {
+        "source": "banzhaf-1996",
+        "title": "Religious Freedom",
+        "strength": "The Free Spirit. Progressive view of the world on the principles of freedom, equality, and brotherhood. Very individual, unconventional idea of the meaning of life. A freethinker who never joins a larger religious movement but always takes his or her own path, seeking and finding a personal philosophy of life. Open for modern or even Utopian ways of looking at the world. Reform-oriented concepts of raising children, education, religion, and philosophy.",
+        "problem": "The Anarchist. Glorification of rebellion and subversion of all values just for the hell of it. Mad, eccentric ideas are fermented into a smart-alecky pseudo-religious standpoint. Crazy self-glorifying esoteric beliefs and fantasies about being the chosen one.",
+        "image": "The individual God."
+      }
+    ],
+    "10": [
+      {
+        "source": "banzhaf-1996",
+        "title": "Professional Individualism",
+        "strength": "The Freelancer. Professionally very creative and inventive. Needs the greatest possible amount of free space for the development of these talents. Often works freelance, independent and free. Has a great aversion to everything that is prefabricated and to limits on general conditions. Has a very personal touch in everything and is therefore always determined to be irreplaceable. Extraverted behavior.",
+        "problem": "The Center of the Storm. Creates chaos and uncertainty through an exaggerated tendency toward originality and renewal. Cannot stick to one thing. Erratic in one's way of thinking, but also in changing both assignment and profession. Quickly loses interest in a project when one cannot contribute any more new ideas. Imaginative and inventive, but impatient and bad at carrying things out.",
+        "image": "The freedom-loving, fickle mother."
+      }
+    ],
+    "11": [
+      {
+        "source": "banzhaf-1996",
+        "title": "The Crazy Friendship",
+        "dignity": "Dignity",
+        "strength": "The Peculiar Friend. Seeks the highly individualistic, original, exotic friendship. Has an enriching and stimulating effect on others. Always remains very independent and individualistic. Strictly rejects all friendship rituals. Can't truly commit to a friendship, but can be a good friend for life of one's own accord. Seeks free connections with kindred spirits, such as world brotherhoods.",
+        "problem": "The Flaky Friend. Eccentric, unpredictable, and unable to make any adaptations in friendship. Completely numb and inconsiderate toward the wishes and standards of a friend. Comes and goes when and as one pleases. Puts a strain on one's very frequently changing friends.",
+        "role_in_the_group": "The eccentric, the eternal exception, the agitator."
+      }
+    ],
+    "12": [
+      {
+        "source": "banzhaf-1996",
+        "title": "Longing for Freedom",
+        "strength": "The Lucid One. Surprising inspirations and clear vision of future developments. Particularly receptive to new religious, political, and spiritual currents. Must exercise the art of comprehending the meaning of images that suddenly emerge from the unconscious mind.",
+        "problem": "The (Secret) Escapee. Rebels against any form of limitation on freedom. Wants to force open all walls, freeing oneself (and others) from isolation and imprisonment, as well as being free of all secrets and “having” to do something in secret. The opposite is also possible: someone who only permits oneself clandestine liberties.",
+        "finds_in_seclusion": "True freedom."
+      }
+    ]
+  }
+}

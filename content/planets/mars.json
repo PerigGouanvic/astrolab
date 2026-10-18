@@ -1,0 +1,318 @@
+{
+  "key": "mars",
+  "name": "Mars",
+  "glyph": "♂",
+  "archetype": [
+    {
+      "source": "banzhaf-1996",
+      "title": "The hero and conqueror.",
+      "shadow": "The violent person, the destroyer.",
+      "principle": "Mars represents strength of will and the desire of an individual to conquer. It stands for stamina, the perseverance and energy that you need to fight the obstacles in life and penetrate the world. Mars shows straightforwardness of approach, a high degree of determination, readiness to take on conflict, and enjoyment of risk. In every conflict Mars embodies the energy you fight with and how you fight. It represents aggression, problems of aggression, as well as drive, urge, and passion. Together with the Sun, Mars symbolizes the masculine principle in the horoscope, with Mars embodying the youthful aspect, the lover, and the hothead.",
+      "strength": "The resolute individual. Strong, goal-oriented action with great staying power. Imposing willpower, great commitment, and considerable willingness to take risks (while keeping a level head!). The force of aggression finds an appropriate goal which it can conquer, simultaneously discharging itself and spontaneously developing in committed, courageous, decisive, passionate, or persevering ways. Powerful, but controllable drives. Lusty, satisfying sexuality.",
+      "problem": "The brute. Spontaneous, completely uncontrollable discharge of energy or pent-up aggressions with unpredictable outbursts. Impatient, hot-headed, brutal, unrestrained, sadistic, distracted by vague drives. The force of aggression spreads out destructively, and not infrequently, self-destructively. Frustrated, extreme, violent, and totally dissatisfying sexuality",
+      "goal": "The goal of Mars' power is the actualization of your essential nature, to further your development and accomplishments, and also to protect and safeguard you from the attacks of others. Mars is the fighting strength with which you stand up for yourself, which helps you win, to get what is yours by right and to keep it, or to be the first. The goal of Mars is also sexual satisfaction. Problematic goals, which Mars can also lead to, concern violent wrongs, such as robbery and murder, revenge campaigns, wars and war crimes, and all situations in which the bare “might” of those who are stronger triumphs.",
+      "representatives": "All pioneers, conquerors, warriors, daring entrepreneurs, leaders, adventurers, soldiers, athletes, and other competitors. Everyone who uses knives, from butchers to knife-throwers to surgeons. But, also those who destroy blindly, fanatics, egotists, and tyrants along with their torturers.",
+      "physical": "Muscles, gallbladder, blood, red blood cells, the body's heat regulation system, male sexual organs.",
+      "mythology": "Aries (Greek)/Mats (Roman)—the god of war, whom the Greeks considered a brute and was therefore unloved and disfavored, but raised to the status of a god of state by the Romans."
+    }
+  ],
+  "inSign": {
+    "aries": [
+      {
+        "source": "banzhaf-1996",
+        "title": "The Fighter",
+        "dignity": "Dignity",
+        "strength": "Impulsivity. Spontaneous energy, courage, and well-developed spirit of enterprise. Heads straight for the goal. Can ram his head through the wall. Pronounced sense of competition. Subjective standpoint influences the process of negotiation.",
+        "problem": "Belligerence. Takes either/or stance. Compelled to demonstrate his (sexual) potency. Arbitrary, arrogant, egotistical, and reckless. Easily excitable. Acts on the basis of excessive impatience.",
+        "image": "The hothead. The energetic, wild, hot-blooded lover. Active, self-confident, and roguish. A hunter, hero, and conqueror. An adventurer, macho, or ruffian. Direct, spontaneous, hefty, and quickly aroused. Ready for an affair in even the most impossible situations.​",
+        "shadow": "The brute.",
+        "resolution": "Spontaneous, pronounced willpower when it comes to following a momentary impulse, but not necessarily enduring. Many flashes in the pan.",
+        "aggression": "Always unreflecting, spontaneous, self-evident.",
+        "outlets": "Boxing, soccer (offense), rifle practice, fast driving.",
+        "fighting": "The daredevil—direct, aggressive, barbaric, impulsive, but short-lived.",
+        "sexuality": "Spontaneous, conquering, hot-blooded, quick, intense, egotistic, sometimes like a competition."
+      }
+    ],
+    "taurus": [
+      {
+        "source": "banzhaf-1996",
+        "title": "The Defender",
+        "dignity": "Detriment",
+        "strength": "The diesel engine. Warms up slowly. Once this person gets going, he or she runs a long time. Sufficient (financial) incentive keeps this individual persevering at work with great diligence. Is in top form when it comes to resisting or defending something.",
+        "problem": "The time-bomb. Considerable pent-up aggression that builds up over a long period and can become increased by sexual frustration. An explosion (caused by a red cloth) can result in devastation.",
+        "image": "The lord of the manor. The solid, strong, and sensual person who offers material security. The epicure and provider, gentle lover and protector.​",
+        "shadow": "The bottomless barrel.",
+        "resolution": "Slow, deliberate, and irreversible. Endless stamina. Stubborn.",
+        "aggression": "Slow build-up of aggression, the discharge is then violent, frequently emotional.",
+        "outlets": "Wherever something gets soundly hit: tennis, squash, drumming, chopping wood, or beating carpets. Playing soccer as a goalkeeper or in defensive position.",
+        "fighting": "Defensive but emphatic, stubborn and with full weight. Staunch defiance. Increases pressure a little each day. Cannot be subdued. Tough as nails.",
+        "sexuality": "Strong sexual energy, very sensual, and possessive. Relaxed at the start, very passionate thereafter. Very unforgiving if frustrated."
+      }
+    ],
+    "gemini": [
+      {
+        "source": "banzhaf-1996",
+        "title": "The Critic",
+        "strength": "Smartness. Sharp-tongued, articulate, clever, facile, quick, and agile. Can pursue many aims simultaneously. A keen tactician.",
+        "problem": "Distraction. Tendency to go off on too many tangents. Cynical, sarcastic, with no resilience. Ice-cold. Much ado about nothing.",
+        "image": "The eloquent speaker. The charming but often flighty lover. The rogue and the flatterer. Bright, entertaining, lively, smart, creative, but emotionally unreliable. The eternal adolescent.​",
+        "shadow": "The windbag.",
+        "resolution": "Quick, smart, and skillful. All aims are made relative and adjusted to suit new ideas. Intentions are often left hanging in mid-air.",
+        "aggression": "Easily aroused, but with no staying power. Generally expressed verbally.",
+        "outlets": "Quick and lively types of sports such as sprinting, squash, but also fencing and chess.",
+        "fighting": "Talks the other person to death. Skillful tactician, very agile, articulate, cynical, and ice cold. Biting ridicule and profoundly injurious malice. First confuses with a hail of words, and then delivers the KO punch.",
+        "sexuality": "Not very impulsive, interest is more theoretical. Verbal eroticism. Likes diversity and experimentation. Seeks “refined” eroticism."
+      }
+    ],
+    "cancer": [
+      {
+        "source": "banzhaf-1996",
+        "title": "The Emotional",
+        "strength": "indirect action. Imaginative and creative. Pursues interests independently and ambitiously, but not directly. Vacillating, changing moods and goals.",
+        "problem": "Sulking. Highly sensitive, moody, and easily insulted. Tortures himself or herself. Wishes rather than acts. Is capable of dragging others into his or her guilt or pain.",
+        "image": "The admirer, the poet. The sensitive, imaginative, and dreamy lover, Ideal image of the gentle, romantic, caring, emotional, and devoted man.​",
+        "shadow": "The moody man.",
+        "resolution": "Emotional, yet generally stemming from an inclination or a mood. Uses lots of inconsequential detours.",
+        "aggression": "Indirect. Little ability to express aggression outright, At first pretends to adapt but with subliminal reproaches that lead to extremely agitated feelings.",
+        "outlets": "Dancing, enjoying and making music. Doing handicrafts or working at a hobby.",
+        "fighting": "Accuses. Gives others a bad conscience. Emotional pressure through bad mood, sulking, and acting insulted.",
+        "sexuality": "Shy at first. Develops great devotion, emotion, and fantasy in a familiar situation."
+      }
+    ],
+    "leo": [
+      {
+        "source": "banzhaf-1996",
+        "title": "The Optimist",
+        "strength": "Superior style. Optimistic, self-confident, and imperial manner with grand gestures. Life-affirming and spirited when carrying out plans.",
+        "problem": "The lord und master. Egoistic, presumptuous, and arrogant behavior. Choleric and theatrical. Extremely sensitive to criticism.",
+        "image": "The victor, the star. The carefree, self-confident, and magnificent lover. Vital, generous, optimistic, and full of a lust for life. Sunnyboy or playboy.​",
+        "shadow": "The domineering stag.",
+        "resolution": "Self-confident and self-assured. Would like to achieve plans in the least complicated and most lasting manner possible, with a direct approach in the long run and showing a great deal of style.",
+        "aggression": "Can become irritated, particularly through criticism. Tensions are reduced quickly and easily.",
+        "outlets": "Driving a car, elite types of sports.",
+        "fighting": "Direct and certain of victory. Loud, dramatic scenes. Barking at the other person and “beating” him through dignity and might.",
+        "sexuality": "Self-confident, with a strong sex drive and desire. Sometimes also performance-oriented."
+      }
+    ],
+    "virgo": [
+      {
+        "source": "banzhaf-1996",
+        "title": "The Energy-Saver",
+        "strength": "The right dosage. Methodical, critically careful, and above all precise approach, Optimal expenditure of energy and means to reach a goal. Loves details and fastidious precision. Avoids everything that's damaging, above all the useless expenditure of energy.",
+        "problem": "The fussy fool. Pedantic, overscrupulous, too critical, dull, and apathetic. Slave of a fearful routine.",
+        "image": "The skilled worker. The reliable, clean lover. Diligent, caring, faithful, dependable, and controlled. Has a practical disposition.​",
+        "shadow": "The perfect bore.",
+        "resolution": "After critical examination, skillful, steadfast, precise, very economical, and enduring.",
+        "aggression": "Very controlled, rarely “blows a fuse.”",
+        "outlets": "Jogging, handicrafts, cleaning, fitness training.",
+        "fighting": "Sharp or incisive criticism, obstinate nagging, and blatant catechizing. Nerve-wracking pedantry (the bureaucrat's approach to nastiness).",
+        "sexuality": "Medium-strong sensuality, but well-controlled. More clean than passionate. Sometimes on the prudish side."
+      }
+    ],
+    "libra": [
+      {
+        "source": "banzhaf-1996",
+        "title": "The Diplomat",
+        "dignity": "Detriment",
+        "strength": "The chess-player. Uses charm and friendliness to achieve goals. A clever strategist who always considers the other person's move. Perfect on the theoretical end, but somewhat wanting in practice.",
+        "problem": "The appeaser. Lack of willingness to engage in conflict leads to indecision and compromise. Problems with aggression. Plans often do not progress beyond that stage.",
+        "image": "The charming, elegant, and stylish lover. The respectable, considerate, neat, gallant seducer with class.​",
+        "shadow": "The halfhearted individual.",
+        "resolution": "Makes decisions for others rather than self. Decides very hesitantly, and usually in theory only. In addition, it's easy to change his or her mind.",
+        "aggression": "Avoids aggressive discussions. On the other hand, is always ready to compromise.",
+        "outlets": "Dancing, fencing.",
+        "fighting": "With style. Never direct or unbuttoned. Makes the effort to remain fair and avoid hurting his or her opposite. When the “fuse blows,” ice-cold and rejecting.",
+        "sexuality": "Partner-oriented, sensitive, not very impulsive, but cultivated, elegant, refined, and with style."
+      }
+    ],
+    "scorpio": [
+      {
+        "source": "banzhaf-1996",
+        "title": "The Passionate Man",
+        "dignity": "Dignity",
+        "strength": "The effective person. Can mobilize great amounts of spiritual power to achieve envisioned goals. Ambitious, persevering, consistent, and extremely single-minded. Very tough stamina.",
+        "problem": "The destroyer. Strives to develop personal power by skillful, and sometimes reckless, exploitation of others. Inclined toward manipulation and blackmail. Can become completely obsessed with a specific plan. Destructive drive that is sometimes self-destructive.",
+        "image": "The irresistible individual, the black knight. The passionate, dark and mysterious, unfathomable, erotic lover and hunter—charismatic, intense, fascinating, but also dangerous. The man one falls for hook, line, and sinker, who takes possession of the soul and creates an addiction.​",
+        "shadow": "The sadist, the hangman.",
+        "resolution": "Spiritually important decisions are made emotionally, They are reliable and lasting, sometimes extreme.",
+        "aggression": "Subtle, accurate, unforgiving, profoundly injurious. Explosive in an emotional situation. Throws poisoned darts.",
+        "outlets": "Knife-throwing, archery, deep-sea diving, fishing with a harpoon, sex.",
+        "fighting": "Dangerous, very effective, but mean, nasty, and underhanded, The poisoned needle that constantly pricks and spreads bad blood.",
+        "sexuality": "Strong sexual impulse. Very passionate and without taboos."
+      }
+    ],
+    "sagittarius": [
+      {
+        "source": "banzhaf-1996",
+        "title": "The Noble-Minded Person",
+        "strength": "Enthusiasm. Great enthusiasm and a buoyant manner when it comes to achieving goals. Can motivate and sweep others along as well. Impulse to travel.",
+        "problem": "The crusader. Militant and missionary tendencies. Inclined toward exaggeration and overestimating self.",
+        "image": "The noble knight. The grand, full-fledged lover. The cultivated man of the world. The respectable man you can “be seen with,” for whom love and sexuality are something special, perhaps even sacred.​",
+        "shadow": "The arrogant jackass.",
+        "resolution": "Decisions are made spontaneously. If they deal with superior convictions, sacred feelings, or a righteous issue, they cannot be changed.",
+        "aggression": "Grows out of a sacred anger or hurt sense of justice.",
+        "outlets": "Hunting, riding, golf.",
+        "fighting": "Holy anger. Disarms, makes derogatory judgments about, or morally annihilates the opposition.",
+        "sexuality": "Spontaneously aroused desire. With noble, virtuous, or sometimes immoderate tendencies."
+      }
+    ],
+    "capricorn": [
+      {
+        "source": "banzhaf-1996",
+        "title": "The Marathon",
+        "strength": "Perseverance, Concentrated energy that grows when resisted, Uncompromising, reliable, patient, disciplined, and persistent. Obstinate and unbending when pursuing a set goal. Life force that resiliently renews itself.",
+        "problem": "‘Hardening, Merciless, reckless use of strength. Can also be rigid, inhibited, or hung-up. Cannot be persuaded.",
+        "image": "The unbending person. The reliable (sexually) powerful lover. The responsible, persistent, faithful, and fatherly man, who provides a strong shoulder.​",
+        "shadow": "The grump.",
+        "resolution": "Decisions are made carefully and thoughtfully. Then they are irrevocable and carried out even in the face of massive opposition.",
+        "aggression": "Linder control, sometimes in forced manner, difficult to arouse, but can then be very strong, cold, unforgiving, and irreconcilable.",
+        "outlets": "Trekking, mountain climbing, marathon running, cross-country skiing, ice hockey, survival training.",
+        "fighting": "Always has more breath to spare and greater stamina. Cold anger can be mercilessly annihilating.",
+        "sexuality": "The long-distance runner. Very strong sexuality, which can nevertheless be easily controlled in periods of abstention. Here, too, inclined to engage in “marathons” and performance thinking."
+      }
+    ],
+    "aquarius": [
+      {
+        "source": "banzhaf-1996",
+        "title": "The Willful Individual",
+        "strength": "The urge to discover. Unusual, eccentric approach to pursuing a goal. Sometimes purely theoretical and abstract, without any thought on practical matters. Willful, independent, and unconventional.",
+        "problem": "The shadowboxer. Crazy, revolutionary, unpredictable, with an ice-cold approach. Uncompromising. Forces opinions onto others.",
+        "image": "The individualist. The ingenious, creative, independent man, more comrade than lover. Intellectual, imaginative, crazy, and hardly able to commit to relationships.​",
+        "shadow": "The lone wolf.",
+        "resolution": "Makes binding decisions in theory, but sometimes not related to practice. Little urge to turn decisions into actions.",
+        "aggression": "Is not easily provoked. Tensions that do arise disappear quickly.",
+        "outlets": "Parasailing, kite-flying, parachuting.",
+        "fighting": "Well-considered, unusual, strategically clever, and cold. Looks down on opponents.",
+        "sexuality": "Little impulse, more theoretical interest. Likes to experiment. Loves sex outside the norm."
+      }
+    ],
+    "pisces": [
+      {
+        "source": "banzhaf-1996",
+        "title": "Fights for Peace",
+        "strength": "The spiritual warrior (Samurai). Unusual, intuitive accuracy. Powerful spiritual forces lead—unpredictable when seen from the outside—to the achievement of higher, greater goals. Wins through apparent yielding.",
+        "problem": "Misfire. Very fluctuating, unpredictable energies that often burn out with no effect. Extremely sensitive to pain. Very dependent on moods.",
+        "image": "The dreamer. The sensitive, mysterious, devoted lover who gives wings to fantasies. The charming man with a thousand faces, capable of slipping into any desired role.​",
+        "shadow": "The bamboozler.",
+        "resolution": "Dependent on mood. Decides intuitively. Acts on instinct without pressure based on deep inclination.",
+        "aggression": "Frequently only seen indirectly—but vehemently when under the influence of alcohol.",
+        "outlets": "Swimming, deep-sea diving, listening to music, enjoyment of art.",
+        "fighting": "Creates chaos, confuses. Uses helplessness as a weapon, giving his opposite a bad conscience: Flow can you do this to me?—the eternal victim.",
+        "sexuality": "The love trip. Strong impulse, particularly in conjunction with an altered state (Tantra, trances, and drugs). Very sensitive and easily seduced."
+      }
+    ]
+  },
+  "inHouse": {
+    "1": [
+      {
+        "source": "banzhaf-1996",
+        "title": "",
+        "strength": "The Lightning-Bolt. Knows no hesitation, immediately gets down to business. Is quick, direct, appropriately aggressive and willing to engage in conflict when it comes to asserting, achieving, or conquering something. Vigorous, audacious, spontaneous, strong. Masculine aura.",
+        "problem": "The Braggart. Will go to any lengths to quarrel. Inconsiderate, egotistical, sometimes brutal and violent. Lack of ability to adapt and be level-headed. Starts fights easily. Hurts others without noticing it. Nasty troublemaker.",
+        "behavior": "Direct, impulsive, willing to engage in conflicts."
+      }
+    ],
+    "2": [
+      {
+        "source": "banzhaf-1996",
+        "title": "The Struggle for",
+        "strength": "The Money-Maker. Conflict readiness and the will to assert self, as well as pure muscle power as basic disposition that signifies security. Struggles and works offensively at full power for the development of financial security since money means power and strength.",
+        "problem": "The Speculator. Arbitrary, self-righteous way of dealing with money. Would rather take a gamble than carefully weigh matters. Engages in foolish financial risks (test of courage!). Rivalry and fighting about money resulting in financial losses. Impulsive expenditures, which are ruinous in extreme cases.",
+        "way_of_dealing_with_money": "Spontaneous, arbitrary."
+      }
+    ],
+    "3": [
+      {
+        "source": "banzhaf-1996",
+        "title": "Sharp Wit",
+        "strength": "The Talkmaster. Can express strongly both verbally and in writing. Tends to sharply criticize the surrounding world and inconsiderately expose everything that is wrong, phony, or somehow inconsistent. Has the courage to stand up for self and show true colors, even at the risk of looking like a fool. Strong, but vacillating application of energy in learning.",
+        "problem": "The Cantankerous Person. Great gift (and desire) for making self unpopular. Is always looking for a fight. Constantly disgraces self without even noticing it.",
+        "speakingStyle": "Offensive, quarrelsome, commanding."
+      }
+    ],
+    "4": [
+      {
+        "source": "banzhaf-1996",
+        "title": "Emotional Uproar",
+        "dignity": "Fall",
+        "strength": "The Watchdog. Is alert and ready to fight at any time when it comes to sheltering or protecting the home, the family, or the parents against attacks. Early and distinct striving for independence. If Mars is located close to the IC (up to 5°), this means a distinctly good feeling for emotional energies and a talent for working with spiritual energies.​",
+        "problem": "The Center of Unrest. Rebellion, strife, and opposition in the parental home, particularly against the father. Humiliations, restriction of freedom, and experiences of helplessness usually lead to an early detachment from the parental home. Pent-up aggression and deep-seated, concealed, paralyzing rage lead to greater inner unrest with considerable emotional tensions that are difficult to bring to the surface and integrate. Frequent fights at home.",
+        "image": "Strong and powerful or aggressive and hot-tempered.​"
+      }
+    ],
+    "5": [
+      {
+        "source": "banzhaf-1996",
+        "title": "Game with High Stakes",
+        "strength": "The Radiant Victor. Impetuous conqueror, valiant and passionate lover. Loves competitive games, likes to get involved in high wagers, and shows that he or she is the greatest, capable of doing everything better. Wants to assert personal interests and wants to be autonomous and independent. Highest stakes in love and play. Joy of life, zest for living, fiery, very passionate sexuality, and out to conquer. Natural authority.",
+        "problem": "The Quarrelsome Gambler. Likes to place all the bets on one card and plays with risky stakes. Tends to grossly exaggerate. Passionately loves to wager, but doesn't know how to lose. Always picks a quarrel instead. Erotic ambition, narcissistic disposition, sadomasochistic, violent, jealous, overbearing.",
+        "attitude_toward_children": "Promotes interest in sports."
+      }
+    ],
+    "6": [
+      {
+        "source": "banzhaf-1996",
+        "title": "Rivalry",
+        "strength": "Competition. Loves to compete against others professionally to be the best, the fastest, or the strongest. True zeal, considerable perseverance, and clear powers of assertion. Brash, ambitious, decisive, willing to engage in conflict, venturesome. Pushes ahead.",
+        "problem": "The Arguer. Doesn't fit into any team. Sees oneself just surrounded by enemies. Tends to take irresponsible risks. Rebels against superiors, argues with colleagues, and tyrannizes subordinates. Incautious, impatient, overly sensitive. May also be whiny. Tends to fight out conflicts dealing with work on the level of the body. Vehement, acute health disorders. Inconsiderate toward colleagues and others. Argumentative and scheming.",
+        "working_style": "Powerful, quick, aggressive."
+      }
+    ],
+    "7": [
+      {
+        "source": "banzhaf-1996",
+        "title": "Tension in the",
+        "strength": "Bundle of Energy. Brings much momentum and vivacity into the relationship. Takes a direct approach to the partner. Immediately settles differences and provides a clarifying thunder storm. Full of go and always ready to battle with the partner—both with or against. Much conflict and much reconciliation. Lively, exciting, as well as strenuous relationships.",
+        "problem": "The Rival. Sees the mate as a rival who must be subjugated. No willingness to adapt whatsoever. Aggressive, destructive conduct in interpersonal relationships. Tends to take rash actions. Likes to put self in the foreground and drive the partner up against the wall. Tough, inconsiderate, despotic, mistrustful, insulting, or feels insulted.",
+        "idea_of_partnership": "The competition."
+      }
+    ],
+    "8": [
+      {
+        "source": "banzhaf-1996",
+        "title": "Danger",
+        "dignity": "Dignity",
+        "strength": "The Death-Defier. Goes into dangerous areas and borderline situations. Boldly fights against death, sometimes under life-endangering conditions (doctor, rescuer). Iron will, fearless, total dedication of energy. Enjoys taking risks that go all out. Strong sexuality and sense for practicing sexual magic.",
+        "problem": "The Enemy of Life. Inconsiderate toward self and merciless with others. Criminal energies, such as the brutal use of violence, torture, rape, and death threats. Playing with one's own life, as well as the lives of others. Destructive inner tension. Misanthropy.",
+        "image": "Death as the enemy."
+      }
+    ],
+    "9": [
+      {
+        "source": "banzhaf-1996",
+        "title": "Chivalry",
+        "strength": "Courage of Convictions. Representing one's own convictions with commitment and courage, advocating high ideals, and mercilessly denouncing grievances. Use of all energies in order to achieve a high level of education in social, philosophical, or religious areas. Achievement of long-range goals.",
+        "problem": "The Militant Do-Gooder. Intolerance, fanatic opinions, and an audacious know-it-all attitude. Persecuting and fighting against deviationists and people of a different faith in the name of a holy idea. Glorification of violence. Dissatisfied and deeply pessimistic. Tends toward serious self-reproach.",
+        "image": "The warlike, avenging God."
+      }
+    ],
+    "10": [
+      {
+        "source": "banzhaf-1996",
+        "title": "Rivalry",
+        "dignity": "Exaltation",
+        "strength": "The Fighter. Always ready to fight for matters that concern one, push through unpopular steps, and swim against the current. Great ambition to reach the top, willingness to engage in conflict, enormous endeavors in the professional area. Seeks confrontations and likes to compete against rivals. Many enemies, much honor.",
+        "problem": "The Machiavellian Prince or Princess. Scorns other people's opinions and inconsiderately disregards justified interests and claims within the scope of the profession. Attacks others out of the blue and continually infringes on the professional rules of the game and agreements. Unscrupulously oversteps competencies and likes to “govern” one's way into other people's areas of responsibility. Power-hungry, unpredictable, greedy for success.",
+        "image": "Strong, dangerous, aggressive."
+      }
+    ],
+    "11": [
+      {
+        "source": "banzhaf-1996",
+        "title": "The Fighting Team",
+        "strength": "The Strong Friend. Committedly supports one's friends and is willing to go through thick and thin with them. Also demands the same from them. Fights for the group and its goals. Loves male friendships and fighting teams. Is willing to fight for progress. Seeks contacts in sports clubs.",
+        "problem": "The Quarreler. Has difficulties in conforming and integrating oneself into the group. Very sensitive to antipathies. Demands great proof of friendship. Unpredictable and hard to get along with. Tends toward rivalries and competitive attitude. Threatens to break off the friendship with a constant “either-or” stance.",
+        "role_in_the_group": "The troublemaker."
+      }
+    ],
+    "12": [
+      {
+        "source": "banzhaf-1996",
+        "title": "The Washout",
+        "strength": "The Knight of the Holy Grail. Powers of assertion, the will to conquer, and initiative are strongly influenced by spiritual and unconscious forces. With the appropriate, spiritual exercise (such as Tai Chi, Aikido, archery in the spirit of Zen), the highest degree of effectiveness develops. Committed willingness to help. Defender and champion of the underprivileged (Robin Hood). High level of spiritual striving.",
+        "problem": "The Bluff. Chronically dissatisfied. Can get terribly excited about everything but only creates a storm in a teacup. Never really takes action. Plans, practices, tests, and then misses the opportunity. Complicated sexuality and repressed sexuality. In particularly difficult cases, criminal energy.",
+        "finds_in_seclusion": "Courage, resoluteness, and powers of assertion."
+      }
+    ]
+  }
+}
