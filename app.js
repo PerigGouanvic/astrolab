@@ -8,7 +8,7 @@
 
 // Source Google Drive pour les fiches planètes (modèle salon à venir).
 // Si pas connecté, les fiches sont vides (fallback silencieux).
-import * as Drive from './drive.js?v=1';
+import * as Drive from './drive.js?v=3';
 
 // jsDelivr +esm : bundle self-contained avec process.browser=true.
 // esm.sh polyfille process.versions.node truthy → swisseph tente createRequire() → boom.
@@ -2356,6 +2356,191 @@ function renderSourcesInto(container, sources, emptyLabel) {
   for (const src of sources) container.appendChild(renderSourceCard(src));
 }
 
+// ---------- Édition inline des cartes planète (modèle Drive) ----------
+// Les cartes à format `html` sont éditables en WYSIWYG via contenteditable ;
+// les cartes à champs sémantiques (ingestion Banzhaf : title, shadow,
+// principle…) restent intactes pour préserver la structure. Les nouvelles
+// cartes créées ici sont toujours au format `html`. Persistance : Drive.
+
+function getCardsAt(data, path) {
+  let node = data;
+  for (let i = 0; i < path.length - 1; i++) {
+    if (node[path[i]] == null) return [];
+    node = node[path[i]];
+  }
+  const list = node[path[path.length - 1]];
+  return Array.isArray(list) ? list : [];
+}
+
+function setCardsAt(data, path, list) {
+  let node = data;
+  for (let i = 0; i < path.length - 1; i++) {
+    if (node[path[i]] == null || typeof node[path[i]] !== 'object') {
+      node[path[i]] = {};
+    }
+    node = node[path[i]];
+  }
+  node[path[path.length - 1]] = list;
+}
+
+function isEditableCard(src) {
+  return typeof src?.html === 'string';
+}
+
+async function persistPlanetData(planetKey, data, statusEl) {
+  if (!Drive.isAuthenticated()) {
+    if (statusEl) statusEl.textContent = 'Drive non connecté';
+    return false;
+  }
+  try {
+    if (statusEl) statusEl.textContent = '…';
+    await Drive.savePlanetToDrive(planetKey, data);
+    planetInfoCache.set(planetKey, data);
+    if (statusEl) {
+      statusEl.textContent = 'enregistré';
+      setTimeout(() => { if (statusEl.textContent === 'enregistré') statusEl.textContent = ''; }, 1500);
+    }
+    return true;
+  } catch (e) {
+    if (statusEl) statusEl.textContent = 'erreur Drive : ' + e.message;
+    return false;
+  }
+}
+
+function renderEditForm(initial, { onSave, onCancel }) {
+  const form = document.createElement('div');
+  form.className = 'pi-edit-form';
+
+  const attribDetails = document.createElement('details');
+  attribDetails.className = 'pi-edit-attrib';
+  const summary = document.createElement('summary');
+  summary.textContent = 'Attribution (optionnel)';
+  attribDetails.appendChild(summary);
+  const attribFields = {};
+  for (const field of ['source', 'author', 'work', 'year', 'url']) {
+    const label = document.createElement('label');
+    label.className = 'pi-edit-attrib-field';
+    const span = document.createElement('span');
+    span.textContent = field;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = initial[field] || '';
+    label.appendChild(span);
+    label.appendChild(input);
+    attribFields[field] = input;
+    attribDetails.appendChild(label);
+  }
+  if (initial.source || initial.author || initial.work || initial.year || initial.url) {
+    attribDetails.open = true;
+  }
+  form.appendChild(attribDetails);
+
+  const content = document.createElement('div');
+  content.className = 'pi-edit-content';
+  content.contentEditable = 'true';
+  content.setAttribute('data-placeholder', 'Contenu de la carte…');
+  content.innerHTML = initial.html || '';
+  form.appendChild(content);
+
+  const actions = document.createElement('div');
+  actions.className = 'pi-edit-actions';
+  const saveBtn = document.createElement('button');
+  saveBtn.type = 'button';
+  saveBtn.className = 'pi-edit-save';
+  saveBtn.textContent = 'Enregistrer';
+  const cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.className = 'pi-edit-cancel';
+  cancelBtn.textContent = 'Annuler';
+  const status = document.createElement('span');
+  status.className = 'pi-edit-status';
+  actions.appendChild(saveBtn);
+  actions.appendChild(cancelBtn);
+  actions.appendChild(status);
+  form.appendChild(actions);
+
+  saveBtn.addEventListener('click', () => {
+    const next = { html: content.innerHTML };
+    for (const field of ['source', 'author', 'work', 'year', 'url']) {
+      const v = attribFields[field].value.trim();
+      if (v) next[field] = v;
+    }
+    onSave(next, status);
+  });
+  cancelBtn.addEventListener('click', () => onCancel());
+
+  return form;
+}
+
+function renderEditableSection(sec, data, path, planetKey, emptyLabel) {
+  const titleEl = sec.querySelector('.pi-section-title');
+  sec.innerHTML = '';
+  if (titleEl) sec.appendChild(titleEl);
+
+  const cards = getCardsAt(data, path);
+  const authed = Drive.isAuthenticated();
+
+  if (cards.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'pi-empty';
+    empty.textContent = emptyLabel;
+    sec.appendChild(empty);
+  } else {
+    cards.forEach((src, idx) => {
+      const card = renderSourceCard(src);
+      if (authed && isEditableCard(src)) {
+        const editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.className = 'pi-source-edit';
+        editBtn.title = 'Éditer cette carte';
+        editBtn.textContent = '✎';
+        editBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const form = renderEditForm(src, {
+            onSave: async (next, status) => {
+              const list = getCardsAt(data, path).slice();
+              list[idx] = next;
+              setCardsAt(data, path, list);
+              const ok = await persistPlanetData(planetKey, data, status);
+              if (ok) renderEditableSection(sec, data, path, planetKey, emptyLabel);
+            },
+            onCancel: () => renderEditableSection(sec, data, path, planetKey, emptyLabel),
+          });
+          card.replaceWith(form);
+        });
+        card.appendChild(editBtn);
+      }
+      sec.appendChild(card);
+    });
+  }
+
+  if (authed) {
+    const addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.className = 'pi-source-add';
+    addBtn.textContent = '+ Carte';
+    addBtn.addEventListener('click', () => {
+      const form = renderEditForm({}, {
+        onSave: async (next, status) => {
+          const list = getCardsAt(data, path).slice();
+          list.push(next);
+          setCardsAt(data, path, list);
+          const ok = await persistPlanetData(planetKey, data, status);
+          if (ok) renderEditableSection(sec, data, path, planetKey, emptyLabel);
+        },
+        onCancel: () => renderEditableSection(sec, data, path, planetKey, emptyLabel),
+      });
+      addBtn.replaceWith(form);
+    });
+    sec.appendChild(addBtn);
+  } else {
+    const hint = document.createElement('p');
+    hint.className = 'pi-source-add-hint';
+    hint.textContent = 'Connecte-toi à Drive pour ajouter tes propres cartes';
+    sec.appendChild(hint);
+  }
+}
+
 async function openPlanetInfo(planetKey, ring = 'natal') {
   const modal = document.getElementById('planet-info');
   if (!modal) return;
@@ -2408,20 +2593,20 @@ async function openPlanetInfo(planetKey, ring = 'natal') {
   // 1 · Archétype
   {
     const sec = addSection('Archétype');
-    renderSourcesInto(sec, data.archetype, 'Aucune source pour l’archétype.');
+    renderEditableSection(sec, data, ['archetype'], planetKey, 'Aucune source pour l’archétype.');
   }
 
   // 2 · Planète en signe (si contexte dispo)
   if (signIdx != null) {
     const signKey = SIGN_KEYS[signIdx];
     const sec = addSection(`${label} en ${SIGN_LABELS_FR[signIdx]}`);
-    renderSourcesInto(sec, (data.inSign || {})[signKey], `Aucune source pour ${label} en ${SIGN_LABELS_FR[signIdx]}.`);
+    renderEditableSection(sec, data, ['inSign', signKey], planetKey, `Aucune source pour ${label} en ${SIGN_LABELS_FR[signIdx]}.`);
   }
 
   // 3 · Planète en maison (si contexte dispo)
   if (houseNum != null) {
     const sec = addSection(`${label} en maison ${HOUSE_ROMAN[houseNum - 1]}`);
-    renderSourcesInto(sec, (data.inHouse || {})[String(houseNum)], `Aucune source pour ${label} en maison ${HOUSE_ROMAN[houseNum - 1]}.`);
+    renderEditableSection(sec, data, ['inHouse', String(houseNum)], planetKey, `Aucune source pour ${label} en maison ${HOUSE_ROMAN[houseNum - 1]}.`);
   }
 
   // 4 · Observations personnelles (contenteditable, persist localStorage)

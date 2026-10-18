@@ -189,3 +189,13 @@ export async function loadPlanetFromDrive(key) {
   const res = await driveFetch(`files/${fileId}?alt=media`);
   return res.json();
 }
+
+// Sauvegarde une fiche planète sur Drive. Crée le fichier s'il n'existe pas
+// (ex: nouvelle planète que Perig commence à documenter), le patche sinon.
+export async function savePlanetToDrive(key, data) {
+  if (!accessToken) throw new Error('Drive non connecté');
+  const folderId = await ensurePlanetsFolder();
+  const name = `${key}.json`;
+  const existingId = await findFileInFolder(folderId, name);
+  await uploadJSON(folderId, name, data, existingId);
+}

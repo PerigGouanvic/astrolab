@@ -1970,6 +1970,135 @@ body.planet-info-open { overflow: hidden; }
   min-height: 1em;
 }
 
+/* Édition inline des cartes-sources (nouvelles ou cartes html existantes).
+   Les cartes Banzhaf à champs sémantiques restent intactes et non éditables. */
+.pi-source-edit {
+  position: absolute;
+  top: 0.2rem;
+  right: 0.3rem;
+  background: transparent;
+  border: 1px solid var(--line-weak);
+  color: var(--line-medium);
+  font-size: 0.85rem;
+  width: 1.6rem;
+  height: 1.6rem;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.pi-source-edit:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.pi-source-add {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  background: transparent;
+  border: 1px dashed var(--line-weak);
+  color: var(--line-medium);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  margin: 0 0 0.7rem;
+}
+.pi-source-add:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.pi-source-add-hint {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--line-weak);
+  font-style: italic;
+  margin: 0 0 0.7rem;
+  text-align: center;
+}
+.pi-edit-form {
+  border: 1px solid var(--line-medium);
+  border-left: 3px solid var(--accent);
+  padding: 0.7rem 0.9rem;
+  margin: 0 0 0.7rem;
+  background: #fff;
+}
+.pi-edit-attrib {
+  margin: 0 0 0.6rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+.pi-edit-attrib > summary {
+  cursor: pointer;
+  color: var(--line-medium);
+  margin-bottom: 0.4rem;
+}
+.pi-edit-attrib-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.25rem 0;
+}
+.pi-edit-attrib-field > span {
+  width: 4.5rem;
+  color: var(--line-medium);
+  text-transform: uppercase;
+  font-size: 0.65rem;
+  letter-spacing: 0.05em;
+}
+.pi-edit-attrib-field > input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.3rem 0.4rem;
+  border: 1px solid var(--line-weak);
+  background: #fff;
+  font-family: var(--font-serif);
+  font-size: 0.85rem;
+}
+.pi-edit-content {
+  min-height: 5rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--line-weak);
+  background: #fff;
+  font-family: var(--font-serif);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  outline: none;
+  margin: 0 0 0.5rem;
+}
+.pi-edit-content:focus { border-color: var(--line-medium); }
+.pi-edit-content:empty::before {
+  content: attr(data-placeholder);
+  color: var(--line-weak);
+  font-style: italic;
+}
+.pi-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.pi-edit-save,
+.pi-edit-cancel {
+  padding: 0.35rem 0.9rem;
+  border: 1px solid var(--line-weak);
+  background: #fff;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.pi-edit-save {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.pi-edit-save:hover { background: var(--accent); color: #fff; }
+.pi-edit-cancel:hover { color: var(--line-medium); }
+.pi-edit-status {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--line-medium);
+  margin-left: auto;
+}
+
 /* Slider taille du glyphe (migré de l'atelier). */
 .pi-scale-row {
   display: flex;
