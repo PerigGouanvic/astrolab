@@ -7,7 +7,7 @@
 //   - Rétrogrades ℞
 
 // Source Google Drive pour les fiches planètes (modèle salon à venir).
-// Fallback transparent vers content/planets/ bundled si pas connecté.
+// Si pas connecté, les fiches sont vides (fallback silencieux).
 import * as Drive from './drive.js?v=1';
 
 // jsDelivr +esm : bundle self-contained avec process.browser=true.
@@ -2215,10 +2215,12 @@ async function loadPlanetInfo(key) {
     catch (e) { console.warn('Drive loadPlanet échec, fallback bundled :', e.message); }
   }
   if (!data) {
-    const res = await fetch(`content/planets/${key}.json`, { cache: 'no-cache' });
-    if (!res.ok) throw new Error(`content/planets/${key}.json : HTTP ${res.status}`);
-    data = await res.json();
+    try {
+      const res = await fetch(`content/planets/${key}.json`, { cache: 'no-cache' });
+      if (res.ok) data = await res.json();
+    } catch (e) {}
   }
+  if (!data) data = {};
   planetInfoCache.set(key, data);
   return data;
 }
@@ -2406,20 +2408,20 @@ async function openPlanetInfo(planetKey, ring = 'natal') {
   // 1 · Archétype
   {
     const sec = addSection('Archétype');
-    renderSourcesInto(sec, data.archetype, 'Aucune source pour l’archétype — ajoute une entrée dans ' + `content/planets/${planetKey}.json → "archetype".`);
+    renderSourcesInto(sec, data.archetype, 'Aucune source pour l’archétype.');
   }
 
   // 2 · Planète en signe (si contexte dispo)
   if (signIdx != null) {
     const signKey = SIGN_KEYS[signIdx];
     const sec = addSection(`${label} en ${SIGN_LABELS_FR[signIdx]}`);
-    renderSourcesInto(sec, (data.inSign || {})[signKey], `Aucune source pour ${label} en ${SIGN_LABELS_FR[signIdx]} — ajoute une entrée dans ` + `content/planets/${planetKey}.json → "inSign.${signKey}".`);
+    renderSourcesInto(sec, (data.inSign || {})[signKey], `Aucune source pour ${label} en ${SIGN_LABELS_FR[signIdx]}.`);
   }
 
   // 3 · Planète en maison (si contexte dispo)
   if (houseNum != null) {
     const sec = addSection(`${label} en maison ${HOUSE_ROMAN[houseNum - 1]}`);
-    renderSourcesInto(sec, (data.inHouse || {})[String(houseNum)], `Aucune source pour ${label} en maison ${HOUSE_ROMAN[houseNum - 1]} — ajoute une entrée dans ` + `content/planets/${planetKey}.json → "inHouse.${houseNum}".`);
+    renderSourcesInto(sec, (data.inHouse || {})[String(houseNum)], `Aucune source pour ${label} en maison ${HOUSE_ROMAN[houseNum - 1]}.`);
   }
 
   // 4 · Observations personnelles (contenteditable, persist localStorage)

@@ -4,6 +4,8 @@ node_modules/
 *.log
 content/_raw/
 content/_scripts/
+content/planets/
+content/houses.json
 .keystore/
 *.keystore
 *.jks

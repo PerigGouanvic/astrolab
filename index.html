@@ -198,7 +198,7 @@
        cercle. Pédagogique (archétype + planète-en-signe + planète-en-maison,
        cartes empilées par source), observations personnelles persistées,
        slider de taille du glyphe migré depuis l'atelier.
-       Contenu chargé depuis content/planets/<key>.json à l'ouverture. -->
+       Contenu chargé depuis Google Drive si connecté, sinon vide. -->
   <div id="planet-info" class="planet-info-modal" hidden aria-hidden="true" role="dialog" aria-label="Fiche planète">
     <div class="pi-panel">
       <header class="pi-header">
@@ -253,7 +253,7 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=71"></script>
+  <script type="module" src="app.js?v=72"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
