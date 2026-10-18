@@ -17,6 +17,14 @@
 
 ## Décisions en suspens
 
+### ⚡⚡ Règle d'architecture posée 2026-10-18 matin — tous les textes astro dans Drive
+
+Déclarée par Perig après le constat que `houses.json` était un fichier mort : **tout texte à vocation astrologique (fiches planète, maisons, aspects, mi-points, astéroïdes…) vit sur Drive, pas dans le dépôt**. Sauf exception explicite (ex. `content/jalons.json` biographique).
+
+Raison double : (1) modularité — chaque praticien peut brancher son bundle, l'app distribue le moteur pas l'éditorial ; (2) zéro ambiguïté sur les droits, règle uniforme et lisible.
+
+Conséquence pour tout chantier futur touchant au contenu : créer le bundle sur Drive (`astrolab/<type>/`), pas dans `content/` du repo. Fallback local gitignored OK pour dev. Fiche détaillée : `./memory/project_textes_toujours_dans_drive.md`.
+
 ### ⚡ Scrub historique git — à trancher avec Perig
 
 Les fiches planètes et `houses.json` ont été retirées de HEAD (commit `b359f50`) et sont désormais gitignorées. **Mais elles restent dans les commits antérieurs** sur GitHub public. Quelqu'un qui parcourt `git log` peut encore les récupérer.

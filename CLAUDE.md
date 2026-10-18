@@ -20,6 +20,12 @@ Logiciel d'astrologie épuré, **mobile-first**, pour **consultations co-évolut
 - **Angle éditorial Saturne/Uranus** — verrou/clef, à infuser dans vocabulaire, soustractions pré-réglées, lecture des transits durs. → `memory/project_angle_saturne_uranus.md`
 - **Fin de cycle décidée conjointement** — Perig retire son partage Drive quand c'est juste ; pas d'auto-expiration. → `memory/project_fin_de_cycle_conjointe.md`
 
+### ⚡⚡ Règle d'architecture — tous les textes astro dans Drive (posée 2026-10-18)
+
+**Tout texte à vocation astrologique affiché dans l'app (fiches planète, maisons, aspects, mi-points, astéroïdes, etc.) vit sur Drive, pas dans le dépôt.** Sauf exception explicitement déclarée (ex. `content/jalons.json` biographique Perig). Raison double : modularité (chaque praticien son bundle) + zéro ambiguïté sur les droits.
+
+Pour tout nouveau contenu textuel : créer le bundle dans `astrolab/<type>/` sur Drive, pas dans `content/` du repo. Fallback local gitignored OK pour dev. Détails et exceptions → `memory/project_textes_toujours_dans_drive.md`.
+
 ### Décisions héritées (toujours valides)
 
 - **Mi-points** et **astéroïdes** sont **deux enrichissements distincts** (pas des mi-points d'astéroïdes). Corriger toute reformulation qui les confond.
