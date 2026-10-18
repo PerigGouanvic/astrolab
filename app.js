@@ -1228,6 +1228,69 @@ function drawTimeline() {
     }
   }
 
+  // Jalons (dates fondatrices chargées depuis content/jalons.json) : barre
+  // verticale pleine hauteur + label vertical en haut + hit-rect large.
+  // Cliquer sur un jalon y pose le curseur chartTime (dual du clic
+  // "maintenant"). Granularité par catégorie viendra plus tard — pour l'instant
+  // toggle global via state.layers.jalons.
+  if (state.layers.jalons && state.jalons.length) {
+    for (const j of state.jalons) {
+      if (j.createdAt < range.startMs || j.createdAt > range.endMs) continue;
+      const xj = tlX(j.createdAt, range);
+      svgEl.appendChild(svg('line', {
+        x1: xj, y1: TL_MARGIN_T, x2: xj, y2: TL_MARGIN_T + TL_PLOT_H,
+        class: 'tl-jalon',
+      }));
+      if (j.label) {
+        const t = svg('text', {
+          x: xj, y: TL_MARGIN_T + 4,
+          class: 'tl-jalon-label',
+          transform: `rotate(-90 ${xj} ${TL_MARGIN_T + 4})`,
+        }, j.label);
+        svgEl.appendChild(t);
+      }
+      const hit = svg('rect', {
+        x: xj - 8, y: TL_MARGIN_T, width: 16, height: TL_PLOT_H,
+        class: 'tl-jalon-hit',
+        'data-id': j.id,
+      });
+      if (j.note) {
+        const title = svg('title', {}, j.note);
+        hit.appendChild(title);
+      }
+      hit.addEventListener('click', (e) => {
+        e.stopPropagation();
+        state.chartTime = j.createdAt;
+        render().catch(err => showError('render error: ' + err.message));
+      });
+      svgEl.appendChild(hit);
+    }
+  }
+
+  // Barre "maintenant" verticale persistante, cliquable pour retourner au
+  // présent (= state.chartTime = null, suivi temps réel). Toujours dessinée
+  // tant que now est dans la fenêtre visible — permet de distinguer d'un
+  // coup d'œil où est le présent même quand le curseur chartTime en est
+  // loin. Hit-rect transparent large pour tap mobile facile.
+  const nowMs = Date.now();
+  if (nowMs >= range.startMs && nowMs <= range.endMs) {
+    const xNow = tlX(nowMs, range);
+    svgEl.appendChild(svg('line', {
+      x1: xNow, y1: TL_MARGIN_T, x2: xNow, y2: TL_MARGIN_T + TL_PLOT_H,
+      class: 'tl-now',
+    }));
+    const hit = svg('rect', {
+      x: xNow - 10, y: TL_MARGIN_T, width: 20, height: TL_PLOT_H,
+      class: 'tl-now-hit',
+    });
+    hit.addEventListener('click', (e) => {
+      e.stopPropagation();
+      state.chartTime = null;
+      render().catch(err => showError('render error: ' + err.message));
+    });
+    svgEl.appendChild(hit);
+  }
+
   // Curseur temporel vertical, partagé avec state.chartTime
   const cursorMs = state.chartTime != null ? state.chartTime : Date.now();
   if (cursorMs >= range.startMs && cursorMs <= range.endMs) {
@@ -1442,9 +1505,10 @@ function wireTimelineHandle() {
   handleEl.addEventListener('pointermove', ev => {
     if (!dragging) return;
     const t = pickFromClientX(ev.clientX);
-    // Snap to "maintenant" quand on relâche la poignée près du présent :
-    // chartTime null = suivi temps réel.
-    state.chartTime = (t >= Date.now() - 60000) ? null : t;
+    // Drag libre : la poignée se pose exactement où elle est relâchée,
+    // passé ou futur. Pour revenir au présent, cliquer sur la barre
+    // "maintenant" verticale persistante dessinée dans drawTimeline().
+    state.chartTime = t;
     scheduleTimelineRender();
   });
   const commit = () => {
@@ -1516,6 +1580,7 @@ migrateScopedKeys();
 const DEFAULT_LAYERS = {
   signs: true, houses: true, planets: true, transits: true,
   midpoints: false, asteroids: true, scrapbook: true, timeline: true,
+  jalons: false,  // dates fondatrices affichées sur la frise, off par défaut
 };
 const DEFAULT_HARMONICS = [1, 2, 3, 4];  // majeurs classiques (conj, opp, tri, carré)
 function loadStored(key, defaults) {
@@ -1539,10 +1604,28 @@ let state = {
   aspectStyle: localStorage.getItem(ASPECT_STYLE_KEY) || 'lines',  // 'lines' | 'digits'
   asteroids: JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'),
   scrapbook: JSON.parse(localStorage.getItem(scrapbookKey()) || '[]'),
+  jalons: [],  // chargé depuis content/jalons.json au boot — dates fondatrices
   chartTime: null,  // null = temps réel ; sinon ms epoch (slider temporel) — pilote l'anneau transit
   timeline: { zoom: 20 },  // zoom frise, 1 = toute la vie (200 ans), 20 = ~10 ans pleine largeur
   chart: { zoom: 1.0, cx: 0, cy: 0 },  // zoom cercle via viewBox ; cx/cy = centre visible (viewBox initial = -520..520)
 };
+
+// Charge le répertoire de jalons depuis content/jalons.json. Chaque entrée
+// garde le shape item scrapbook (scope: 'moment') mais vit dans state.jalons
+// séparé — pas de persistance localStorage, c'est du contenu versionné.
+async function loadJalons() {
+  try {
+    const res = await fetch('content/jalons.json', { cache: 'no-cache' });
+    if (!res.ok) return;
+    const arr = await res.json();
+    state.jalons = arr.map(j => ({
+      ...j,
+      createdAt: Date.parse(j.createdAt),
+    })).filter(j => Number.isFinite(j.createdAt));
+  } catch (e) {
+    console.warn('loadJalons:', e.message);
+  }
+}
 function saveAsteroids()   { localStorage.setItem(STORAGE_KEY,       JSON.stringify(state.asteroids)); }
 function saveLayers()      { localStorage.setItem(LAYERS_KEY,        JSON.stringify(state.layers));    }
 function saveHarmonics()   { localStorage.setItem(HARMONICS_KEY,     JSON.stringify([...state.harmonics].sort((a,b)=>a-b))); }
@@ -3151,22 +3234,23 @@ async function main() {
     probe.textContent = txt;
     if (color) { probe.style.background = color; probe.style.color = '#fff'; }
   };
-  setProbe('astrolab v69 — chargement Swiss Ephemeris…');
+  setProbe('astrolab v70 — chargement Swiss Ephemeris…');
   await initSwe();
-  setProbe('astrolab v69 — Swiss Ephemeris OK, init…');
+  setProbe('astrolab v70 — Swiss Ephemeris OK, init…');
   loadPlanetScales();
   loadPlanetNotes();
   migrateScrapbookItems();
   migrateScrapbookLon();
   wireControls();
+  await loadJalons();
   await remountSavedAsteroids();
   await render();
   if (probe) {
     // Transforme le probe en badge version permanent (coin bas-droit).
     // Affiche à la fois la version JS et CSS pour détecter les désynchros
     // de cache (Brave en particulier cache le CSS indépendamment du JS).
-    const JS_V = 69;
-    const CSS_EXPECTED = 57;
+    const JS_V = 70;
+    const CSS_EXPECTED = 58;
     const cssVRaw = getComputedStyle(document.documentElement)
       .getPropertyValue('--css-version').trim().replace(/^"|"$/g, '');
     const cssV = cssVRaw || '?';

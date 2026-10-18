@@ -1,5 +1,5 @@
 :root {
-  --css-version: "57";
+  --css-version: "58";
   --bg: #faf7f0;
   --ink: #1a1a1a;
   --line-strong: #333;
@@ -1222,6 +1222,44 @@ h1 {
   stroke-width: 1.2;
   opacity: 0.8;
   pointer-events: none;
+}
+
+/* Barre "maintenant" persistante : trait vertical pointillé discret qui
+   repère le présent, cliquable pour revenir au suivi temps réel
+   (chartTime = null) depuis n'importe quelle position du curseur. */
+.tl-now {
+  stroke: #2a7a3a;
+  stroke-width: 1.6;
+  opacity: 0.85;
+  pointer-events: none;
+}
+.tl-now-hit {
+  fill: transparent;
+  cursor: pointer;
+}
+
+/* Jalons : barre verticale pleine hauteur + label vertical en haut.
+   Ligne violette discrète, label petit en bleu-gris pour se distinguer
+   des années (noir) et de la barre maintenant (vert). Hit-rect large
+   pour tap mobile ; clic → pose chartTime au moment du jalon. */
+.tl-jalon {
+  stroke: #6a4a8a;
+  stroke-width: 0.9;
+  opacity: 0.65;
+  pointer-events: none;
+}
+.tl-jalon-label {
+  fill: #6a4a8a;
+  font-size: 9px;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  text-anchor: end;
+  dominant-baseline: middle;
+  pointer-events: none;
+  opacity: 0.85;
+}
+.tl-jalon-hit {
+  fill: transparent;
+  cursor: pointer;
 }
 
 /* Segments scrapbook sur la frise : rectangle horizontal de createdAt à
