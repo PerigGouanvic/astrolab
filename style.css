@@ -358,15 +358,14 @@ h1 {
   border-color: var(--line-medium);
 }
 
-/* Zone cercle : 70vh en mobile (consigne Perig 2026-10-14). Le SVG garde son
-   aspect carré, contraint par la hauteur dispo (70vh) ou la largeur viewport
-   si écran étroit (min des deux). L'espace horizontal/vertical autour est
-   intentionnel — respiration + place laissée vide « en attendant la prochaine
-   tâche ». */
+/* Zone cercle : 53vh en mobile (consigne Perig 2026-10-19, remontée frise de
+   ~7vh pour qu'elle entre dans la zone de confort du pouce). Le SVG garde son
+   aspect carré, contraint par la hauteur dispo (53vh) ou la largeur viewport
+   si écran étroit (min des deux). */
 #chart-container {
   width: 100%;
   max-width: 800px;
-  height: 60vh;
+  height: 53vh;
   margin: 0 auto;
   display: flex;
   align-items: center;
@@ -1067,9 +1066,10 @@ h1 {
 /* Frise du temps horizontale — vue 2D déployée des cycles lents.
    Empilée sous la roue, même largeur max. touch-action: none pour autoriser
    le drag du curseur sans que le scroll de la page intercepte le geste. */
-/* Frise temporelle : vit désormais dans le sheet (2026-10-14). Pleine largeur
-   du sheet, aspect-ratio préservé. La poignée est positionnée absolute dans
-   ce conteneur, JS calcule son offset en CSS px. */
+/* Frise temporelle : revient sous le cercle (2026-10-19), hors du sheet.
+   Pilier structurant de l'app : vue par défaut, surface de création des
+   éléments de scrapbook. La poignée est positionnée absolute dans ce
+   conteneur, JS calcule son offset en CSS px. */
 #timeline-container {
   width: 100%;
   max-width: 800px;
@@ -1131,6 +1131,91 @@ h1 {
   display: none;
 }
 
+/* Boutons ⤢ / ⤡ : bascule frise petite ↔ frise plein écran (consigne Perig
+   2026-10-19). Position en haut à droite de la frise, discret mais toujours
+   visible. Le second (⤡) n'apparaît qu'en mode agrandi. Hit area 44x44
+   (tactile OK), typo serif pour matcher les glyphes signes. */
+.timeline-expand-btn,
+.timeline-collapse-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid var(--line-weak);
+  border-radius: 6px;
+  font-size: 20px;
+  font-family: var(--font-serif);
+  color: #3a3a3a;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  line-height: 1;
+  touch-action: manipulation;
+}
+
+.timeline-expand-btn:hover,
+.timeline-collapse-btn:hover {
+  background: rgba(255, 255, 255, 1);
+}
+
+.timeline-collapse-btn[hidden] {
+  display: none;
+}
+
+/* Mode frise plein écran : le cercle est masqué, la frise prend toute la
+   hauteur disponible (sous le header fixe). Le sheet reste accessible via
+   sa poignée mais ne vole pas de place. */
+body.timeline-fullscreen #chart-container {
+  display: none;
+}
+
+body.timeline-fullscreen #timeline-container {
+  position: fixed;
+  top: var(--chart-header-h, 72px);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-width: none;
+  margin: 0;
+  aspect-ratio: auto;
+  width: 100%;
+  height: auto;
+  z-index: 20;
+}
+
+body.timeline-fullscreen .timeline-expand-btn {
+  display: none;
+}
+
+/* Éditeur in-situ posé par double-tap dans la frise agrandie (consigne Perig
+   2026-10-19). Overlay DOM par-dessus le SVG — pas foreignObject, pour
+   éviter les surprises de preserveAspectRatio="none". Minimal pour le
+   premier pas : zone texte éditable, pas d'embeds ni resize. */
+.tl-scrap-editor {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  min-width: 200px;
+  max-width: 320px;
+  min-height: 60px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1.5px solid var(--accent);
+  border-radius: 6px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: #1a1a1a;
+  line-height: 1.4;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  outline: none;
+  z-index: 15;
+  touch-action: auto;
+}
+
 /* Bandes signes alternées : fond très discret pour baliser 12 régions
    horizontales sans voler l'attention aux courbes. */
 .tl-sign-band {
@@ -1144,14 +1229,18 @@ h1 {
   opacity: 0.5;
 }
 
+/* Glyphes signes à gauche de la frise : prononcés et lisibles (consigne
+   Perig 2026-10-19) — plus foncés, plus gras que les mêmes glyphes dans
+   le cercle, parce qu'ici ils servent de repère vertical actif. */
 .tl-sign-glyph {
-  fill: var(--sign-symbol);
+  fill: #3a3a3a;
   font-family: var(--font-serif);
-  font-size: 14px;
+  font-size: 16px;
+  font-weight: 700;
   text-anchor: middle;
   dominant-baseline: central;
   font-variant-emoji: text;
-  opacity: 0.7;
+  opacity: 1;
 }
 
 /* Grille années : traits verticaux fins pour chaque année, renforcés aux

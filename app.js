@@ -1072,6 +1072,19 @@ function tlY(lon) {
   return TL_MARGIN_T + (normDeg(lon) / 360) * TL_PLOT_H;
 }
 
+// Inverses de tlX/tlY : étant donné (svgX, svgY) dans la viewBox de la
+// frise, retrouve (ms, lon). Utilisés par le geste de création d'un item
+// scrapbook par double-tap dans la frise agrandie (consigne Perig 2026-10-19).
+function msFromTlX(svgX, range) {
+  const { startMs, endMs } = range;
+  const t = (svgX - TL_MARGIN_L) / TL_PLOT_W;
+  return startMs + t * (endMs - startMs);
+}
+function lonFromTlY(svgY) {
+  const t = (svgY - TL_MARGIN_T) / TL_PLOT_H;
+  return normDeg(t * 360);
+}
+
 // Inverse de project(lon, ascLon, r) : étant donné (x, y) coords SVG dans
 // la roue (centre en 0,0) et l'ascLon courant, retrouve la longitude
 // écliptique du point. Indépendant du rayon.
@@ -1528,6 +1541,186 @@ function wireTimelineHandle() {
   window.addEventListener('resize', () => {
     updateTimelineHandlePosition();
   });
+}
+
+// Bouton ⤢ : bascule la frise en plein écran (le cercle est masqué).
+// Bouton ⤡ : revient à la vue cercle + frise petite. Le top de la frise
+// agrandie est calqué sur la hauteur mesurée du header fixe (CSS var).
+// Redessine la frise après chaque bascule pour que le SVG se re-dimensionne.
+function wireTimelineExpandCollapse() {
+  const expandBtn   = document.getElementById('timeline-expand');
+  const collapseBtn = document.getElementById('timeline-collapse');
+  const header      = document.getElementById('chart-header-fixed');
+  if (!expandBtn || !collapseBtn) return;
+  const applyHeaderHeight = () => {
+    if (!header) return;
+    document.documentElement.style.setProperty(
+      '--chart-header-h', `${header.offsetHeight}px`,
+    );
+  };
+  const redraw = () => {
+    applyHeaderHeight();
+    try { drawTimeline(); } catch (e) { showError('timeline error: ' + e.message); }
+    updateTimelineHandlePosition();
+  };
+  expandBtn.addEventListener('click', () => {
+    document.body.classList.add('timeline-fullscreen');
+    collapseBtn.hidden = false;
+    requestAnimationFrame(redraw);
+  });
+  collapseBtn.addEventListener('click', () => {
+    document.body.classList.remove('timeline-fullscreen');
+    collapseBtn.hidden = true;
+    requestAnimationFrame(redraw);
+  });
+  window.addEventListener('resize', () => {
+    if (document.body.classList.contains('timeline-fullscreen')) redraw();
+  });
+}
+
+// Double-tap sur la frise agrandie → crée un item scrapbook au moment
+// et au signe du tap, et ouvre un petit éditeur in-situ (overlay DOM
+// par-dessus le SVG). Enter = commit, Escape ou blur-si-vide = annulation.
+// Actif uniquement en mode plein écran (sinon la cible est trop petite
+// pour un tap précis — consigne Perig 2026-10-19).
+function wireTimelineScrapbookGestures() {
+  const svgEl       = document.getElementById('timeline');
+  const containerEl = document.getElementById('timeline-container');
+  if (!svgEl || !containerEl) return;
+  let lastTap = 0;
+  let lastPt  = null;
+  const toSvgCoords = (clientX, clientY) => {
+    // preserveAspectRatio="none" sur le SVG : la viewBox est étirée
+    // indépendamment en x et y, pas de getScreenCTM piégeux.
+    const rect = containerEl.getBoundingClientRect();
+    const relX = clientX - rect.left;
+    const relY = clientY - rect.top;
+    return {
+      x: relX * TL_VB_W / rect.width,
+      y: relY * TL_VB_H / rect.height,
+    };
+  };
+  svgEl.addEventListener('pointerdown', ev => {
+    // Actif seulement en mode plein écran : la frise petite n'offre pas
+    // assez de surface au pouce pour un placement précis.
+    if (!document.body.classList.contains('timeline-fullscreen')) return;
+    // Ignorer les contrôles interactifs : items existants, courbes
+    // planétaires, jalons, poignée temporelle, boutons expand/collapse.
+    if (ev.target.closest(
+      '.tl-scrap-seg, .tl-curve, .tl-curve-hit, .tl-jalon-hit, '
+      + '#timeline-handle, .timeline-expand-btn, .timeline-collapse-btn, '
+      + '.tl-scrap-editor'
+    )) return;
+    const now = Date.now();
+    const pt  = toSvgCoords(ev.clientX, ev.clientY);
+    // Hors zone de plot (marges gauche/droite/haut/bas) : ignorer.
+    if (pt.x < TL_MARGIN_L || pt.x > TL_MARGIN_L + TL_PLOT_W
+        || pt.y < TL_MARGIN_T || pt.y > TL_MARGIN_T + TL_PLOT_H) {
+      lastTap = 0; lastPt = null; return;
+    }
+    if (now - lastTap < 400 && lastPt
+        && Math.abs(pt.x - lastPt.x) < 40
+        && Math.abs(pt.y - lastPt.y) < 40) {
+      // Double-tap confirmé : moyenner et créer.
+      const avgX = (pt.x + lastPt.x) / 2;
+      const avgY = (pt.y + lastPt.y) / 2;
+      lastTap = 0; lastPt = null;
+      createScrapItemOnTimeline(avgX, avgY, ev.clientX, ev.clientY);
+    } else {
+      lastTap = now;
+      lastPt  = pt;
+    }
+  });
+}
+
+// Crée un item scrapbook à partir d'un double-tap sur la frise. (svgX, svgY)
+// sont les coords SVG utiles pour calculer (moment, lon). (clientX, clientY)
+// positionnent l'overlay éditable DOM par-dessus le SVG.
+function createScrapItemOnTimeline(svgX, svgY, clientX, clientY) {
+  const range = timelineRange();
+  const ms  = msFromTlX(svgX, range);
+  const lon = lonFromTlY(svgY);
+  const radius = (R_ZODIAC_IN + R_ZODIAC_OUT) / 2;
+  const ascLon = state.currentAscLon != null ? state.currentAscLon : 0;
+  const center = project(lon, ascLon, radius);
+  const width = 160, height = 60;
+  const item = {
+    id: genId(),
+    createdAt: ms,
+    updatedAt: ms,
+    // retiredAt = createdAt : inscription à un instant précis, pas une durée
+    // vécue — évite le rendu « rectangle infini vers la droite » quand il n'y
+    // a pas de retiredAt. Les items du cercle (ancien geste) continuent sans
+    // retiredAt et s'étalent naturellement sur la frise.
+    retiredAt: ms,
+    x: center.x - width / 2,
+    y: center.y - height / 2,
+    width, height,
+    lon,
+    radius,
+    text: '',
+    scope: 'timed',
+  };
+  state.scrapbook.push(item);
+  saveScrapbook();
+  openTimelineEditor(item, clientX, clientY);
+  // Pas de render complet : la frise suffit (le cercle est masqué). On
+  // appellera render() au commit pour tout re-synchroniser.
+  try { drawTimeline(); } catch (e) { showError('timeline error: ' + e.message); }
+}
+
+// Overlay DOM contenteditable positionné en absolute dans #timeline-container
+// à l'endroit du tap. Enter = commit, Escape = cancel (supprime l'item),
+// blur sur vide = cancel aussi. Resté minimal : textarea simple pour l'instant,
+// pas d'embeds médias ni redimensionnement — ces chantiers viendront quand
+// l'usage les appellera.
+function openTimelineEditor(item, clientX, clientY) {
+  const containerEl = document.getElementById('timeline-container');
+  if (!containerEl) return;
+  // Nettoie un éventuel éditeur précédent.
+  const prev = containerEl.querySelector('.tl-scrap-editor');
+  if (prev) prev.remove();
+  const rect = containerEl.getBoundingClientRect();
+  const relX = clientX - rect.left;
+  const relY = clientY - rect.top;
+  const editor = document.createElement('div');
+  editor.className = 'tl-scrap-editor';
+  editor.setAttribute('contenteditable', 'true');
+  editor.setAttribute('spellcheck', 'true');
+  editor.setAttribute('data-id', item.id);
+  editor.style.left = `${relX}px`;
+  editor.style.top  = `${relY}px`;
+  containerEl.appendChild(editor);
+  // Focus immédiat pour taper sans friction.
+  setTimeout(() => editor.focus(), 0);
+  let cancelled = false;
+  let done = false;
+  const commit = () => {
+    if (done) return;
+    done = true;
+    const text = editor.innerText.trim();
+    editor.remove();
+    if (!text || cancelled) {
+      // Pas de contenu ou annulation explicite : on supprime l'item posé.
+      state.scrapbook = state.scrapbook.filter(x => x.id !== item.id);
+    } else {
+      item.text = text;
+      item.updatedAt = Date.now();
+    }
+    saveScrapbook();
+    try { drawTimeline(); } catch (e) { showError('timeline error: ' + e.message); }
+  };
+  editor.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter' && !ev.shiftKey) {
+      ev.preventDefault();
+      commit();
+    } else if (ev.key === 'Escape') {
+      ev.preventDefault();
+      cancelled = true;
+      commit();
+    }
+  });
+  editor.addEventListener('blur', commit);
 }
 
 // Migration des items existants : calcule it.lon à partir de (x+w/2, y+h/2)
@@ -2743,6 +2936,8 @@ function wireControls() {
   wireDataExportImport();
   wireTimelineInteraction();
   wireTimelineHandle();
+  wireTimelineExpandCollapse();
+  wireTimelineScrapbookGestures();
   wireControlsSheet();
   wireGlyphWorkshop();
   wirePositionsModal();
