@@ -1003,7 +1003,29 @@ function fullTimelineRange() {
 }
 
 const TL_ZOOM_MIN = 1.0;
-const TL_ZOOM_MAX = 500;
+// Plafond très haut (10 millions) : à ce zoom, span visible ≈ 0.6s — bien
+// au-delà des besoins pratiques (minutes, voire secondes). "Zoom infini"
+// roadmap : si on l'atteint, revoir aussi la stratégie de rendu
+// (foreignObject des items potentiellement lourds). Perig 2026-10-20 :
+// buté à 100 000 "dans la région des heures" → montée à 10M.
+const TL_ZOOM_MAX = 10000000;
+
+// Zoom vertical : étire la frise sur l'axe des longitudes. 1 = 12 signes
+// visibles, 24 = un demi-signe visible. Pinch à composante verticale
+// dominante le pilote. vCenter = longitude au centre de la vue (0..360),
+// clampée pour que la fenêtre reste dans [0, 360]. (Perig 2026-10-19)
+const TL_V_ZOOM_MIN = 1.0;
+const TL_V_ZOOM_MAX = 24;
+
+function lonRange() {
+  const vZoom = Math.max(TL_V_ZOOM_MIN, Math.min(TL_V_ZOOM_MAX, state.timeline?.vZoom || 1));
+  const vCenterRaw = state.timeline?.vCenter != null ? state.timeline.vCenter : 180;
+  const span = 360 / vZoom;
+  const halfSpan = span / 2;
+  // Clamp pour que la fenêtre reste dans [0, 360] (pas de wrap en v1).
+  const vCenter = Math.max(halfSpan, Math.min(360 - halfSpan, vCenterRaw));
+  return { startLon: vCenter - halfSpan, endLon: vCenter + halfSpan, span };
+}
 
 // Fenêtre VISIBLE sur la frise, dérivée du zoom et du centre de pan. zoom=1 +
 // pas de pan → fenêtre de référence (fullTimelineRange). Pas de clamp : pan
@@ -1069,7 +1091,8 @@ function tlX(ms, range) {
   return TL_MARGIN_L + ((ms - startMs) / (endMs - startMs)) * TL_PLOT_W;
 }
 function tlY(lon) {
-  return TL_MARGIN_T + (normDeg(lon) / 360) * TL_PLOT_H;
+  const { startLon, span } = lonRange();
+  return TL_MARGIN_T + ((normDeg(lon) - startLon) / span) * TL_PLOT_H;
 }
 
 // Inverses de tlX/tlY : étant donné (svgX, svgY) dans la viewBox de la
@@ -1081,8 +1104,9 @@ function msFromTlX(svgX, range) {
   return startMs + t * (endMs - startMs);
 }
 function lonFromTlY(svgY) {
+  const { startLon, span } = lonRange();
   const t = (svgY - TL_MARGIN_T) / TL_PLOT_H;
-  return normDeg(t * 360);
+  return normDeg(startLon + t * span);
 }
 
 // Inverse de project(lon, ascLon, r) : étant donné (x, y) coords SVG dans
@@ -1100,23 +1124,40 @@ function drawTimeline() {
   svgEl.innerHTML = '';
   const range = timelineRange();
 
-  // Bandes signes alternées + glyphes à gauche + séparateurs horizontaux
+  // Bandes signes alternées + glyphes à gauche + séparateurs horizontaux.
+  // Avec zoom vertical, on ne rend que les signes dont la plage [i*30, (i+1)*30]
+  // chevauche la fenêtre visible [startLon, endLon]. Glyphe centré sur la
+  // part visible du signe (plus honnête quand on ne voit qu'un bout).
+  const lr = lonRange();
   for (let i = 0; i < 12; i++) {
-    const y = TL_MARGIN_T + i * TL_SIGN_H;
+    const signStartLon = i * 30;
+    const signEndLon   = (i + 1) * 30;
+    if (signEndLon <= lr.startLon || signStartLon >= lr.endLon) continue;
+    const visibleStart = Math.max(signStartLon, lr.startLon);
+    const visibleEnd   = Math.min(signEndLon,   lr.endLon);
+    const y1 = tlY(visibleStart);
+    const y2 = tlY(visibleEnd);
+    const h  = y2 - y1;
     if (i % 2 === 0) {
       svgEl.appendChild(svg('rect', {
-        x: TL_MARGIN_L, y, width: TL_PLOT_W, height: TL_SIGN_H,
+        x: TL_MARGIN_L, y: y1, width: TL_PLOT_W, height: h,
         class: 'tl-sign-band',
       }));
     }
+    // Glyphe au centre de la part visible, pour rester lisible même quand
+    // on zoome fort et qu'on ne voit qu'un fragment de signe.
+    const glyphLon = (visibleStart + visibleEnd) / 2;
     svgEl.appendChild(svg('text', {
-      x: TL_MARGIN_L - 10, y: y + TL_SIGN_H / 2,
+      x: TL_MARGIN_L - 10, y: tlY(glyphLon),
       class: 'tl-sign-glyph',
     }, SIGN_GLYPHS[i]));
-    svgEl.appendChild(svg('line', {
-      x1: TL_MARGIN_L, y1: y, x2: TL_MARGIN_L + TL_PLOT_W, y2: y,
-      class: 'tl-sign-sep',
-    }));
+    // Séparateur à la frontière haute du signe (si elle est visible)
+    if (signStartLon >= lr.startLon && signStartLon <= lr.endLon) {
+      svgEl.appendChild(svg('line', {
+        x1: TL_MARGIN_L, y1, x2: TL_MARGIN_L + TL_PLOT_W, y2: y1,
+        class: 'tl-sign-sep',
+      }));
+    }
   }
   svgEl.appendChild(svg('line', {
     x1: TL_MARGIN_L, y1: TL_MARGIN_T + TL_PLOT_H,
@@ -1124,16 +1165,27 @@ function drawTimeline() {
     class: 'tl-sign-sep',
   }));
 
-  // Graduation années : pas adaptatif (1 an / 5 ans / 10 ans)
+  // Graduation adaptative multi-strates : années / mois / jours / heures.
+  // Chaque strate s'active quand son pas en pixels dépasse un seuil de
+  // lisibilité. Un 1er janvier n'est tracé que par la strate année (évite
+  // les traits qui se superposent), un 1er du mois que par la strate mois,
+  // un 00h que par la strate jour. (Perig 2026-10-19 : "pas de lignes
+  // d'heures quand on regarde des années".)
+  const msPerPx = (range.endMs - range.startMs) / Math.max(1, TL_PLOT_W);
+
+  // Strate ANNÉES — pas de label adaptatif selon densité pixel
   const startYear = new Date(range.startMs).getUTCFullYear();
   const endYear   = new Date(range.endMs).getUTCFullYear();
-  const yearSpan = endYear - startYear;
-  const labelStep = yearSpan <= 20 ? 1 : (yearSpan <= 60 ? 5 : 10);
+  const yearStepPx = (365.25 * 86400000) / msPerPx;
+  const yearLabelStep = yearStepPx >= 50 ? 1
+                      : yearStepPx >= 10 ? 5
+                      : yearStepPx >= 5  ? 10
+                      : 50;
   for (let y = startYear; y <= endYear; y++) {
     const ms = Date.UTC(y, 0, 1);
     if (ms < range.startMs || ms > range.endMs) continue;
     const x = tlX(ms, range);
-    const isLabeled = (y % labelStep === 0);
+    const isLabeled = (y % yearLabelStep === 0);
     svgEl.appendChild(svg('line', {
       x1: x, y1: TL_MARGIN_T, x2: x, y2: TL_MARGIN_T + TL_PLOT_H,
       class: isLabeled ? 'tl-year-tick-strong' : 'tl-year-tick',
@@ -1142,6 +1194,82 @@ function drawTimeline() {
       svgEl.appendChild(svg('text', {
         x, y: TL_MARGIN_T + TL_PLOT_H + 20, class: 'tl-year-label',
       }, String(y)));
+    }
+  }
+
+  // Strate MOIS — s'active au-dessus de 15 px / mois ; label au-dessus de 40 px
+  const monthPx = (30 * 86400000) / msPerPx;
+  if (monthPx >= 15) {
+    const dStart = new Date(range.startMs);
+    let yr = dStart.getUTCFullYear();
+    let mo = dStart.getUTCMonth();
+    let ms = Date.UTC(yr, mo, 1);
+    const MONTH_LABELS = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Aoû','Sep','Oct','Nov','Déc'];
+    while (ms <= range.endMs) {
+      if (ms >= range.startMs && mo !== 0) {
+        // janvier déjà tracé par la strate année
+        const x = tlX(ms, range);
+        svgEl.appendChild(svg('line', {
+          x1: x, y1: TL_MARGIN_T, x2: x, y2: TL_MARGIN_T + TL_PLOT_H,
+          class: 'tl-month-tick',
+        }));
+        if (monthPx >= 40) {
+          svgEl.appendChild(svg('text', {
+            x, y: TL_MARGIN_T + TL_PLOT_H + 20, class: 'tl-month-label',
+          }, MONTH_LABELS[mo]));
+        }
+      }
+      mo += 1;
+      if (mo > 11) { mo = 0; yr += 1; }
+      ms = Date.UTC(yr, mo, 1);
+    }
+  }
+
+  // Strate JOURS — s'active au-dessus de 8 px / jour ; label au-dessus de 30 px
+  const dayPx = 86400000 / msPerPx;
+  if (dayPx >= 8) {
+    const dayMs = 86400000;
+    let ms = Math.ceil(range.startMs / dayMs) * dayMs;
+    while (ms <= range.endMs) {
+      const d = new Date(ms);
+      if (d.getUTCDate() !== 1) {
+        // 1er du mois déjà tracé par strate mois ou année
+        const x = tlX(ms, range);
+        svgEl.appendChild(svg('line', {
+          x1: x, y1: TL_MARGIN_T, x2: x, y2: TL_MARGIN_T + TL_PLOT_H,
+          class: 'tl-day-tick',
+        }));
+        if (dayPx >= 30) {
+          svgEl.appendChild(svg('text', {
+            x, y: TL_MARGIN_T + TL_PLOT_H + 20, class: 'tl-day-label',
+          }, String(d.getUTCDate())));
+        }
+      }
+      ms += dayMs;
+    }
+  }
+
+  // Strate HEURES — s'active au-dessus de 6 px / heure ; label au-dessus de 25 px
+  const hourPx = 3600000 / msPerPx;
+  if (hourPx >= 6) {
+    const hourMs = 3600000;
+    let ms = Math.ceil(range.startMs / hourMs) * hourMs;
+    while (ms <= range.endMs) {
+      const d = new Date(ms);
+      if (d.getUTCHours() !== 0) {
+        // 00h déjà tracé par strate jour
+        const x = tlX(ms, range);
+        svgEl.appendChild(svg('line', {
+          x1: x, y1: TL_MARGIN_T, x2: x, y2: TL_MARGIN_T + TL_PLOT_H,
+          class: 'tl-hour-tick',
+        }));
+        if (hourPx >= 25) {
+          svgEl.appendChild(svg('text', {
+            x, y: TL_MARGIN_T + TL_PLOT_H + 20, class: 'tl-hour-label',
+          }, String(d.getUTCHours()).padStart(2, '0') + 'h'));
+        }
+      }
+      ms += hourMs;
     }
   }
 
@@ -1156,15 +1284,24 @@ function drawTimeline() {
     if (c.points.length < 2) continue;
     let d = '';
     let prevLon = null;
+    let prevInside = false;
     for (const pt of c.points) {
+      const lonN = normDeg(pt.lon);
+      const inside = (lonN >= lr.startLon && lonN <= lr.endLon);
+      if (!inside) {
+        prevLon = pt.lon;
+        prevInside = false;
+        continue;
+      }
       const x = tlX(jdToMs(pt.jd), range);
       const y = tlY(pt.lon);
-      if (prevLon == null || Math.abs(pt.lon - prevLon) > 180) {
+      if (!prevInside || prevLon == null || Math.abs(pt.lon - prevLon) > 180) {
         d += `M${x.toFixed(1)},${y.toFixed(1)} `;
       } else {
         d += `L${x.toFixed(1)},${y.toFixed(1)} `;
       }
       prevLon = pt.lon;
+      prevInside = true;
     }
     svgEl.appendChild(svg('path', { d, class: `tl-curve tl-curve-${c.key}` }));
     const hit = svg('path', { d, class: 'tl-curve-hit' });
@@ -1213,35 +1350,83 @@ function drawTimeline() {
       if ((it.scope || 'timed') === 'natal') continue;
       if (it.lon == null || it.createdAt == null) continue;
       if (it.createdAt > range.endMs) continue;
+      // Skip si longitude hors fenêtre visible (zoom vertical).
+      const lonN = normDeg(it.lon);
+      if (lonN < lr.startLon || lonN > lr.endLon) continue;
       // Pas de filtre isItemVisibleAt ici : la frise montre la vie entière
       // de chaque item. Le curseur chartTime n'est qu'un œilleton
       // d'observation pour la roue, il ne masque pas les segments de la
-      // frise (sinon on perd l'item quand on remonte dans le passé).
-      const startMs = Math.max(it.createdAt, range.startMs);
-      // Fin du segment = durée d'existence réelle : retiredAt si l'item a
-      // été retiré, sinon maintenant (= bord droit de la frise). Le
-      // curseur chartTime ne tronque PAS le segment — il indique seulement
-      // d'où on observe, pas où l'item cesse d'exister.
-      let endSegMs = (it.retiredAt != null && it.retiredAt <= range.endMs)
-        ? it.retiredAt
-        : range.endMs;
-      if (endSegMs <= startMs) endSegMs = startMs + 1;
-      const x1 = tlX(startMs, range);
-      const x2 = tlX(endSegMs, range);
-      // Hauteur ≈ (item.width / radius) rad → deg, projeté sur Y. Rayon
-      // = distance au centre de la roue. Simplification : rayon moyen.
+      // frise.
+      // Items ponctuels (retiredAt == createdAt) : leur largeur temporelle
+      // naturelle est zéro → rect invisible. On leur donne une largeur
+      // visuelle en durée ABSOLUE (1 mois), centrée sur createdAt. Comme
+      // ça la largeur apparente grossit/rétrécit avec le zoom temporel —
+      // on peut zoomer H pour « plonger » dans un ponctuel. (Perig
+      // 2026-10-19 : "un rect, juste un, avec tout le contenu".)
+      const POINT_HALF_W_MS = 15 * 86400000; // 15 jours → rect ~ 1 mois
+      const isPoint = (it.retiredAt != null && it.retiredAt === it.createdAt);
+      let drawStartMs, drawEndMs;
+      if (isPoint) {
+        drawStartMs = it.createdAt - POINT_HALF_W_MS;
+        drawEndMs   = it.createdAt + POINT_HALF_W_MS;
+      } else {
+        drawStartMs = Math.max(it.createdAt, range.startMs);
+        drawEndMs = (it.retiredAt != null && it.retiredAt <= range.endMs)
+          ? it.retiredAt
+          : range.endMs;
+        if (drawEndMs <= drawStartMs) drawEndMs = drawStartMs + 1;
+      }
+      const x1 = tlX(drawStartMs, range);
+      const x2 = tlX(drawEndMs,   range);
+      // Hauteur = span lon de l'item (dérivé de width/radius) rapporté au
+      // span lon visible. Grossit naturellement avec le zoom vertical.
       const cx = it.x + it.width / 2;
       const cy = it.y + it.height / 2;
       const radius = Math.max(50, Math.hypot(cx, cy));
       const spanDeg = (it.width / radius) * (180 / Math.PI);
-      // Clamp pour rester lisible même pour des items ponctuels.
-      const h = Math.max(2.5, Math.min(TL_SIGN_H, (spanDeg / 360) * TL_PLOT_H));
+      const h = Math.max(2.5, (spanDeg / lr.span) * TL_PLOT_H);
       const w = Math.max(2, x2 - x1);
-      const y = tlY(it.lon) - h / 2;
-      svgEl.appendChild(svg('rect', {
+      const y = tlY(lonN) - h / 2;
+      const rect = svg('rect', {
         x: x1, y, width: w, height: h, rx: 1.5,
         class: 'tl-scrap-seg', 'data-id': it.id,
-      }));
+      });
+      // Clic sur le rect → rouvre l'éditeur sur cet item (re-édition).
+      // L'éditeur apparaît sous le point cliqué, pas au centre du rect,
+      // pour que le geste reste localisé.
+      rect.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openTimelineEditor(it, e.clientX, e.clientY);
+      });
+      svgEl.appendChild(rect);
+      // Contenu via foreignObject : titre (1ère ligne, plus gros) + corps.
+      // Pointer-events désactivés sur le contenu pour que le clic traverse
+      // vers le rect en-dessous (évite d'avoir à dupliquer le handler).
+      if (it.text && w > 10 && h > 10) {
+        const fo = svg('foreignObject', {
+          x: x1, y, width: w, height: h, 'data-id': it.id,
+        });
+        fo.classList.add('tl-scrap-fo');
+        const div = document.createElementNS('http://www.w3.org/1999/xhtml', 'div');
+        div.setAttribute('class', 'tl-scrap-content');
+        const lines = (it.text || '').split('\n');
+        const title = lines[0] || '';
+        const body  = lines.slice(1).join('\n').trim();
+        if (title) {
+          const t = document.createElementNS('http://www.w3.org/1999/xhtml', 'div');
+          t.setAttribute('class', 'tl-scrap-title');
+          t.textContent = title;
+          div.appendChild(t);
+        }
+        if (body) {
+          const b = document.createElementNS('http://www.w3.org/1999/xhtml', 'div');
+          b.setAttribute('class', 'tl-scrap-body');
+          b.textContent = body;
+          div.appendChild(b);
+        }
+        fo.appendChild(div);
+        svgEl.appendChild(fo);
+      }
     }
   }
 
@@ -1360,7 +1545,14 @@ function wireTimelineInteraction() {
   let panStartClientX = null;
   let panStartCenter  = null;
 
+  // Cloisonnement : pointer events pour desktop (mouse/pen) UNIQUEMENT.
+  // Pour les touches, on laisse les Touch Events gérer, parce que la
+  // coexistence pointerdown+setPointerCapture avec touchstart/touchmove à
+  // 2 doigts cause des interférences sur Chrome Android (le browser peut
+  // ne pas générer les touchevents attendus quand le 2e doigt arrive si le
+  // 1er est déjà "capturé"). Perig 2026-10-20 : "pinch capricieux H et V".
   svgEl.addEventListener('pointerdown', ev => {
+    if (ev.pointerType === 'touch') return;
     if (isPinching) return;
     ev.preventDefault();
     svgEl.setPointerCapture(ev.pointerId);
@@ -1371,6 +1563,7 @@ function wireTimelineInteraction() {
       : (range.startMs + range.endMs) / 2;
   });
   svgEl.addEventListener('pointermove', ev => {
+    if (ev.pointerType === 'touch') return;
     if (panStartClientX == null || isPinching) return;
     const range = timelineRange();
     const dxSvg = svgXFromClient(ev.clientX) - svgXFromClient(panStartClientX);
@@ -1401,61 +1594,276 @@ function wireTimelineInteraction() {
     scheduleTimelineRender();
   }, { passive: false });
 
-  // 2 doigts : zoom (écart entre doigts) + pan (milieu entre doigts),
-  // simultanés. On ancre la valeur temporelle qui était sous le milieu au
-  // début du geste : elle reste sous le milieu pendant tout le geste, que ce
-  // soit par pan ou par pinch.
-  let pinchStartDist   = null;
+  // 2 doigts : pinch décomposé en composantes horizontale et verticale,
+  // appliquées simultanément. |Δx| pilote le zoom temporel, |Δy| pilote le
+  // zoom vertical (dans la frise). Pan ancré sur les deux axes : le point
+  // temporel sous le milieu-X et la longitude sous le milieu-Y restent
+  // sous les mêmes coordonnées pendant tout le geste. (Perig 2026-10-19 :
+  // "pinch horizontal agrandit le temps, pinch vertical agrandit dedans".)
+  const svgYFromClient = (clientY) => {
+    const pt = svgEl.createSVGPoint();
+    pt.x = 0; pt.y = clientY;
+    return pt.matrixTransform(svgEl.getScreenCTM().inverse()).y;
+  };
+  const pickLon = (clientY) => {
+    const t01 = (svgYFromClient(clientY) - TL_MARGIN_T) / TL_PLOT_H;
+    const { startLon, span } = lonRange();
+    return normDeg(startLon + t01 * span);
+  };
+  let pinchStartDistX  = null;
+  let pinchStartDistY  = null;
   let pinchStartZoom   = null;
-  let pinchAnchorMs    = null;  // valeur temporelle sous le milieu, au start
+  let pinchStartVZoom  = null;
+  let pinchAnchorMs    = null;
+  let pinchAnchorLon   = null;
+  // Seuil d'activation d'axe : si l'écart initial des doigts sur un axe est
+  // en-dessous, cet axe est "mort" (ratio forcé à 1) — on ignore le zoom sur
+  // cet axe plutôt que de l'amplifier n'importe comment. Perig 2026-10-20 :
+  // le plancher précédent `max(30, dist)` sur distX ET sur pinchStartDistX
+  // créait une zone morte où rX restait à 30/30 = 1.00 permanent (pinch H
+  // bloqué quand les doigts commençaient serrés). On garde juste un plancher
+  // de 1 sur pinchStartDist pour éviter /0.
+  const PINCH_AXIS_DEADZONE = 20;
+  // IMPORTANT : les listeners touch sont attachés sur WINDOW (pas svgEl),
+  // parce que sur Chrome Android, un touchmove dont le target est un enfant
+  // SVG (ex: <rect> d'un item scrapbook ou d'un tick) ne bubble pas
+  // fiablement jusqu'au svgEl parent — on recevait moveN=1 alors que
+  // docMove=52 (symptôme capturé 2026-10-20 : "le pinch bloque dès que les
+  // doigts touchent un rect"). En écoutant sur window on reçoit tous les
+  // touchmove peu importe la target ; le filtre `pinchStartDistX != null`
+  // garantit qu'on ne réagit qu'aux gestes qui ont démarré sur svgEl via
+  // le touchstart ci-dessous (lui attaché à svgEl pour la détection initiale).
   svgEl.addEventListener('touchstart', ev => {
+    debugPinch.touches = ev.touches.length;
     if (ev.touches.length >= 2) {
       isPinching = true;
       panStartClientX = null;
       panStartCenter  = null;
       const t0 = ev.touches[0], t1 = ev.touches[1];
-      pinchStartDist = Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY) || 1;
-      pinchStartZoom = state.timeline?.zoom || 1;
-      pinchAnchorMs  = pickTime((t0.clientX + t1.clientX) / 2);
+      pinchStartDistX = Math.max(1, Math.abs(t0.clientX - t1.clientX));
+      pinchStartDistY = Math.max(1, Math.abs(t0.clientY - t1.clientY));
+      pinchStartZoom  = state.timeline?.zoom  || 1;
+      pinchStartVZoom = state.timeline?.vZoom || 1;
+      pinchAnchorMs   = pickTime((t0.clientX + t1.clientX) / 2);
+      pinchAnchorLon  = pickLon ((t0.clientY + t1.clientY) / 2);
+      debugPinch.startDistX = pinchStartDistX.toFixed(0);
+      debugPinch.startDistY = pinchStartDistY.toFixed(0);
+      debugPinch.lastEvent = 'start-pinch';
+      debugPinch.moveCount = 0;
+      debugPinch.t0x = t0.clientX.toFixed(0);
+      debugPinch.t0y = t0.clientY.toFixed(0);
+      debugPinch.t1x = t1.clientX.toFixed(0);
+      debugPinch.t1y = t1.clientY.toFixed(0);
+      updateDebugPinch();
+      ev.preventDefault();
+    } else if (ev.touches.length === 1 && !isPinching) {
+      // Pan 1 doigt via Touch Events (le pointerdown touch a été filtré pour
+      // ne pas interférer avec le pinch).
+      const t0 = ev.touches[0];
+      const range = timelineRange();
+      panStartClientX = t0.clientX;
+      panStartCenter  = state.timeline?.tlCenter != null
+        ? state.timeline.tlCenter
+        : (range.startMs + range.endMs) / 2;
+      debugPinch.lastEvent = 'start-pan';
+      updateDebugPinch();
       ev.preventDefault();
     }
   }, { passive: false });
-  svgEl.addEventListener('touchmove', ev => {
-    if (ev.touches.length >= 2 && pinchStartDist != null) {
+  // capture:true pour recevoir en phase de descente, AVANT qu'un éventuel
+  // handler intermédiaire (quelque part entre target et window) ne fasse
+  // stopPropagation. Perig 2026-10-20 : docMove=89 en capture document mais
+  // moveN=1 en bubble window — preuve qu'un stopPropagation existe quelque
+  // part invisible dans mes greps (lib externe ? browser interne ?).
+  window.addEventListener('touchmove', ev => {
+    debugPinch.winAll++;
+    debugPinch.winAllTouches = ev.touches.length;
+    // Filtre : ne traiter que les gestes qui ont démarré sur svgEl.
+    if (pinchStartDistX == null && panStartClientX == null) {
+      debugPinch.winRejected++;
+      debugPinch.lastReject = 'no-start';
+      updateDebugPinch();
+      return;
+    }
+    debugPinch.winPassed++;
+    debugPinch.touches = ev.touches.length;
+    if (ev.touches.length >= 2 && pinchStartDistX != null) {
       const t0 = ev.touches[0], t1 = ev.touches[1];
-      const dist = Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY);
-      const ratio = dist / pinchStartDist;
-      const nextZoom = Math.max(TL_ZOOM_MIN, Math.min(TL_ZOOM_MAX, pinchStartZoom * ratio));
+      const distX = Math.abs(t0.clientX - t1.clientX);
+      const distY = Math.abs(t0.clientY - t1.clientY);
+      // Axe mort si l'écart initial est trop petit (geste trop serré sur cet
+      // axe pour être lu fiablement). Évite l'amplification du bruit sans
+      // bloquer le pinch comme le faisait l'ancien plancher `max(30, dist)`.
+      const ratioX = pinchStartDistX < PINCH_AXIS_DEADZONE ? 1 : distX / pinchStartDistX;
+      const ratioY = pinchStartDistY < PINCH_AXIS_DEADZONE ? 1 : distY / pinchStartDistY;
+      const nextZoom  = Math.max(TL_ZOOM_MIN,   Math.min(TL_ZOOM_MAX,   pinchStartZoom  * ratioX));
+      const nextVZoom = Math.max(TL_V_ZOOM_MIN, Math.min(TL_V_ZOOM_MAX, pinchStartVZoom * ratioY));
       ensureTl();
-      state.timeline.zoom = nextZoom;
+      state.timeline.zoom  = nextZoom;
+      state.timeline.vZoom = nextVZoom;
 
-      // Pan ancré : on veut que pinchAnchorMs tombe sous le nouveau milieu.
-      // Calcule tlCenter tel que, dans la fenêtre résultante (de span fixe
-      // par le zoom), svgMidX corresponde exactement à pinchAnchorMs.
       const midX = (t0.clientX + t1.clientX) / 2;
-      const svgMidX = svgXFromClient(midX);
-      const t01 = (svgMidX - TL_MARGIN_L) / TL_PLOT_W;
-      const full = fullTimelineRange();
-      const visibleSpan = (full.endMs - full.startMs) / nextZoom;
-      // pinchAnchorMs = newStartMs + t01 * visibleSpan
-      const newStartMs = pinchAnchorMs - t01 * visibleSpan;
-      state.timeline.tlCenter = newStartMs + visibleSpan / 2;
+      const midY = (t0.clientY + t1.clientY) / 2;
 
+      // Pan ancré horizontal : pinchAnchorMs reste sous le milieu-X.
+      const svgMidX = svgXFromClient(midX);
+      const t01X = (svgMidX - TL_MARGIN_L) / TL_PLOT_W;
+      const full = fullTimelineRange();
+      const visibleTimeSpan = (full.endMs - full.startMs) / nextZoom;
+      const newStartMs = pinchAnchorMs - t01X * visibleTimeSpan;
+      state.timeline.tlCenter = newStartMs + visibleTimeSpan / 2;
+
+      // Pan ancré vertical : pinchAnchorLon reste sous le milieu-Y.
+      // Clamp vCenter pour que la fenêtre reste dans [0, 360].
+      const svgMidY = svgYFromClient(midY);
+      const t01Y = (svgMidY - TL_MARGIN_T) / TL_PLOT_H;
+      const visibleLonSpan = 360 / nextVZoom;
+      const halfSpan = visibleLonSpan / 2;
+      const newStartLon = pinchAnchorLon - t01Y * visibleLonSpan;
+      const newCenterLon = newStartLon + halfSpan;
+      state.timeline.vCenter = Math.max(halfSpan, Math.min(360 - halfSpan, newCenterLon));
+
+      debugPinch.distX = distX.toFixed(0);
+      debugPinch.distY = distY.toFixed(0);
+      debugPinch.ratioX = ratioX.toFixed(2);
+      debugPinch.ratioY = ratioY.toFixed(2);
+      debugPinch.lastEvent = 'move-pinch';
+      debugPinch.moveCount++;
+      debugPinch.t0x = t0.clientX.toFixed(0);
+      debugPinch.t0y = t0.clientY.toFixed(0);
+      debugPinch.t1x = t1.clientX.toFixed(0);
+      debugPinch.t1y = t1.clientY.toFixed(0);
+      updateDebugPinch();
+      scheduleTimelineRender();
+      ev.preventDefault();
+    } else if (ev.touches.length === 1 && panStartClientX != null && !isPinching) {
+      // Pan 1 doigt via Touch Events.
+      const t0 = ev.touches[0];
+      const range = timelineRange();
+      const dxSvg = svgXFromClient(t0.clientX) - svgXFromClient(panStartClientX);
+      const msPerSvg = (range.endMs - range.startMs) / TL_PLOT_W;
+      ensureTl();
+      state.timeline.tlCenter = panStartCenter - dxSvg * msPerSvg;
+      debugPinch.lastEvent = 'move-pan';
+      updateDebugPinch();
       scheduleTimelineRender();
       ev.preventDefault();
     }
-  }, { passive: false });
+  }, { passive: false, capture: true });
   const endPinch = ev => {
+    debugPinch.touches = ev.touches ? ev.touches.length : 0;
+    debugPinch.lastEvent = 'end (' + ev.type + ')';
+    updateDebugPinch();
     if (!ev.touches || ev.touches.length < 2) {
-      pinchStartDist = null;
-      pinchStartZoom = null;
-      pinchAnchorMs  = null;
-      // Léger délai pour que le pointerup final ne redéclenche pas un drag
-      setTimeout(() => { isPinching = false; }, 100);
+      pinchStartDistX  = null;
+      pinchStartDistY  = null;
+      pinchStartZoom   = null;
+      pinchStartVZoom  = null;
+      pinchAnchorMs    = null;
+      pinchAnchorLon   = null;
+      setTimeout(() => { isPinching = false; updateDebugPinch(); }, 100);
+    }
+    if (!ev.touches || ev.touches.length === 0) {
+      panStartClientX = null;
+      panStartCenter  = null;
     }
   };
-  svgEl.addEventListener('touchend',    endPinch);
-  svgEl.addEventListener('touchcancel', endPinch);
+  // touchend/cancel sur window pour symétrie avec touchmove (sinon le state
+  // reste bloqué si le doigt est relâché au-dessus d'un rect enfant).
+  window.addEventListener('touchend',    endPinch);
+  window.addEventListener('touchcancel', endPinch);
+
+  // Panneau debug : affiché quand ?debug=pinch dans l'URL. Permet à Perig
+  // de voir en live ce qui se passe quand "ça rate" sur mobile. Bouton 📋
+  // copie l'état courant dans le presse-papier (Perig fait son pinch, pose
+  // les doigts, tape COPY, colle les valeurs dans le chat).
+  const debugPinch = {
+    touches: 0, startDistX: '-', startDistY: '-',
+    distX: '-', distY: '-', ratioX: '-', ratioY: '-',
+    lastEvent: '-', moveCount: 0, docMoveCount: 0,
+    t0x: '-', t0y: '-', t1x: '-', t1y: '-',
+    docTarget: '-',
+    winAll: 0, winAllTouches: '-', winPassed: 0, winRejected: 0, lastReject: '-',
+  };
+  let debugTextEl = null;
+  const debugEnabled = /[?&]debug=pinch\b/.test(location.search);
+  if (debugEnabled) {
+    // Listener global en capture pour compter TOUS les touchmove reçus
+    // par le document, même ceux qui n'arrivent pas au svgEl. Permet de
+    // distinguer : "le browser n'émet qu'un touchmove" (docMove=1 aussi)
+    // vs "un autre handler les intercepte avant svgEl" (docMove > move).
+    document.addEventListener('touchmove', (ev) => {
+      debugPinch.docMoveCount++;
+      debugPinch.docTarget = ev.target
+        ? (ev.target.id || ev.target.tagName || '?')
+        : '?';
+      updateDebugPinch();
+    }, { capture: true, passive: true });
+  }
+  if (debugEnabled) {
+    const wrap = document.createElement('div');
+    wrap.id = 'debug-pinch';
+    debugTextEl = document.createElement('div');
+    debugTextEl.id = 'debug-pinch-text';
+    const copyBtn = document.createElement('button');
+    copyBtn.id = 'debug-pinch-copy';
+    copyBtn.textContent = '📋';
+    copyBtn.addEventListener('click', async () => {
+      const txt = debugTextEl.textContent;
+      let ok = false;
+      // Clipboard API : refuse en contexte non-sécurisé (HTTP via Tailscale).
+      if (navigator.clipboard && window.isSecureContext) {
+        try { await navigator.clipboard.writeText(txt); ok = true; }
+        catch (e) { ok = false; }
+      }
+      // Fallback : textarea invisible + execCommand('copy'). Deprecated mais
+      // marche sur HTTP, nécessite que l'élément source soit focusable et
+      // sélectionné dans la même tick synchrone que l'execCommand.
+      if (!ok) {
+        const ta = document.createElement('textarea');
+        ta.value = txt;
+        ta.style.position = 'fixed';
+        ta.style.top = '0'; ta.style.left = '0';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.focus(); ta.select();
+        try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+        document.body.removeChild(ta);
+      }
+      copyBtn.textContent = ok ? '✓' : '✗';
+      setTimeout(() => { copyBtn.textContent = '📋'; }, 1500);
+    });
+    wrap.appendChild(debugTextEl);
+    wrap.appendChild(copyBtn);
+    document.body.appendChild(wrap);
+  }
+  function updateDebugPinch() {
+    if (!debugTextEl) return;
+    const z  = state.timeline?.zoom  || 1;
+    const vz = state.timeline?.vZoom || 1;
+    const full = fullTimelineRange();
+    const msPerPx = (full.endMs - full.startMs) / z / TL_PLOT_W;
+    const dayPx  = (86400000 / msPerPx).toFixed(1);
+    const hourPx = (3600000  / msPerPx).toFixed(1);
+    // Format multi-ligne : chaque ligne tient sur un écran de téléphone.
+    debugTextEl.textContent =
+      'touches=' + debugPinch.touches
+      + ' isPinch=' + (isPinching ? 'Y' : 'N')
+      + ' panStart=' + (panStartClientX != null ? 'Y' : 'N')
+      + '\nevent=' + debugPinch.lastEvent + ' moveN=' + debugPinch.moveCount
+      + ' docMove=' + debugPinch.docMoveCount
+      + '\ndocTarget=' + debugPinch.docTarget
+      + '\nt0=(' + debugPinch.t0x + ',' + debugPinch.t0y + ')'
+      + ' t1=(' + debugPinch.t1x + ',' + debugPinch.t1y + ')'
+      + '\nzoom=' + z.toFixed(1) + ' vZoom=' + vz.toFixed(2)
+      + '\ndX0=' + debugPinch.startDistX + ' dY0=' + debugPinch.startDistY
+      + '\ndX=' + debugPinch.distX + ' dY=' + debugPinch.distY
+      + '\nrX=' + debugPinch.ratioX + ' rY=' + debugPinch.ratioY
+      + '\ndayPx=' + dayPx + ' hourPx=' + hourPx
+      + '\nwinAll=' + debugPinch.winAll + ' winT=' + debugPinch.winAllTouches
+      + ' pass=' + debugPinch.winPassed + ' rej=' + debugPinch.winRejected
+      + '\nlastRej=' + debugPinch.lastReject;
+  }
 }
 
 // Position de la poignée en CSS px dans son conteneur. Appelée depuis
@@ -1690,9 +2098,22 @@ function openTimelineEditor(item, clientX, clientY) {
   editor.setAttribute('data-id', item.id);
   editor.style.left = `${relX}px`;
   editor.style.top  = `${relY}px`;
+  // Pré-remplit le contenu si l'item existe déjà (re-édition via clic sur
+  // le rect). Pour un item fraîchement créé, item.text est '' donc rien.
+  if (item.text) editor.innerText = item.text;
   containerEl.appendChild(editor);
-  // Focus immédiat pour taper sans friction.
-  setTimeout(() => editor.focus(), 0);
+  // Focus immédiat pour taper sans friction. Place le curseur en fin de texte.
+  setTimeout(() => {
+    editor.focus();
+    if (item.text) {
+      const sel = window.getSelection();
+      const r = document.createRange();
+      r.selectNodeContents(editor);
+      r.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(r);
+    }
+  }, 0);
   let cancelled = false;
   let done = false;
   const commit = () => {
@@ -3407,6 +3828,8 @@ function wireTimeSlider() {
     if (state.timeline) {
       state.timeline.zoom = 1;
       state.timeline.tlCenter = null;
+      state.timeline.vZoom = 1;
+      state.timeline.vCenter = 180;
     }
     syncSlider();
     render().catch(e => showError('render error: ' + e.message));

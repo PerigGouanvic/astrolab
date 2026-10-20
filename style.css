@@ -1179,7 +1179,10 @@ body.timeline-fullscreen #timeline-container {
   top: var(--chart-header-h, 72px);
   left: 0;
   right: 0;
-  bottom: 0;
+  /* 32px = hauteur de la poignée du sheet collapsed (voir aside.sheet).
+     Sans ça, les labels de date (mois/jour/heure) en bas du SVG sont
+     recouverts par la poignée. Perig 2026-10-20. */
+  bottom: 32px;
   max-width: none;
   margin: 0;
   aspect-ratio: auto;
@@ -1246,15 +1249,60 @@ body.timeline-fullscreen .timeline-expand-btn {
 /* Grille années : traits verticaux fins pour chaque année, renforcés aux
    années labellées (pas 1 / 5 / 10 selon la largeur de la fenêtre). */
 .tl-year-tick {
-  stroke: var(--line-weak);
-  stroke-width: 0.3;
-  opacity: 0.4;
+  stroke: var(--line-medium);
+  stroke-width: 0.5;
+  opacity: 0.55;
 }
 
 .tl-year-tick-strong {
+  stroke: var(--line-strong);
+  stroke-width: 0.8;
+  opacity: 0.75;
+}
+
+/* Strates graduation adaptative : les ticks fines (mois/jour/heure) ont
+   toutes le même poids franc. Pas de hiérarchie descendante — chaque strate
+   n'apparaît qu'à son zoom, les chevauchements entre strates sont courts.
+   Seule l'année garde un poids plus marqué (repère principal). Perig
+   2026-10-20 : "pas à avoir une variation de graissage". */
+.tl-month-tick {
   stroke: var(--line-medium);
-  stroke-width: 0.5;
-  opacity: 0.6;
+  stroke-width: 0.4;
+  opacity: 0.5;
+}
+.tl-month-label {
+  fill: var(--line-strong);
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 500;
+  text-anchor: middle;
+  opacity: 0.95;
+}
+.tl-day-tick {
+  stroke: var(--line-medium);
+  stroke-width: 0.4;
+  opacity: 0.5;
+}
+.tl-day-label {
+  fill: var(--line-strong);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  text-anchor: middle;
+  opacity: 0.95;
+}
+.tl-hour-tick {
+  stroke: var(--line-medium);
+  stroke-width: 0.4;
+  opacity: 0.5;
+}
+.tl-hour-label {
+  fill: var(--line-strong);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  text-anchor: middle;
+  opacity: 0.95;
 }
 
 .tl-year-label {
@@ -1264,6 +1312,47 @@ body.timeline-fullscreen .timeline-expand-btn {
   font-weight: 700;
   text-anchor: middle;
   dominant-baseline: central;
+}
+
+/* Panneau debug pinch — activé via ?debug=pinch dans l'URL. Posé en bas
+   de l'écran, par-dessus tout, pour que Perig puisse voir l'état des
+   gestures en live sur mobile. Multi-ligne pour tenir sur un écran de
+   téléphone sans débordement horizontal. */
+#debug-pinch {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.9);
+  color: #0f0;
+  font-family: monospace;
+  font-size: 11px;
+  padding: 6px 8px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+#debug-pinch-text {
+  flex: 1 1 auto;
+  white-space: pre-line;
+  line-height: 1.3;
+  pointer-events: none;
+}
+#debug-pinch-copy {
+  flex: 0 0 auto;
+  background: #0f0;
+  color: #000;
+  border: none;
+  padding: 6px 10px;
+  font-family: monospace;
+  font-size: 14px;
+  font-weight: bold;
+  border-radius: 4px;
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+#debug-pinch-copy:active {
+  background: #0a0;
 }
 
 /* Courbes des 5 lentes. Palette alignée sur celle des aspects (par harmonique)
@@ -1360,9 +1449,51 @@ body.timeline-fullscreen .timeline-expand-btn {
   opacity: 0.55;
   stroke: var(--accent);
   stroke-width: 0.3;
+  cursor: pointer;
 }
 .tl-scrap-seg:hover {
   opacity: 0.85;
+}
+
+/* Contenu textuel du rect scrap sur la frise, injecté via foreignObject.
+   Pointer-events none sur le contenu : le clic traverse vers le rect
+   dessous (handler d'ouverture d'éditeur). Titre (1ère ligne) plus gros
+   et bold : devinable même quand le rect est petit, premier indice visuel.
+   (Perig 2026-10-19 : "le contenu pourra être deviné via le titre, plus
+   gros ; tout se fera par zoom".) */
+.tl-scrap-fo {
+  overflow: visible;
+  pointer-events: none;
+}
+.tl-scrap-content {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  padding: 2px 4px;
+  box-sizing: border-box;
+  font-family: Georgia, serif;
+  color: #222;
+  line-height: 1.1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.tl-scrap-title {
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1.1;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tl-scrap-body {
+  font-size: 10px;
+  line-height: 1.15;
+  overflow: hidden;
+  flex: 1 1 auto;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 @media (max-width: 600px) {
