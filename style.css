@@ -1131,6 +1131,52 @@ h1 {
   display: none;
 }
 
+/* Contrôle palier (P1 2026-10-22) : bascule discrète siècle↔sous-heure.
+   Posé en haut à gauche de la frise, parallèle visuel au bouton ⤢ en haut à
+   droite. Trois éléments compacts : − / label / +. */
+#timeline-palier {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid var(--line-weak);
+  border-radius: 6px;
+  padding: 2px;
+  z-index: 10;
+  font-family: var(--font-serif);
+  color: #3a3a3a;
+}
+.timeline-palier-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  font-size: 18px;
+  font-family: var(--font-serif);
+  color: #3a3a3a;
+  cursor: pointer;
+  line-height: 1;
+  touch-action: manipulation;
+  border-radius: 4px;
+}
+.timeline-palier-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+.timeline-palier-btn:active {
+  background: rgba(0, 0, 0, 0.12);
+}
+#timeline-palier-label {
+  min-width: 68px;
+  text-align: center;
+  font-size: 13px;
+  padding: 0 4px;
+  user-select: none;
+}
+
 /* Boutons ⤢ / ⤡ : bascule frise petite ↔ frise plein écran (consigne Perig
    2026-10-19). Position en haut à droite de la frise, discret mais toujours
    visible. Le second (⤡) n'apparaît qu'en mode agrandi. Hit area 44x44
@@ -1221,6 +1267,34 @@ body.timeline-fullscreen .timeline-expand-btn {
 
 /* Bandes signes alternées : fond très discret pour baliser 12 régions
    horizontales sans voler l'attention aux courbes. */
+/* Décoratifs : pointer-events none pour que le pan 1-doigt sur la frise
+   remonte toujours au <svg> parent, peu importe où le doigt se pose.
+   Les éléments vraiment interactifs (.tl-curve-hit, .tl-now-hit,
+   .tl-jalon-hit, et la poignée triangulaire HTML) gardent leur comportement
+   par défaut. Correctif P1 2026-10-22 : pan H perdait en efficacité au-dessus
+   des bandes signes et des ticks. */
+#timeline .tl-sign-band,
+#timeline .tl-sign-sep,
+#timeline .tl-v-fine,
+#timeline .tl-sign-glyph,
+#timeline .tl-year-tick,
+#timeline .tl-year-tick-strong,
+#timeline .tl-year-label,
+#timeline .tl-month-tick,
+#timeline .tl-month-label,
+#timeline .tl-day-tick,
+#timeline .tl-day-label,
+#timeline .tl-hour-tick,
+#timeline .tl-hour-label,
+#timeline .tl-curve,
+#timeline .tl-curve-glyph,
+#timeline .tl-now,
+#timeline .tl-cursor,
+#timeline .tl-jalon,
+#timeline .tl-jalon-label {
+  pointer-events: none;
+}
+
 .tl-sign-band {
   fill: var(--line-strong);
   opacity: 0.04;
@@ -1230,6 +1304,14 @@ body.timeline-fullscreen .timeline-expand-btn {
   stroke: var(--line-weak);
   stroke-width: 0.4;
   opacity: 0.5;
+}
+
+/* Lignes V fines : sous-graduation du palier courant pour donner un retour
+   visuel au pan V (sinon aux crans étroits on dérive sans rien voir bouger). */
+.tl-v-fine {
+  stroke: var(--line-weak);
+  stroke-width: 0.3;
+  opacity: 0.3;
 }
 
 /* Glyphes signes à gauche de la frise : prononcés et lisibles (consigne

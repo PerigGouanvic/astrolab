@@ -92,6 +92,11 @@
     <div id="timeline-container">
       <svg id="timeline" viewBox="0 0 800 520" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"></svg>
       <div id="timeline-handle" role="slider" aria-label="Curseur temporel — glisser pour changer de moment"></div>
+      <div id="timeline-palier" aria-label="Palier temporel">
+        <button type="button" id="timeline-palier-prev" class="timeline-palier-btn" aria-label="Palier plus large" title="Palier plus large (dézoomer)">−</button>
+        <span id="timeline-palier-label" aria-live="polite">jour</span>
+        <button type="button" id="timeline-palier-next" class="timeline-palier-btn" aria-label="Palier plus fin" title="Palier plus fin (zoomer)">+</button>
+      </div>
       <button type="button" id="timeline-expand" class="timeline-expand-btn" aria-label="Agrandir la frise en plein écran" title="Agrandir la frise">⤢</button>
       <button type="button" id="timeline-collapse" class="timeline-collapse-btn" aria-label="Réduire la frise à sa taille normale" title="Réduire la frise" hidden>⤡</button>
     </div>

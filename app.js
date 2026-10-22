@@ -990,6 +990,33 @@ function jdToMs(jd) { return (jd - 2440587.5) * 86400000; }
 const TL_PAST_YEARS = 50;
 const TL_FUTURE_YEARS = 150;
 const MS_PER_YEAR = 365.25 * 86400000;
+
+// P1 (2026-10-22) : zoom frise par paliers temporels DISCRETS, pas pinch
+// continu. Chaque palier porte un span H (fenêtre temporelle visible), un
+// span V (ouverture en degrés écliptiques), et un ancrage V ('sun' = position
+// Soleil au tlCenter, 'asc' = Ascendant du lieu natal au tlCenter).
+//
+// Isomorphie H↔V (fiche project_zoom_continu_apories.md) : plus on zoome dans
+// le temps, moins on a besoin des 360° du ciel, plus on a besoin d'espace par
+// degré pour composer. Au palier `subhour` on étale 2° sur toute la hauteur
+// pour poser plusieurs scraps dans un instant précis (P2+).
+const TL_PALIERS = ['century','decade','year','month','day','hour','subhour'];
+const TL_PALIER_SPEC = {
+  century: { spanMs: 100 * MS_PER_YEAR, lonSpan: 360, vAnchor: 'sun', label: 'siècle'    },
+  decade:  { spanMs:  10 * MS_PER_YEAR, lonSpan: 360, vAnchor: 'sun', label: 'décennie'  },
+  year:    { spanMs:   1 * MS_PER_YEAR, lonSpan: 360, vAnchor: 'sun', label: 'année'     },
+  month:   { spanMs:  30 *   86400000, lonSpan: 120, vAnchor: 'sun', label: 'mois'      },
+  day:     { spanMs:        86400000, lonSpan:  30, vAnchor: 'asc', label: 'jour'      },
+  hour:    { spanMs:         3600000, lonSpan:  10, vAnchor: 'asc', label: 'heure'     },
+  subhour: { spanMs:          600000, lonSpan:   2, vAnchor: 'asc', label: 'sous-heure'},
+};
+
+// P1 : objets scrap + pinch désactivés. Le code reste intact pour P2+.
+// (plan v1 : « grille vivante SANS objets », pinch continu rejeté).
+const TL_SHOW_SCRAPS = false;
+const PINCH_H_ENABLED = false;
+const PINCH_V_ENABLED = false;
+
 function fullTimelineRange() {
   const u = nativeToUt(currentNative());
   const natalMs = Date.UTC(
@@ -1017,37 +1044,114 @@ const TL_ZOOM_MAX = 10000000;
 const TL_V_ZOOM_MIN = 1.0;
 const TL_V_ZOOM_MAX = 24;
 
+// Centre temporel courant (ms). Priorité : pan explicite > curseur > now.
+function timelineCenter() {
+  return state.timeline?.tlCenter != null
+    ? state.timeline.tlCenter
+    : (state.chartTime != null ? state.chartTime : Date.now());
+}
+
+// Palier courant (défaut 'day' au boot — plus proche du geste de dépôt).
+function currentPalier() {
+  const p = state.timeline?.palier;
+  return TL_PALIER_SPEC[p] ? p : 'day';
+}
+
+// Centre V par défaut selon ancrage du palier : Soleil (paliers larges) ou
+// Ascendant du lieu natal (paliers courts, quand les maisons sont pertinentes).
+// Fallback silencieux à 180° si swe pas prêt.
+function computeDefaultVCenter(ms, palier) {
+  const spec = TL_PALIER_SPEC[palier] || TL_PALIER_SPEC.day;
+  try {
+    const jd = msToJd(ms);
+    if (spec.vAnchor === 'sun') {
+      // swisseph SE_SUN = 0.
+      return normDeg(swe.calc(jd, 0).longitude);
+    } else {
+      const n = currentNative();
+      const lat = (n && n.latitude != null) ? n.latitude : MONTREAL.latitude;
+      const lon = (n && n.longitude != null) ? n.longitude : MONTREAL.longitude;
+      return normDeg(swe.houses(jd, lat, lon, sweMod.HouseSystem.Placidus).ascendant);
+    }
+  } catch (e) {
+    return 180;
+  }
+}
+
+// Ouverture V dérivée du palier. vCenter calé automatiquement sur
+// Soleil/Ascendant (voir vAnchor) ; clamp dans [halfSpan, 360-halfSpan] pour
+// éviter le wrap (traité plus tard si l'usage le demande).
 function lonRange() {
-  const vZoom = Math.max(TL_V_ZOOM_MIN, Math.min(TL_V_ZOOM_MAX, state.timeline?.vZoom || 1));
-  const vCenterRaw = state.timeline?.vCenter != null ? state.timeline.vCenter : 180;
-  const span = 360 / vZoom;
+  const palier = currentPalier();
+  const spec   = TL_PALIER_SPEC[palier];
+  const span   = spec.lonSpan;
   const halfSpan = span / 2;
-  // Clamp pour que la fenêtre reste dans [0, 360] (pas de wrap en v1).
+  const vCenterRaw = (state.timeline && state.timeline.vCenter != null)
+    ? state.timeline.vCenter
+    : computeDefaultVCenter(timelineCenter(), palier);
   const vCenter = Math.max(halfSpan, Math.min(360 - halfSpan, vCenterRaw));
   return { startLon: vCenter - halfSpan, endLon: vCenter + halfSpan, span };
 }
 
-// Fenêtre VISIBLE sur la frise, dérivée du zoom et du centre de pan. zoom=1 +
-// pas de pan → fenêtre de référence (fullTimelineRange). Pas de clamp : pan
-// et zoom peuvent amener la fenêtre où le natif veut, y compris hors de la
-// fenêtre sondée (courbes finissent au bord des bornes de sampling).
+// Fenêtre H VISIBLE, dérivée du palier (span fixe par palier) et du centre
+// temporel. Pas de clamp — pan libre dans les deux sens.
 function timelineRange() {
-  const full = fullTimelineRange();
-  const zoom = Math.max(TL_ZOOM_MIN, Math.min(TL_ZOOM_MAX, state.timeline?.zoom || 1));
-  const fullSpan = full.endMs - full.startMs;
-  const visibleSpan = fullSpan / zoom;
-  // Centre : tlCenter (posé par pan) sinon chartTime sinon maintenant. Au
-  // chargement initial (zoom=1, pas de pan, pas de chartTime), on vise
-  // "maintenant" pour que l'utilisateur voie son présent au centre plutôt
-  // que l'anchorage à mi-vie-de-référence.
-  const center = state.timeline?.tlCenter != null
-    ? state.timeline.tlCenter
-    : (state.chartTime != null ? state.chartTime : Date.now());
-
+  const palier = currentPalier();
+  const spec   = TL_PALIER_SPEC[palier];
+  const visibleSpan = spec.spanMs;
+  const center = timelineCenter();
   const startMs = center - visibleSpan / 2;
   const endMs   = center + visibleSpan / 2;
-
   return { startMs, endMs, startJd: msToJd(startMs), endJd: msToJd(endMs) };
+}
+
+// Bascule palier (−1 = dézoomer vers plus large ; +1 = zoomer plus fin).
+// Recalcule vCenter sur le nouveau palier (le centre H reste, le centre V
+// se cale sur l'ancrage du palier cible). Rafraîchit l'UI.
+function setPalier(delta) {
+  if (!state.timeline) state.timeline = { palier: 'day' };
+  const cur = currentPalier();
+  const i = TL_PALIERS.indexOf(cur);
+  const j = Math.max(0, Math.min(TL_PALIERS.length - 1, i + delta));
+  if (j === i) return;
+  const next = TL_PALIERS[j];
+  state.timeline.palier = next;
+  // vCenter recalculé automatiquement par lonRange() au prochain draw.
+  // On l'efface explicitement pour éviter une persistance d'un vCenter
+  // posé à un ancien palier (ex. ASC à un palier court → Soleil à un palier large).
+  state.timeline.vCenter = null;
+  updatePalierLabel();
+  flashPalierTransition();
+  try { drawTimeline(); } catch (e) { showError('timeline error: ' + e.message); }
+}
+
+// Feedback de transition (P1 2026-10-22) : abandon du zoom fluide — à la
+// place, un flash court double-canal signale "la frise a changé d'ontologie,
+// pas juste de valeur". A = flash du fond timeline. C = pulse du label palier.
+// Les classes CSS portent les transitions ; on les pose, on les retire après
+// la durée de l'anim.
+function flashPalierTransition() {
+  const tl = document.getElementById('timeline');
+  const lbl = document.getElementById('timeline-palier-label');
+  if (tl) {
+    tl.classList.remove('tl-flash');
+    void tl.offsetWidth; // force reflow pour redémarrer l'anim si rapide
+    tl.classList.add('tl-flash');
+    setTimeout(() => tl.classList.remove('tl-flash'), 180);
+  }
+  if (lbl) {
+    lbl.classList.remove('tl-palier-pulse');
+    void lbl.offsetWidth;
+    lbl.classList.add('tl-palier-pulse');
+    setTimeout(() => lbl.classList.remove('tl-palier-pulse'), 420);
+  }
+}
+
+function updatePalierLabel() {
+  const el = document.getElementById('timeline-palier-label');
+  if (!el) return;
+  const spec = TL_PALIER_SPEC[currentPalier()];
+  el.textContent = spec ? spec.label : '';
 }
 
 // Pas de 14 jours : capture les zigzags de rétrogradation des lentes
@@ -1118,6 +1222,179 @@ function xyToLon(x, y, ascLon) {
   return normDeg(rel + ascLon);
 }
 
+// Lignes horizontales V densifiées par palier (P1 patch 3 2026-10-22).
+// Isomorphie V : plus la fenêtre V est étroite (paliers courts), plus on
+// densifie les subdivisions pour que le pan V donne un retour visuel immédiat.
+// À subhour (lonSpan 2°), il faut des lignes tous les 10' d'arc sinon on a
+// l'impression de ne pas bouger.
+function drawVerticalGrid(svgEl, lr, palier) {
+  const xL = TL_MARGIN_L;
+  const xR = TL_MARGIN_L + TL_PLOT_W;
+  const mkLine = (lon, cls) => {
+    if (lon < lr.startLon || lon > lr.endLon) return;
+    const y = tlY(lon);
+    svgEl.appendChild(svg('line', { x1: xL, y1: y, x2: xR, y2: y, class: cls }));
+  };
+  // Degrés : pour chaque entier k° dans la fenêtre, tracer une ligne.
+  // Classe 'strong' aux multiples de la cadence 'majeure'.
+  const drawDegreeLines = (minor, major) => {
+    const start = Math.ceil(lr.startLon / minor) * minor;
+    for (let d = start; d <= lr.endLon + 1e-6; d += minor) {
+      const isMajor = (Math.abs(d % major) < 1e-6 || Math.abs(major - (d % major)) < 1e-6);
+      mkLine(d, isMajor ? 'tl-sign-sep' : 'tl-v-fine');
+    }
+  };
+  if (palier === 'century' || palier === 'decade' || palier === 'year') {
+    // Signes (30°) déjà tracés par la boucle principale. Ajout demi-signes (15°).
+    for (let i = 0; i < 24; i++) mkLine(i * 15, i % 2 === 0 ? 'tl-sign-sep' : 'tl-v-fine');
+    return;
+  }
+  if (palier === 'month') {
+    // Décans (10°) + signes (30°) forts.
+    drawDegreeLines(10, 30);
+    return;
+  }
+  if (palier === 'day') {
+    // Chaque degré, forts tous les 5°.
+    drawDegreeLines(1, 5);
+    return;
+  }
+  if (palier === 'hour') {
+    // Chaque degré fort + sous-divisions à 10' (1/6 degré).
+    drawDegreeLines(1/6, 1);
+    return;
+  }
+  if (palier === 'subhour') {
+    // Chaque 10' d'arc + sous-divisions à 2' (1/30 degré).
+    drawDegreeLines(1/30, 1/6);
+    return;
+  }
+}
+
+// Graduation par palier : trait courant (fin, non labellé) + trait parent
+// (épais, labellé). Un cran "parent" rend le repère englobant lisible : au
+// palier `day`, par ex., chaque heure est tracée et minuit porte la date.
+const MONTH_LABELS_SHORT = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Aoû','Sep','Oct','Nov','Déc'];
+function drawPalierGrid(svgEl, range, palier) {
+  const yTop = TL_MARGIN_T;
+  const yBot = TL_MARGIN_T + TL_PLOT_H;
+  const yLabel = yBot + 20;
+  const mkTick = (ms, cls) => {
+    const x = tlX(ms, range);
+    svgEl.appendChild(svg('line', { x1: x, y1: yTop, x2: x, y2: yBot, class: cls }));
+    return x;
+  };
+  const mkLabel = (x, text, cls) => {
+    svgEl.appendChild(svg('text', { x, y: yLabel, class: cls }, text));
+  };
+
+  if (palier === 'century') {
+    // Trait fin tous les 10 ans, trait fort tous les 100 ans (siècle).
+    const sYear = Math.floor(new Date(range.startMs).getUTCFullYear() / 10) * 10;
+    const eYear = new Date(range.endMs).getUTCFullYear();
+    for (let y = sYear; y <= eYear; y++) {
+      if (y % 10 !== 0) continue;
+      const ms = Date.UTC(y, 0, 1);
+      if (ms < range.startMs || ms > range.endMs) continue;
+      const isCent = (y % 100 === 0);
+      const x = mkTick(ms, isCent ? 'tl-year-tick-strong' : 'tl-year-tick');
+      if (isCent) mkLabel(x, String(y), 'tl-year-label');
+    }
+    return;
+  }
+
+  if (palier === 'decade') {
+    // Trait fin chaque année, trait fort toutes les décennies.
+    const sYear = new Date(range.startMs).getUTCFullYear();
+    const eYear = new Date(range.endMs).getUTCFullYear();
+    for (let y = sYear; y <= eYear; y++) {
+      const ms = Date.UTC(y, 0, 1);
+      if (ms < range.startMs || ms > range.endMs) continue;
+      const isDec = (y % 10 === 0);
+      const x = mkTick(ms, isDec ? 'tl-year-tick-strong' : 'tl-year-tick');
+      if (isDec) mkLabel(x, String(y), 'tl-year-label');
+    }
+    return;
+  }
+
+  if (palier === 'year') {
+    // Trait fin chaque mois, trait fort au 1er janvier (année).
+    const dStart = new Date(range.startMs);
+    let yr = dStart.getUTCFullYear(), mo = dStart.getUTCMonth();
+    let ms = Date.UTC(yr, mo, 1);
+    while (ms <= range.endMs) {
+      if (ms >= range.startMs) {
+        const isJan = (mo === 0);
+        const x = mkTick(ms, isJan ? 'tl-year-tick-strong' : 'tl-month-tick');
+        if (isJan) mkLabel(x, String(yr), 'tl-year-label');
+        else       mkLabel(x, MONTH_LABELS_SHORT[mo], 'tl-month-label');
+      }
+      mo += 1; if (mo > 11) { mo = 0; yr += 1; }
+      ms = Date.UTC(yr, mo, 1);
+    }
+    return;
+  }
+
+  if (palier === 'month') {
+    // Trait fin chaque jour, trait fort au 1er du mois.
+    const dayMs = 86400000;
+    let ms = Math.ceil(range.startMs / dayMs) * dayMs;
+    while (ms <= range.endMs) {
+      const d = new Date(ms);
+      const isFirst = (d.getUTCDate() === 1);
+      const x = mkTick(ms, isFirst ? 'tl-year-tick-strong' : 'tl-day-tick');
+      if (isFirst) mkLabel(x, MONTH_LABELS_SHORT[d.getUTCMonth()] + ' ' + d.getUTCFullYear(), 'tl-month-label');
+      else if (d.getUTCDate() % 5 === 0) mkLabel(x, String(d.getUTCDate()), 'tl-day-label');
+      ms += dayMs;
+    }
+    return;
+  }
+
+  if (palier === 'day') {
+    // Trait fin chaque heure, trait fort à minuit (jour).
+    const hourMs = 3600000;
+    let ms = Math.ceil(range.startMs / hourMs) * hourMs;
+    while (ms <= range.endMs) {
+      const d = new Date(ms);
+      const isMidnight = (d.getUTCHours() === 0);
+      const x = mkTick(ms, isMidnight ? 'tl-year-tick-strong' : 'tl-hour-tick');
+      if (isMidnight) mkLabel(x, d.getUTCDate() + ' ' + MONTH_LABELS_SHORT[d.getUTCMonth()], 'tl-month-label');
+      else if (d.getUTCHours() % 3 === 0) mkLabel(x, String(d.getUTCHours()).padStart(2,'0') + 'h', 'tl-hour-label');
+      ms += hourMs;
+    }
+    return;
+  }
+
+  if (palier === 'hour') {
+    // Trait fin tous les 10 min, trait fort chaque heure pile.
+    const stepMs = 10 * 60000;
+    let ms = Math.ceil(range.startMs / stepMs) * stepMs;
+    while (ms <= range.endMs) {
+      const d = new Date(ms);
+      const isHour = (d.getUTCMinutes() === 0);
+      const x = mkTick(ms, isHour ? 'tl-year-tick-strong' : 'tl-hour-tick');
+      if (isHour) mkLabel(x, String(d.getUTCHours()).padStart(2,'0') + 'h', 'tl-hour-label');
+      else mkLabel(x, ':' + String(d.getUTCMinutes()).padStart(2,'0'), 'tl-day-label');
+      ms += stepMs;
+    }
+    return;
+  }
+
+  if (palier === 'subhour') {
+    // Trait fin chaque minute, trait fort toutes les 5 min.
+    const stepMs = 60000;
+    let ms = Math.ceil(range.startMs / stepMs) * stepMs;
+    while (ms <= range.endMs) {
+      const d = new Date(ms);
+      const isFive = (d.getUTCMinutes() % 5 === 0);
+      const x = mkTick(ms, isFive ? 'tl-year-tick-strong' : 'tl-hour-tick');
+      if (isFive) mkLabel(x, String(d.getUTCHours()).padStart(2,'0') + 'h' + String(d.getUTCMinutes()).padStart(2,'0'), 'tl-hour-label');
+      ms += stepMs;
+    }
+    return;
+  }
+}
+
 function drawTimeline() {
   const svgEl = document.getElementById('timeline');
   if (!svgEl) return;
@@ -1165,113 +1442,16 @@ function drawTimeline() {
     class: 'tl-sign-sep',
   }));
 
-  // Graduation adaptative multi-strates : années / mois / jours / heures.
-  // Chaque strate s'active quand son pas en pixels dépasse un seuil de
-  // lisibilité. Un 1er janvier n'est tracé que par la strate année (évite
-  // les traits qui se superposent), un 1er du mois que par la strate mois,
-  // un 00h que par la strate jour. (Perig 2026-10-19 : "pas de lignes
-  // d'heures quand on regarde des années".)
-  const msPerPx = (range.endMs - range.startMs) / Math.max(1, TL_PLOT_W);
+  // Grille V densifiée selon palier — rend le pan V perceptible aux crans
+  // étroits (hour/subhour) où attendre le prochain signe reviendrait à
+  // paner sans aucun retour visuel.
+  drawVerticalGrid(svgEl, lr, currentPalier());
 
-  // Strate ANNÉES — pas de label adaptatif selon densité pixel
-  const startYear = new Date(range.startMs).getUTCFullYear();
-  const endYear   = new Date(range.endMs).getUTCFullYear();
-  const yearStepPx = (365.25 * 86400000) / msPerPx;
-  const yearLabelStep = yearStepPx >= 50 ? 1
-                      : yearStepPx >= 10 ? 5
-                      : yearStepPx >= 5  ? 10
-                      : 50;
-  for (let y = startYear; y <= endYear; y++) {
-    const ms = Date.UTC(y, 0, 1);
-    if (ms < range.startMs || ms > range.endMs) continue;
-    const x = tlX(ms, range);
-    const isLabeled = (y % yearLabelStep === 0);
-    svgEl.appendChild(svg('line', {
-      x1: x, y1: TL_MARGIN_T, x2: x, y2: TL_MARGIN_T + TL_PLOT_H,
-      class: isLabeled ? 'tl-year-tick-strong' : 'tl-year-tick',
-    }));
-    if (isLabeled) {
-      svgEl.appendChild(svg('text', {
-        x, y: TL_MARGIN_T + TL_PLOT_H + 20, class: 'tl-year-label',
-      }, String(y)));
-    }
-  }
-
-  // Strate MOIS — s'active au-dessus de 15 px / mois ; label au-dessus de 40 px
-  const monthPx = (30 * 86400000) / msPerPx;
-  if (monthPx >= 15) {
-    const dStart = new Date(range.startMs);
-    let yr = dStart.getUTCFullYear();
-    let mo = dStart.getUTCMonth();
-    let ms = Date.UTC(yr, mo, 1);
-    const MONTH_LABELS = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Aoû','Sep','Oct','Nov','Déc'];
-    while (ms <= range.endMs) {
-      if (ms >= range.startMs && mo !== 0) {
-        // janvier déjà tracé par la strate année
-        const x = tlX(ms, range);
-        svgEl.appendChild(svg('line', {
-          x1: x, y1: TL_MARGIN_T, x2: x, y2: TL_MARGIN_T + TL_PLOT_H,
-          class: 'tl-month-tick',
-        }));
-        if (monthPx >= 40) {
-          svgEl.appendChild(svg('text', {
-            x, y: TL_MARGIN_T + TL_PLOT_H + 20, class: 'tl-month-label',
-          }, MONTH_LABELS[mo]));
-        }
-      }
-      mo += 1;
-      if (mo > 11) { mo = 0; yr += 1; }
-      ms = Date.UTC(yr, mo, 1);
-    }
-  }
-
-  // Strate JOURS — s'active au-dessus de 8 px / jour ; label au-dessus de 30 px
-  const dayPx = 86400000 / msPerPx;
-  if (dayPx >= 8) {
-    const dayMs = 86400000;
-    let ms = Math.ceil(range.startMs / dayMs) * dayMs;
-    while (ms <= range.endMs) {
-      const d = new Date(ms);
-      if (d.getUTCDate() !== 1) {
-        // 1er du mois déjà tracé par strate mois ou année
-        const x = tlX(ms, range);
-        svgEl.appendChild(svg('line', {
-          x1: x, y1: TL_MARGIN_T, x2: x, y2: TL_MARGIN_T + TL_PLOT_H,
-          class: 'tl-day-tick',
-        }));
-        if (dayPx >= 30) {
-          svgEl.appendChild(svg('text', {
-            x, y: TL_MARGIN_T + TL_PLOT_H + 20, class: 'tl-day-label',
-          }, String(d.getUTCDate())));
-        }
-      }
-      ms += dayMs;
-    }
-  }
-
-  // Strate HEURES — s'active au-dessus de 6 px / heure ; label au-dessus de 25 px
-  const hourPx = 3600000 / msPerPx;
-  if (hourPx >= 6) {
-    const hourMs = 3600000;
-    let ms = Math.ceil(range.startMs / hourMs) * hourMs;
-    while (ms <= range.endMs) {
-      const d = new Date(ms);
-      if (d.getUTCHours() !== 0) {
-        // 00h déjà tracé par strate jour
-        const x = tlX(ms, range);
-        svgEl.appendChild(svg('line', {
-          x1: x, y1: TL_MARGIN_T, x2: x, y2: TL_MARGIN_T + TL_PLOT_H,
-          class: 'tl-hour-tick',
-        }));
-        if (hourPx >= 25) {
-          svgEl.appendChild(svg('text', {
-            x, y: TL_MARGIN_T + TL_PLOT_H + 20, class: 'tl-hour-label',
-          }, String(d.getUTCHours()).padStart(2, '0') + 'h'));
-        }
-      }
-      ms += hourMs;
-    }
-  }
+  // Graduation H par palier — palier courant + 1 cran parent (plan v1 P1).
+  // Chaque palier a sa propre règle : traits fins au cran courant, traits
+  // épais + label au cran parent. Pas d'empilement multi-strates : la
+  // graduation varie ontologiquement avec le palier, pas en continu.
+  drawPalierGrid(svgEl, range, currentPalier());
 
   // Courbes des planètes lentes. Path coupé à chaque saut > 180°
   // (traversée 0°/360°) pour éviter les cordes qui traversent le plot.
@@ -1342,7 +1522,7 @@ function drawTimeline() {
   // roue (approximation : width → arc écliptique au rayon moyen → degrés
   // de longitude span). En attendant le zoom qui transformera chaque rect
   // en <foreignObject> miniature avec le contenu réel manipulable.
-  if (state.layers.scrapbook) {
+  if (TL_SHOW_SCRAPS && state.layers.scrapbook) {
     for (const it of state.scrapbook) {
       // Items scope='natal' sont hors frise : lieu permanent du natal,
       // pas de dimension temporelle à afficher. Les items legacy sans scope
@@ -1525,6 +1705,11 @@ function wireTimelineInteraction() {
     pt.x = clientX; pt.y = 0;
     return pt.matrixTransform(svgEl.getScreenCTM().inverse()).x;
   };
+  const svgYFromClient = (clientY) => {
+    const pt = svgEl.createSVGPoint();
+    pt.x = 0; pt.y = clientY;
+    return pt.matrixTransform(svgEl.getScreenCTM().inverse()).y;
+  };
   const pickTime = (clientX) => {
     const range = timelineRange();
     const t01 = (svgXFromClient(clientX) - TL_MARGIN_L) / TL_PLOT_W;
@@ -1539,11 +1724,15 @@ function wireTimelineInteraction() {
       try { drawTimeline(); } catch (e) { showError('timeline error: ' + e.message); }
     });
   };
-  const ensureTl = () => { if (!state.timeline) state.timeline = { zoom: 1 }; };
+  const ensureTl = () => { if (!state.timeline) state.timeline = { palier: 'day' }; };
 
   // Pan : 1 doigt / clic gauche / clic milieu — tous font pareil (pan).
+  // Bi-axe (P1 2026-10-22) : glissement en X déplace tlCenter, glissement en Y
+  // déplace vCenter. Un seul geste, intuition « carte à défiler ».
   let panStartClientX = null;
+  let panStartClientY = null;
   let panStartCenter  = null;
+  let panStartVCenter = null;
 
   // Cloisonnement : pointer events pour desktop (mouse/pen) UNIQUEMENT.
   // Pour les touches, on laisse les Touch Events gérer, parce que la
@@ -1557,24 +1746,35 @@ function wireTimelineInteraction() {
     ev.preventDefault();
     svgEl.setPointerCapture(ev.pointerId);
     const range = timelineRange();
+    const lr = lonRange();
     panStartClientX = ev.clientX;
+    panStartClientY = ev.clientY;
     panStartCenter  = state.timeline?.tlCenter != null
       ? state.timeline.tlCenter
       : (range.startMs + range.endMs) / 2;
+    panStartVCenter = state.timeline?.vCenter != null
+      ? state.timeline.vCenter
+      : (lr.startLon + lr.endLon) / 2;
   });
   svgEl.addEventListener('pointermove', ev => {
     if (ev.pointerType === 'touch') return;
     if (panStartClientX == null || isPinching) return;
     const range = timelineRange();
+    const lr = lonRange();
     const dxSvg = svgXFromClient(ev.clientX) - svgXFromClient(panStartClientX);
+    const dySvg = svgYFromClient(ev.clientY) - svgYFromClient(panStartClientY);
     const msPerSvg = (range.endMs - range.startMs) / TL_PLOT_W;
+    const degPerSvg = lr.span / TL_PLOT_H;
     ensureTl();
     state.timeline.tlCenter = panStartCenter - dxSvg * msPerSvg;
+    state.timeline.vCenter  = panStartVCenter - dySvg * degPerSvg;
     scheduleTimelineRender();
   });
   const stop = () => {
     panStartClientX = null;
+    panStartClientY = null;
     panStartCenter  = null;
+    panStartVCenter = null;
   };
   svgEl.addEventListener('pointerup',     stop);
   svgEl.addEventListener('pointercancel', stop);
@@ -1582,16 +1782,16 @@ function wireTimelineInteraction() {
   // auxclick bouton milieu : empêche l'icône "scroll auto" sur certains browsers
   svgEl.addEventListener('auxclick', ev => { if (ev.button === 1) ev.preventDefault(); });
 
-  // Molette = zoom. Facteur exponentiel pour un ressenti naturel.
+  // Molette (desktop) = bascule palier discret. deltaY<0 (molette vers le
+  // haut) = zoom plus fin (palier↑). Petit throttle pour éviter de sauter
+  // plusieurs paliers d'un seul coup de molette.
+  let lastWheelMs = 0;
   svgEl.addEventListener('wheel', ev => {
     ev.preventDefault();
-    const factor = Math.exp(-ev.deltaY * 0.0015);
-    const prev = state.timeline?.zoom || 1;
-    const next = Math.max(TL_ZOOM_MIN, Math.min(TL_ZOOM_MAX, prev * factor));
-    if (next === prev) return;
-    ensureTl();
-    state.timeline.zoom = next;
-    scheduleTimelineRender();
+    const now = performance.now();
+    if (now - lastWheelMs < 180) return;
+    lastWheelMs = now;
+    setPalier(ev.deltaY < 0 ? 1 : -1);
   }, { passive: false });
 
   // 2 doigts : pinch décomposé en composantes horizontale et verticale,
@@ -1600,11 +1800,6 @@ function wireTimelineInteraction() {
   // temporel sous le milieu-X et la longitude sous le milieu-Y restent
   // sous les mêmes coordonnées pendant tout le geste. (Perig 2026-10-19 :
   // "pinch horizontal agrandit le temps, pinch vertical agrandit dedans".)
-  const svgYFromClient = (clientY) => {
-    const pt = svgEl.createSVGPoint();
-    pt.x = 0; pt.y = clientY;
-    return pt.matrixTransform(svgEl.getScreenCTM().inverse()).y;
-  };
   const pickLon = (clientY) => {
     const t01 = (svgYFromClient(clientY) - TL_MARGIN_T) / TL_PLOT_H;
     const { startLon, span } = lonRange();
@@ -1616,6 +1811,14 @@ function wireTimelineInteraction() {
   let pinchStartVZoom  = null;
   let pinchAnchorMs    = null;
   let pinchAnchorLon   = null;
+  // Pinch discret (P1 2026-10-22) : au relâchement, si le ratio hypoténuse
+  // final/initial dépasse un seuil, on bascule d'un cran de palier (± selon
+  // écart/resserrement). Pas de zoom continu — un pinch = un cran, point.
+  // Seuils 1.3 / 0.77 (= 1/1.3) : évite les déclenchements au bruit de main.
+  let discretePinchStartHypot = null;
+  let discretePinchLastHypot  = null;
+  const DISCRETE_PINCH_UP   = 1.3;
+  const DISCRETE_PINCH_DOWN = 1 / 1.3;
   // Seuil d'activation d'axe : si l'écart initial des doigts sur un axe est
   // en-dessous, cet axe est "mort" (ratio forcé à 1) — on ignore le zoom sur
   // cet axe plutôt que de l'amplifier n'importe comment. Perig 2026-10-20 :
@@ -1640,12 +1843,17 @@ function wireTimelineInteraction() {
       panStartClientX = null;
       panStartCenter  = null;
       const t0 = ev.touches[0], t1 = ev.touches[1];
+      // État commun à continu/discret : on l'enregistre toujours ; les
+      // modes consomment différemment (continu = move en direct ; discret =
+      // ratio au touchend).
       pinchStartDistX = Math.max(1, Math.abs(t0.clientX - t1.clientX));
       pinchStartDistY = Math.max(1, Math.abs(t0.clientY - t1.clientY));
       pinchStartZoom  = state.timeline?.zoom  || 1;
       pinchStartVZoom = state.timeline?.vZoom || 1;
       pinchAnchorMs   = pickTime((t0.clientX + t1.clientX) / 2);
       pinchAnchorLon  = pickLon ((t0.clientY + t1.clientY) / 2);
+      discretePinchStartHypot = Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY) || 1;
+      discretePinchLastHypot  = discretePinchStartHypot;
       debugPinch.startDistX = pinchStartDistX.toFixed(0);
       debugPinch.startDistY = pinchStartDistY.toFixed(0);
       debugPinch.lastEvent = 'start-pinch';
@@ -1657,14 +1865,18 @@ function wireTimelineInteraction() {
       updateDebugPinch();
       ev.preventDefault();
     } else if (ev.touches.length === 1 && !isPinching) {
-      // Pan 1 doigt via Touch Events (le pointerdown touch a été filtré pour
-      // ne pas interférer avec le pinch).
+      // Pan 1 doigt bi-axe (P1 2026-10-22) via Touch Events.
       const t0 = ev.touches[0];
       const range = timelineRange();
+      const lr = lonRange();
       panStartClientX = t0.clientX;
+      panStartClientY = t0.clientY;
       panStartCenter  = state.timeline?.tlCenter != null
         ? state.timeline.tlCenter
         : (range.startMs + range.endMs) / 2;
+      panStartVCenter = state.timeline?.vCenter != null
+        ? state.timeline.vCenter
+        : (lr.startLon + lr.endLon) / 2;
       debugPinch.lastEvent = 'start-pan';
       updateDebugPinch();
       ev.preventDefault();
@@ -1687,10 +1899,23 @@ function wireTimelineInteraction() {
     }
     debugPinch.winPassed++;
     debugPinch.touches = ev.touches.length;
-    if (ev.touches.length >= 2 && pinchStartDistX != null) {
+    if (ev.touches.length >= 2 && pinchStartDistX != null && !(PINCH_H_ENABLED || PINCH_V_ENABLED)) {
+      // Mode discret seul : on garde juste l'écart final en mémoire pour le
+      // juger au touchend. preventDefault pour bloquer le pinch-zoom du
+      // navigateur pendant qu'on compose notre geste.
+      const t0 = ev.touches[0], t1 = ev.touches[1];
+      discretePinchLastHypot = Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY) || 1;
+      debugPinch.lastEvent = 'move-pinch-discret';
+      debugPinch.moveCount++;
+      updateDebugPinch();
+      ev.preventDefault();
+      return;
+    }
+    if (ev.touches.length >= 2 && pinchStartDistX != null && (PINCH_H_ENABLED || PINCH_V_ENABLED)) {
       const t0 = ev.touches[0], t1 = ev.touches[1];
       const distX = Math.abs(t0.clientX - t1.clientX);
       const distY = Math.abs(t0.clientY - t1.clientY);
+      discretePinchLastHypot = Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY) || 1;
       // Axe mort si l'écart initial est trop petit (geste trop serré sur cet
       // axe pour être lu fiablement). Évite l'amplification du bruit sans
       // bloquer le pinch comme le faisait l'ancien plancher `max(30, dist)`.
@@ -1737,13 +1962,17 @@ function wireTimelineInteraction() {
       scheduleTimelineRender();
       ev.preventDefault();
     } else if (ev.touches.length === 1 && panStartClientX != null && !isPinching) {
-      // Pan 1 doigt via Touch Events.
+      // Pan 1 doigt bi-axe (P1 2026-10-22) via Touch Events.
       const t0 = ev.touches[0];
       const range = timelineRange();
+      const lr = lonRange();
       const dxSvg = svgXFromClient(t0.clientX) - svgXFromClient(panStartClientX);
+      const dySvg = svgYFromClient(t0.clientY) - svgYFromClient(panStartClientY);
       const msPerSvg = (range.endMs - range.startMs) / TL_PLOT_W;
+      const degPerSvg = lr.span / TL_PLOT_H;
       ensureTl();
       state.timeline.tlCenter = panStartCenter - dxSvg * msPerSvg;
+      state.timeline.vCenter  = panStartVCenter - dySvg * degPerSvg;
       debugPinch.lastEvent = 'move-pan';
       updateDebugPinch();
       scheduleTimelineRender();
@@ -1755,6 +1984,18 @@ function wireTimelineInteraction() {
     debugPinch.lastEvent = 'end (' + ev.type + ')';
     updateDebugPinch();
     if (!ev.touches || ev.touches.length < 2) {
+      // Pinch discret : si le ratio hypoténuse final/initial a dépassé un
+      // seuil, appliquer un cran de palier et une seule fois.
+      if (discretePinchStartHypot != null && discretePinchLastHypot != null) {
+        const ratio = discretePinchLastHypot / discretePinchStartHypot;
+        if (ratio >= DISCRETE_PINCH_UP) {
+          setPalier(+1);
+        } else if (ratio <= DISCRETE_PINCH_DOWN) {
+          setPalier(-1);
+        }
+      }
+      discretePinchStartHypot = null;
+      discretePinchLastHypot  = null;
       pinchStartDistX  = null;
       pinchStartDistY  = null;
       pinchStartZoom   = null;
@@ -1765,13 +2006,22 @@ function wireTimelineInteraction() {
     }
     if (!ev.touches || ev.touches.length === 0) {
       panStartClientX = null;
+      panStartClientY = null;
       panStartCenter  = null;
+      panStartVCenter = null;
     }
   };
   // touchend/cancel sur window pour symétrie avec touchmove (sinon le state
   // reste bloqué si le doigt est relâché au-dessus d'un rect enfant).
   window.addEventListener('touchend',    endPinch);
   window.addEventListener('touchcancel', endPinch);
+
+  // Boutons bascule palier (P1 2026-10-22). − = plus large, + = plus fin.
+  const btnPrev = document.getElementById('timeline-palier-prev');
+  const btnNext = document.getElementById('timeline-palier-next');
+  if (btnPrev) btnPrev.addEventListener('click', () => setPalier(-1));
+  if (btnNext) btnNext.addEventListener('click', () => setPalier(+1));
+  updatePalierLabel();
 
   // Panneau debug : affiché quand ?debug=pinch dans l'URL. Permet à Perig
   // de voir en live ce qui se passe quand "ça rate" sur mobile. Bouton 📋
@@ -2224,7 +2474,7 @@ let state = {
   scrapbook: JSON.parse(localStorage.getItem(scrapbookKey()) || '[]'),
   jalons: [],  // chargé depuis content/jalons.json au boot — dates fondatrices
   chartTime: null,  // null = temps réel ; sinon ms epoch (slider temporel) — pilote l'anneau transit
-  timeline: { zoom: 20 },  // zoom frise, 1 = toute la vie (200 ans), 20 = ~10 ans pleine largeur
+  timeline: { palier: 'day' },  // zoom frise par paliers discrets (P1 2026-10-22) — v. TL_PALIER_SPEC
   chart: { zoom: 1.0, cx: 0, cy: 0 },  // zoom cercle via viewBox ; cx/cy = centre visible (viewBox initial = -520..520)
 };
 
@@ -3826,10 +4076,10 @@ function wireTimeSlider() {
     // à la vue initiale complète. Porte de sortie quand on s'est perdu dans
     // le zoom ou le pan.
     if (state.timeline) {
-      state.timeline.zoom = 1;
+      state.timeline.palier = 'day';
       state.timeline.tlCenter = null;
-      state.timeline.vZoom = 1;
-      state.timeline.vCenter = 180;
+      state.timeline.vCenter = null;
+      updatePalierLabel();
     }
     syncSlider();
     render().catch(e => showError('render error: ' + e.message));
