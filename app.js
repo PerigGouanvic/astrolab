@@ -256,7 +256,7 @@ const R_ZODIAC_IN    = 268;   // bord intérieur bande (épaisseur 97, +50% depu
 const R_HOUSE_END    = 390;   // cusps internes s'arrêtent avant l'anneau transit
 const R_ANGLE_EXTEND = 510;   // axes ASC/DSC/MC/IC traversent tout le viewBox
 const R_HOUSE_NUM    = 332;   // numéros de maisons au milieu de la bande
-const R_MIDPOINT_IN  = R_ZODIAC_IN - 8;  // ticks mi-points côté natal
+const R_MIDPOINT_IN  = R_ZODIAC_IN - 12;  // ticks mi-points côté natal (12 vb units : dépasse les ticks planètes/astéroïdes, sinon illisible)
 // Anneau natal (intérieur) — glyphes rapprochés du centre.
 const R_PLANET_NATAL      = 230;   // glyphes planètes natal (compressés 2026-10-15 pour bande zodiacale +50%)
 const R_PLANET_NATAL_DEG  = 198;   // degrés sous le glyphe natal

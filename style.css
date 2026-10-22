@@ -488,8 +488,8 @@ h1 {
 
 .midpoint-tick {
   stroke: var(--line-medium);
-  stroke-width: 0.5;
-  opacity: 0.5;
+  stroke-width: 1;
+  opacity: 0.8;
 }
 
 /* Aspects unifiés par harmonique (1..9) — cordes à l'intérieur du cercle
@@ -894,15 +894,6 @@ h1 {
   color: var(--line-medium);
   font-style: italic;
   opacity: 0.7;
-}
-
-.midpoint-symbol {
-  fill: var(--line-medium);
-  font-family: var(--font-serif);
-  font-size: 9px;
-  text-anchor: middle;
-  dominant-baseline: central;
-  opacity: 0.65;
 }
 
 .asteroid-tick {
