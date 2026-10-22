@@ -17,33 +17,31 @@ Pas « l'époque en général ». Ce qui a valeur de repère, c'est ce qui montr
 
 ---
 
-## Vérification factuelle — Saturne en Taureau, 1969-1974
+## Vérification factuelle — Saturne en Taureau, 1969-1972
 
 Source : éphémérides tropicales géocentriques, wowastro.com (Swiss Ephemeris), 00:00 UTC.
-**Correction importante** : Saturne n'est PAS entré au Taureau en juin 1971. Il y est entré en **avril 1969** et en est sorti en **juin 1971**. Juin 1971 est la *sortie* du Taureau, pas l'entrée.
+*(Correction du 2026-10-22 : une première lecture avait pris la colonne Jupiter pour la colonne Saturne. Les données ci-dessous sont relues sur la bonne colonne.)*
 
 ### Le passage complet
 | Période | Position |
 |---|---|
 | 30 avril 1969 | entrée en Taureau (direct) |
 | 1969-1970 | traversée du Taureau |
-| ~sept.-déc. 1970 | rétrogradation dans le Taureau (revient vers ~26° Taureau) |
-| 1970-1971 | reprise directe, achève le Taureau |
-| 19 juin 1971 | **sortie du Taureau → Gémeaux** |
-| juin-sept. 1971 | rétrogradation : **retour en Scorpion** (29° → 27° Scorpion) |
-| 12 sept. 1971 | re-entrée en Sagittaire (définitif) |
+| 1970 | rétrogradation dans le Taureau |
+| 1971 | reprise directe, achève le Taureau |
+| 8 → 18 juin 1971 | **dernier degré du Taureau** (28°41′ → 29°55′) |
+| 19 juin 1971 | sortie du Taureau → Gémeaux |
+| juil. → déc. 1971 | Gémeaux, avec rétrogradation (max ~6°25′ Gémeaux en sept., retour à 0°29′ fin déc.) |
+| 11 janv. 1972 | **retour en Taureau 29°58′** (rétrograde) |
+| 11 → 31 janv. 1972 | **Taureau 29°58′ → 29°35′**, stationnaire |
+| 1 → 21 févr. 1972 | Taureau 29°35′ → 29°59′ (quasi immobile) |
+| 22 févr. 1972 | sortie définitive du Taureau → Gémeaux |
 
-### Points de repère précis
-- **Juin 1971** : Saturne quitte le Taureau le 19 juin (29° Taureau → 0° Gémeaux). Puis rétrograde et repasse en Scorpion le 6 juin... *vérifier* : les données montrent 0°30 Sagittaire le 1er juin 1971, donc Saturne était déjà en Sagittaire début juin. Le passage Taureau→Gémeaux→Scorpion s'est joué **avant** juin 1971.
-- **Janvier 1972** : Saturne est en **Sagittaire**, de 22°21′ (1er janv.) à 28°41′ (31 janv.). Aucun rapport avec le Taureau.
+### Les deux fenêtres « dernier degré du Taureau »
+1. **8-18 juin 1971** (direct, 28°41′ → 29°55′)
+2. **11 janvier → 21 février 1972** (rétrograde puis stationnaire, 29°35′-29°59′)
 
-### Conséquence pour la piste
-Si Perig est né « début 72 » avec Saturne « au dernier degré du Taureau », il y a une contradiction avec les éphémérides tropicales. Trois hypothèses :
-1. la date de naissance est antérieure (Saturne au dernier degré du Taureau = **mai-juin 1971**) ;
-2. la position est calculée en **zodiaque sidéral** (ayanamsa Lahiri), qui décale d'environ 23-24° — un Saturne tropical à 0-6° Gémeaux devient sidéral ~6-12° Taureau ; un Saturne tropical fin Taureau devient sidéral fin Bélier. À vérifier ;
-3. souvenir approximatif du degré.
-
-**À trancher par Perig avant d'aller plus loin.** La fenêtre « dernier degré du Taureau » en tropical = **environ le 10 au 19 juin 1971** (28-29° Taureau).
+La seconde est la plus remarquable : Saturne y **stationne près de six semaines** sur le dernier degré du Taureau. Un natif de cette fenêtre a Saturne sur un degré où la planète ne bouge presque pas — le point est comme figé.
 
 ## Statut
 Piste ouverte. Aucune décision de conception. À évaluer contre le filtre de `memory/feedback_discussions_astro_vs_logiciel.md` avant toute entrée dans le ROADMAP.
