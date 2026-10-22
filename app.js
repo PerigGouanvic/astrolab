@@ -496,7 +496,7 @@ function drawChart({ natal, transit }, layers) {
     }
   }
 
-  // Mi-points natal (ticks fins côté intérieur de la bande, anneau natal only)
+  // Mi-points natal (ticks côté intérieur de la bande, anneau natal only)
   if (layers.midpoints && layers.planets) {
     for (const m of computeMidpoints(natal.bodies)) {
       const t1 = project(m.lon, ascLon, R_ZODIAC_IN);
