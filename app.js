@@ -631,6 +631,12 @@ function isScrapItemVisible(item) {
 }
 
 
+function screenToSvg(svgEl, clientX, clientY) {
+  const pt = svgEl.createSVGPoint();
+  pt.x = clientX; pt.y = clientY;
+  return pt.matrixTransform(svgEl.getScreenCTM().inverse());
+}
+
 // ---------- Table ----------
 function formatSign(lon) {
   const idx = Math.floor(normDeg(lon) / 30);
