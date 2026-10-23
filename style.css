@@ -492,6 +492,15 @@ h1 {
   opacity: 0.8;
 }
 
+.midpoint-glyph {
+  fill: var(--line-medium);
+  font-family: var(--font-serif);
+  font-size: 7px;
+  text-anchor: middle;
+  dominant-baseline: central;
+  opacity: 0.7;
+}
+
 /* Aspects unifiés par harmonique (1..9) — cordes à l'intérieur du cercle
    d'aspects (classe zodiac-ring réutilisée, style astro.com). Palette franche
    par harmonique, opacité 1, épaisseurs variées selon la force traditionnelle. */
