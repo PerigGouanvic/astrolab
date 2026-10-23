@@ -2607,7 +2607,8 @@ function wireScrapbookGestures() {
       lastTap = now;
       lastPt  = pt;
     }
-
+  });
+}
 
 // ---------- UI astéroïdes ----------
 function renderAsteroidChips() {
