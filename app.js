@@ -608,23 +608,27 @@ function webpSupported() {
   return _webpOk;
 }
 
-function loadImageFromFile(file) {
+function loadImageFromSrc(src, revoke) {
   return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
     const img = new Image();
-    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('format non décodable')); };
-    img.src = url;
+    img.onload = () => { if (revoke) URL.revokeObjectURL(src); resolve(img); };
+    img.onerror = () => {
+      if (revoke) URL.revokeObjectURL(src);
+      reject(new Error('format non décodable'));
+    };
+    img.src = src;
   });
+}
+function loadImageFromFile(file) {
+  return loadImageFromSrc(URL.createObjectURL(file), true);
 }
 
 function encodeCanvas(canvas, type, quality) {
   try { return canvas.toDataURL(type, quality); } catch (e) { return null; }
 }
 
-// Retourne { dataUrl, width, height } — image prête à être stockée.
-async function prepareScrapImage(file) {
-  const img = await loadImageFromFile(file);
+// Ré-encode une image déjà décodée. Retourne { dataUrl, width, height }.
+function encodeScrapImage(img) {
   const sw = img.naturalWidth || img.width;
   const sh = img.naturalHeight || img.height;
   if (!sw || !sh) throw new Error('dimensions inconnues');
@@ -644,6 +648,47 @@ async function prepareScrapImage(file) {
   }
   if (!dataUrl) throw new Error('encodage impossible');
   return { dataUrl, width: w, height: h };
+}
+
+// Retourne { dataUrl, width, height } — image prête à être stockée.
+async function prepareScrapImage(file) {
+  return encodeScrapImage(await loadImageFromFile(file));
+}
+
+// Recompression one-shot des items déjà stockés (2026-10-23). Les images
+// importées avant le redimensionnement pèsent plusieurs Mo chacune et saturent
+// le quota : le scrapbook devient inutilisable (plus aucun ajout possible).
+// On ré-encode en place, une seule fois par item (marqueur `imgV: 2`).
+// Atomique : le nouveau tableau n'est écrit que s'il tient dans le quota ;
+// sinon l'ancien contenu reste intact. Best-effort, non bloquant au boot.
+const SCRAP_IMG_VERSION = 2;
+async function recompressScrapbookImages() {
+  const targets = state.scrapbook.filter(
+    it => it.imgDataUrl && it.imgV !== SCRAP_IMG_VERSION
+  );
+  if (!targets.length) return;
+  let changed = 0;
+  for (const it of targets) {
+    try {
+      const img = await loadImageFromSrc(it.imgDataUrl, false);
+      const enc = encodeScrapImage(img);
+      if (enc.dataUrl.length < it.imgDataUrl.length) {
+        it.imgDataUrl = enc.dataUrl;
+        it.imgWidth   = enc.width;
+        it.imgHeight  = enc.height;
+        changed++;
+      }
+      it.imgV = SCRAP_IMG_VERSION;   // marqué même si déjà compact
+    } catch (e) {
+      it.imgV = SCRAP_IMG_VERSION;   // indécodable : on ne réessaiera pas
+    }
+  }
+  if (!changed) return;
+  const before = state.scrapbook.length;
+  if (saveScrapbook()) {
+    console.info(`scrapbook : ${changed}/${before} image(s) recompressée(s)`);
+    render().catch(e => showError('render error: ' + e.message));
+  }
 }
 
 // ---------- Scrapbook : rendu d'un item image ----------
@@ -2527,6 +2572,7 @@ function createScrapItemAt(x, y) {
       imgDataUrl: prepared.dataUrl,
       imgWidth: prepared.width,
       imgHeight: prepared.height,
+      imgV: SCRAP_IMG_VERSION,
       createdAt: stamp,
       scope: 'timed',
     };
@@ -4261,6 +4307,9 @@ async function main() {
   migrateScrapbookItems();
   migrateScrapbookLon();
   wireControls();
+  // Tâche de fond : libère le quota si des images ont été importées avant le
+  // redimensionnement. N'attend pas — le premier render montre l'état en RAM.
+  recompressScrapbookImages().catch(e => console.warn('recompress:', e.message));
   await loadJalons();
   await remountSavedAsteroids();
   await render();
