@@ -498,20 +498,23 @@ function drawChart({ natal, transit }, layers) {
     }
   }
 
-  // Mi-points natal — tick radial + glyphe de chaque côté (♀|♂).
-  // Lisibles au zoom ; le tick fait office de séparateur visuel.
+  // Mi-points natal — tick radial + label « ♀|♂ » côté intérieur.
+  // Un seul <text> pour le couple, lisible au zoom.
   if (layers.midpoints && layers.planets) {
     for (const m of computeMidpoints(natal.bodies)) {
       const t1 = project(m.lon, ascLon, R_ZODIAC_IN);
       const t2 = project(m.lon, ascLon, R_MIDPOINT_IN);
       container.appendChild(svg('line', { x1: t1.x, y1: t1.y, x2: t2.x, y2: t2.y, class: 'midpoint-tick' }));
-      const gA = BODY_GLYPH[m.a];
-      const gB = BODY_GLYPH[m.b];
-      if (gA && gB) {
-        const pA = project(m.lon, ascLon, R_ZODIAC_IN + 4);
-        const pB = project(m.lon, ascLon, R_MIDPOINT_IN - 6);
-        container.appendChild(svg('text', { x: pA.x, y: pA.y, class: 'midpoint-glyph' }, gA));
-        container.appendChild(svg('text', { x: pB.x, y: pB.y, class: 'midpoint-glyph' }, gB));
+      const ga = BODY_GLYPH[m.a];
+      const gb = BODY_GLYPH[m.b];
+      if (ga && gb) {
+        const p = project(m.lon, ascLon, R_MIDPOINT_IN - 6);
+        const radAngle = Math.atan2(p.y, p.x) * 180 / Math.PI;
+        container.appendChild(svg('text', {
+          x: p.x, y: p.y,
+          class: 'midpoint-glyph',
+          transform: `rotate(${(radAngle + 90).toFixed(1)}, ${p.x.toFixed(1)}, ${p.y.toFixed(1)})`
+        }, `${ga}|${gb}`));
       }
     }
   }
