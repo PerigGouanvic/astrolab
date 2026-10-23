@@ -4307,12 +4307,13 @@ async function main() {
   migrateScrapbookItems();
   migrateScrapbookLon();
   wireControls();
-  // Tâche de fond : libère le quota si des images ont été importées avant le
-  // redimensionnement. N'attend pas — le premier render montre l'état en RAM.
-  recompressScrapbookImages().catch(e => console.warn('recompress:', e.message));
   await loadJalons();
   await remountSavedAsteroids();
   await render();
+  // Tâche de fond, après le premier render : libère le quota si des images ont
+  // été importées avant le redimensionnement. N'attend pas — l'écran est déjà
+  // peint, la recompression se fait en silence puis re-render si elle a gagné.
+  recompressScrapbookImages().catch(e => console.warn('recompress:', e.message));
   if (probe) {
     // Transforme le probe en badge version permanent (coin bas-droit).
     // Affiche à la fois la version JS et CSS pour détecter les désynchros
