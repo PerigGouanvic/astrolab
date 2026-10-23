@@ -585,6 +585,67 @@ function drawChart({ natal, transit }, layers) {
   }
 }
 
+// ---------- Scrapbook : import d'image (redimensionnement) ----------
+// Les photos de téléphone pèsent 2–5 Mo ; encodées en dataURL base64 (+33 %)
+// elles saturent le quota localStorage (~5 Mo par origine) dès la 2e ou 3e
+// image — d'où le QuotaExceededError du 2026-10-23. On ré-encode donc à
+// l'import : côté le plus long ramené à SCRAP_IMG_MAX_PX, qualité
+// SCRAP_IMG_QUALITY. Une photo de 4 Mo tombe à ~60–120 Ko.
+// WebP quand le navigateur le supporte (garde la transparence des PNG),
+// JPEG sinon.
+const SCRAP_IMG_MAX_PX    = 512;
+const SCRAP_IMG_QUALITY   = 0.82;
+const SCRAP_IMG_MAX_BYTES = 400 * 1024;   // garde-fou : re-encode plus fort au-delà
+
+let _webpOk = null;
+function webpSupported() {
+  if (_webpOk != null) return _webpOk;
+  try {
+    const c = document.createElement('canvas');
+    c.width = c.height = 1;
+    _webpOk = c.toDataURL('image/webp').startsWith('data:image/webp');
+  } catch (e) { _webpOk = false; }
+  return _webpOk;
+}
+
+function loadImageFromFile(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('format non décodable')); };
+    img.src = url;
+  });
+}
+
+function encodeCanvas(canvas, type, quality) {
+  try { return canvas.toDataURL(type, quality); } catch (e) { return null; }
+}
+
+// Retourne { dataUrl, width, height } — image prête à être stockée.
+async function prepareScrapImage(file) {
+  const img = await loadImageFromFile(file);
+  const sw = img.naturalWidth || img.width;
+  const sh = img.naturalHeight || img.height;
+  if (!sw || !sh) throw new Error('dimensions inconnues');
+  const scale = Math.min(1, SCRAP_IMG_MAX_PX / Math.max(sw, sh));
+  const w = Math.max(1, Math.round(sw * scale));
+  const h = Math.max(1, Math.round(sh * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, w, h);
+  const type = webpSupported() ? 'image/webp' : 'image/jpeg';
+  let dataUrl = encodeCanvas(canvas, type, SCRAP_IMG_QUALITY);
+  // Garde-fou : si ça reste lourd (image très détaillée), on redescend.
+  if (dataUrl && dataUrl.length > SCRAP_IMG_MAX_BYTES) {
+    const smaller = encodeCanvas(canvas, type, 0.6);
+    if (smaller && smaller.length < dataUrl.length) dataUrl = smaller;
+  }
+  if (!dataUrl) throw new Error('encodage impossible');
+  return { dataUrl, width: w, height: h };
+}
+
 // ---------- Scrapbook : rendu d'un item image ----------
 // Chaque item est un élément <image> SVG natif, ancré à (lon, radius)
 // dans la bande zodiacale. Sa taille en unités viewBox est fixe et petite
@@ -2109,7 +2170,10 @@ function createScrapItemOnTimeline(svgX, svgY, clientX, clientY) {
     scope: 'timed',
   };
   state.scrapbook.push(item);
-  saveScrapbook();
+  if (!saveScrapbook()) {
+    state.scrapbook = state.scrapbook.filter(x => x.id !== item.id);
+    return;
+  }
   openTimelineEditor(item, clientX, clientY);
   // Pas de render complet : la frise suffit (le cercle est masqué). On
   // appellera render() au commit pour tout re-synchroniser.
@@ -2217,17 +2281,23 @@ function planetNotesKey()  { return PLANET_NOTES_KEY_PREFIX + nativesState.curre
 function migrateScopedKeys() {
   // Migration one-shot : si une clé plate existe et que la clé scopée pour
   // perig-seed est absente, on bascule. Idempotent.
+  // try/catch : si la copie dépasse le quota, on garde l'ancienne clé plate
+  // (elle reste lisible) plutôt que de perdre le contenu au removeItem.
   const legacyScrap = localStorage.getItem('astrolab.scrapbook');
   const scopedScrap = localStorage.getItem(SCRAPBOOK_KEY_PREFIX + PERIG_SEED.id);
   if (legacyScrap !== null && scopedScrap === null) {
-    localStorage.setItem(SCRAPBOOK_KEY_PREFIX + PERIG_SEED.id, legacyScrap);
-    localStorage.removeItem('astrolab.scrapbook');
+    try {
+      localStorage.setItem(SCRAPBOOK_KEY_PREFIX + PERIG_SEED.id, legacyScrap);
+      localStorage.removeItem('astrolab.scrapbook');
+    } catch (e) { /* quota : on laisse la clé plate en place */ }
   }
   const legacyNotes = localStorage.getItem('astrolab.planet-notes');
   const scopedNotes = localStorage.getItem(PLANET_NOTES_KEY_PREFIX + PERIG_SEED.id);
   if (legacyNotes !== null && scopedNotes === null) {
-    localStorage.setItem(PLANET_NOTES_KEY_PREFIX + PERIG_SEED.id, legacyNotes);
-    localStorage.removeItem('astrolab.planet-notes');
+    try {
+      localStorage.setItem(PLANET_NOTES_KEY_PREFIX + PERIG_SEED.id, legacyNotes);
+      localStorage.removeItem('astrolab.planet-notes');
+    } catch (e) { /* quota : on laisse la clé plate en place */ }
   }
 }
 migrateScopedKeys();
@@ -2286,13 +2356,33 @@ function saveHarmonics()   { localStorage.setItem(HARMONICS_KEY,     JSON.string
 function saveAspectStyle() { localStorage.setItem(ASPECT_STYLE_KEY,  state.aspectStyle); }
 // Les champs préfixés `_` sont RAM-only (ex. _expanded) : non persistés, pour
 // que l'état d'ouverture ne survive pas aux reloads.
+// Retourne true si la sauvegarde a abouti, false sinon (quota dépassé,
+// stockage indisponible…). Les appelants qui viennent d'ajouter un item
+// doivent le retirer de state.scrapbook en cas d'échec, sinon l'item reste
+// en RAM et disparaît au reload — pire que l'erreur elle-même.
 function saveScrapbook()   {
   const clean = state.scrapbook.map(it => {
     const out = {};
     for (const [k, v] of Object.entries(it)) if (!k.startsWith('_')) out[k] = v;
     return out;
   });
-  localStorage.setItem(scrapbookKey(), JSON.stringify(clean));
+  const json = JSON.stringify(clean);
+  try {
+    localStorage.setItem(scrapbookKey(), json);
+    return true;
+  } catch (e) {
+    const quota = e && (e.name === 'QuotaExceededError'
+                     || e.name === 'NS_ERROR_DOM_QUOTA_REACHED'
+                     || e.code === 22 || e.code === 1014);
+    if (quota) {
+      showError(`Scrapbook plein : ${(json.length / 1048576).toFixed(1)} Mo `
+        + `pour ${clean.length} item(s) — quota du navigateur dépassé. `
+        + `Retire des images (ou « vider ») avant d'en ajouter.`);
+    } else {
+      showError('Sauvegarde scrapbook impossible : ' + (e && (e.message || e)));
+    }
+    return false;
+  }
 }
 
 function computeBodies(jd) {
@@ -2420,30 +2510,33 @@ function createScrapItemAt(x, y) {
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = 'image/*';
-  input.addEventListener('change', () => {
+  input.addEventListener('change', async () => {
     const file = input.files && input.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        const item = {
-          id: genId(),
-          lon,
-          radius,
-          imgDataUrl: img.src,
-          imgWidth: img.width,
-          imgHeight: img.height,
-          createdAt: stamp,
-          scope: 'timed',
-        };
-        state.scrapbook.push(item);
-        saveScrapbook();
-        render().catch(e => showError('render error: ' + e.message));
-      };
-      img.src = reader.result;
+    let prepared;
+    try {
+      prepared = await prepareScrapImage(file);
+    } catch (e) {
+      showError(`Image « ${file.name} » illisible : ${e.message}`);
+      return;
+    }
+    const item = {
+      id: genId(),
+      lon,
+      radius,
+      imgDataUrl: prepared.dataUrl,
+      imgWidth: prepared.width,
+      imgHeight: prepared.height,
+      createdAt: stamp,
+      scope: 'timed',
     };
-    reader.readAsDataURL(file);
+    state.scrapbook.push(item);
+    if (!saveScrapbook()) {
+      // Quota dépassé : on annule l'ajout pour que l'écran reflète le stockage.
+      state.scrapbook = state.scrapbook.filter(x => x.id !== item.id);
+      return;
+    }
+    render().catch(e => showError('render error: ' + e.message));
   });
   input.click();
 }
