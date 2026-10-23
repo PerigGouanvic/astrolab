@@ -2815,6 +2815,45 @@ function wireChartInteraction() {
   svgEl.addEventListener('touchend',    endPinch);
   svgEl.addEventListener('touchcancel', endPinch);
 
+  // Pan 1-doigt (mobile) : drag simple pour déplacer la vue.
+  // Seuil de 5 px avant de démarrer le pan (pour ne pas confondre avec un tap).
+  // Ignore les pointerdown sur des éléments scrapbook (disque, cadre, grip…).
+  const PAN_THRESHOLD = 5;
+  let oneFingerPan = null;  // { id, startX, startY, startCx, startCy, armed }
+  svgEl.addEventListener('pointerdown', ev => {
+    if (ev.button !== 0) return;                     // bouton gauche seulement
+    if (ev.pointerType === 'mouse') return;           // desktop : molette + clic milieu
+    if (oneFingerPan != null) return;                 // déjà en cours
+    if (ev.target.closest('.scrap-dot, .scrap-fo, foreignObject, .scrap-grip, .scrap-close, .scrap-img, .scrap-resize, .planet-symbol')) return;
+    oneFingerPan = { id: ev.pointerId, startX: ev.clientX, startY: ev.clientY,
+                     startCx: state.chart.cx || 0, startCy: state.chart.cy || 0, armed: false };
+  });
+  svgEl.addEventListener('pointermove', ev => {
+    if (!oneFingerPan || ev.pointerId !== oneFingerPan.id) return;
+    const dx = ev.clientX - oneFingerPan.startX;
+    const dy = ev.clientY - oneFingerPan.startY;
+    if (!oneFingerPan.armed) {
+      if (Math.hypot(dx, dy) < PAN_THRESHOLD) return;
+      oneFingerPan.armed = true;
+      svgEl.setPointerCapture(ev.pointerId);
+    }
+    const rect = svgEl.getBoundingClientRect();
+    const w = CHART_VB_SIZE / (state.chart.zoom || 1);
+    const kx = w / rect.width;
+    const ky = w / rect.height;
+    state.chart.cx = oneFingerPan.startCx - dx * kx;
+    state.chart.cy = oneFingerPan.startCy - dy * ky;
+    updateChartViewBox();
+  });
+  const endOneFingerPan = (ev) => {
+    if (!oneFingerPan) return;
+    if (ev && ev.pointerId !== oneFingerPan.id) return;
+    oneFingerPan = null;
+  };
+  svgEl.addEventListener('pointerup',     endOneFingerPan);
+  svgEl.addEventListener('pointercancel', endOneFingerPan);
+  svgEl.addEventListener('lostpointercapture', endOneFingerPan);
+
   // Clic milieu desktop : pan sans zoom. On enregistre la position écran au
   // start et le centre viewBox, puis on soustrait le déplacement converti en
   // coord viewBox (via le ratio taille écran / taille viewBox visible).
