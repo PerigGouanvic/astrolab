@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>astrolab — carte natale</title>
-  <link rel="stylesheet" href="style.css?v=64">
+  <link rel="stylesheet" href="style.css?v=65">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#1a1a1a">
   <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
@@ -102,7 +102,7 @@
     </div>
     <!-- Sonde temporaire : bannière visible au boot, cachée dès que render() a eu lieu.
          Permet de confirmer que la version v63 du JS tourne (sinon la bannière reste). -->
-    <div id="boot-probe" style="position:fixed;top:0;left:0;right:0;z-index:9999;background:#ffe08a;color:#4a3400;padding:6px 10px;font-family:ui-monospace,monospace;font-size:12px;text-align:center;">astrolab v69 — booting… (si cette ligne reste, le JS ne finit pas d'init)</div>
+    <div id="boot-probe" style="position:fixed;top:0;left:0;right:0;z-index:9999;background:#ffe08a;color:#4a3400;padding:6px 10px;font-family:ui-monospace,monospace;font-size:12px;text-align:center;">astrolab v80 — booting… (si cette ligne reste, le JS ne finit pas d'init)</div>
     <pre id="error-box" class="error-box" hidden></pre>
     <aside id="controls-sheet" class="sheet sheet-peek" aria-label="Contrôles">
       <button type="button" class="sheet-handle" aria-label="Déplier ou replier les contrôles" aria-expanded="false"></button>
@@ -115,7 +115,7 @@
         <span id="time-label" class="time-label">maintenant</span>
         <button type="button" id="time-reset" title="Retour au présent" aria-label="Retour au présent">↻</button>
       </div>
-      <p class="scrap-hint">Double-tap pour ajouter · ✕ = retirer du moment · long-press ✕ = effacer
+      <p class="scrap-hint">Double-tap dans la bande zodiacale pour déposer une image
         <button type="button" id="scrap-purge-all" class="scrap-purge-btn" title="Vider complètement le scrapbook (irréversible)">vider</button>
         <button type="button" id="natives-open" class="scrap-purge-btn" title="Changer de natif / ajouter un natif">natifs ▾</button>
       </p>
@@ -256,7 +256,7 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=79"></script>
+  <script type="module" src="app.js?v=80"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
