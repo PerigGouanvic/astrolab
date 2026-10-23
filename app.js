@@ -2372,9 +2372,6 @@ function createScrapItemAt(x, y) {
   });
   input.click();
 }
-    })
-    .catch(e => showError('render error: ' + e.message));
-}
 
 // Zoom cercle : viewBox dynamique, indépendant du zoom frise.
 //   - molette (desktop) → zoom autour du curseur
