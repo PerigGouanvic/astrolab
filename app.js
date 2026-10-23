@@ -2102,6 +2102,15 @@ function openTimelineEditor(item, clientX, clientY) {
   editor.addEventListener('blur', commit);
 }
 
+// Migration : les anciens items (texte, foreignObject, collapsed/expanded)
+// sont des données de test sans valeur. On les purge. Ne garde que les items
+// image (imgDataUrl) du nouveau modèle.
+function migrateScrapbookItems() {
+  const before = state.scrapbook.length;
+  state.scrapbook = state.scrapbook.filter(it => it.imgDataUrl);
+  if (state.scrapbook.length !== before) saveScrapbook();
+}
+
 // Migration des items existants : calcule it.lon à partir de (x+w/2, y+h/2)
 // et de l'ascendant qui prévalait à createdAt. Appelée après swe est prêt.
 // Pour les items déjà munis d'un lon, no-op.
