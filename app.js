@@ -1955,12 +1955,26 @@ function wireTimelineExpandCollapse() {
 // par-dessus le SVG). Enter = commit, Escape ou blur-si-vide = annulation.
 // Actif uniquement en mode plein écran (sinon la cible est trop petite
 // pour un tap précis — consigne Perig 2026-10-19).
+//
+// Même garde-fou que sur le cercle (wireScrapbookGestures) : un tap doit être
+// *propre* (pas de déplacement > TAP_SLOP_PX), sinon chaque début de pan
+// comptait comme un tap et deux coups de doigt rapprochés déclenchaient la
+// création. Validation au relâchement du 2e tap, pas au contact.
+// Cloisonnement comme le reste de la frise : pointer events pour souris /
+// stylet, touch events pour le tactile (le pan tactile de la frise est en
+// touch events — on ne présume pas que pointerup arrive après un touchstart
+// annulé).
 function wireTimelineScrapbookGestures() {
   const svgEl       = document.getElementById('timeline');
   const containerEl = document.getElementById('timeline-container');
   if (!svgEl || !containerEl) return;
+  const TAP_SLOP_PX     = 10;   // au-delà : c'est un pan, pas un tap
+  const DOUBLE_TAP_MS   = 400;
+  const DOUBLE_TAP_DIST = 40;
   let lastTap = 0;
   let lastPt  = null;
+  let down    = null;   // { clientX, clientY, vbX, vbY, moved }
+
   const toSvgCoords = (clientX, clientY) => {
     // preserveAspectRatio="none" sur le SVG : la viewBox est étirée
     // indépendamment en x et y, pas de getScreenCTM piégeux.
@@ -1972,37 +1986,95 @@ function wireTimelineScrapbookGestures() {
       y: relY * TL_VB_H / rect.height,
     };
   };
-  svgEl.addEventListener('pointerdown', ev => {
-    // Actif seulement en mode plein écran : la frise petite n'offre pas
-    // assez de surface au pouce pour un placement précis.
-    if (!document.body.classList.contains('timeline-fullscreen')) return;
-    // Ignorer les contrôles interactifs : items existants, courbes
-    // planétaires, jalons, poignée temporelle, boutons expand/collapse.
-    if (ev.target.closest(
+  const inPlot = (pt) => pt.x >= TL_MARGIN_L && pt.x <= TL_MARGIN_L + TL_PLOT_W
+                       && pt.y >= TL_MARGIN_T && pt.y <= TL_MARGIN_T + TL_PLOT_H;
+  // Ignorer les contrôles interactifs : items existants, courbes planétaires,
+  // jalons, poignée temporelle, boutons expand/collapse.
+  const onControl = (target) => !!(target && target.closest
+    && target.closest(
       '.tl-scrap-seg, .tl-curve, .tl-curve-hit, .tl-jalon-hit, '
       + '#timeline-handle, .timeline-expand-btn, .timeline-collapse-btn, '
       + '.tl-scrap-editor'
-    )) return;
-    const now = Date.now();
-    const pt  = toSvgCoords(ev.clientX, ev.clientY);
+    ));
+
+  const beginTap = (clientX, clientY) => {
+    // Actif seulement en mode plein écran : la frise petite n'offre pas
+    // assez de surface au pouce pour un placement précis.
+    if (!document.body.classList.contains('timeline-fullscreen')) return;
+    const pt = toSvgCoords(clientX, clientY);
     // Hors zone de plot (marges gauche/droite/haut/bas) : ignorer.
-    if (pt.x < TL_MARGIN_L || pt.x > TL_MARGIN_L + TL_PLOT_W
-        || pt.y < TL_MARGIN_T || pt.y > TL_MARGIN_T + TL_PLOT_H) {
-      lastTap = 0; lastPt = null; return;
+    if (!inPlot(pt)) { lastTap = 0; lastPt = null; down = null; return; }
+    down = { clientX, clientY, vbX: pt.x, vbY: pt.y, moved: false };
+  };
+  const moveTap = (clientX, clientY) => {
+    if (!down || down.moved) return;
+    if (Math.hypot(clientX - down.clientX, clientY - down.clientY) > TAP_SLOP_PX) {
+      down.moved = true;
+      lastTap = 0;
+      lastPt  = null;
     }
-    if (now - lastTap < 400 && lastPt
-        && Math.abs(pt.x - lastPt.x) < 40
-        && Math.abs(pt.y - lastPt.y) < 40) {
+  };
+  const endTap = (clientX, clientY) => {
+    if (!down) return;
+    const wasTap = !down.moved;
+    const vbX = down.vbX, vbY = down.vbY;
+    down = null;
+    if (!wasTap) return;
+    const now = Date.now();
+    if (now - lastTap < DOUBLE_TAP_MS && lastPt
+        && Math.abs(vbX - lastPt.x) < DOUBLE_TAP_DIST
+        && Math.abs(vbY - lastPt.y) < DOUBLE_TAP_DIST) {
       // Double-tap confirmé : moyenner et créer.
-      const avgX = (pt.x + lastPt.x) / 2;
-      const avgY = (pt.y + lastPt.y) / 2;
+      const avgX = (vbX + lastPt.x) / 2;
+      const avgY = (vbY + lastPt.y) / 2;
       lastTap = 0; lastPt = null;
-      createScrapItemOnTimeline(avgX, avgY, ev.clientX, ev.clientY);
+      createScrapItemOnTimeline(avgX, avgY, clientX, clientY);
     } else {
       lastTap = now;
-      lastPt  = pt;
+      lastPt  = { x: vbX, y: vbY };
     }
+  };
+
+  // Souris / stylet.
+  svgEl.addEventListener('pointerdown', ev => {
+    if (ev.pointerType === 'touch') return;
+    if (ev.button !== 0) return;
+    if (onControl(ev.target)) return;
+    beginTap(ev.clientX, ev.clientY);
   });
+  svgEl.addEventListener('pointermove', ev => {
+    if (ev.pointerType === 'touch') return;
+    moveTap(ev.clientX, ev.clientY);
+  });
+  svgEl.addEventListener('pointerup', ev => {
+    if (ev.pointerType === 'touch') return;
+    endTap(ev.clientX, ev.clientY);
+  });
+  svgEl.addEventListener('pointercancel', ev => {
+    if (ev.pointerType === 'touch') return;
+    down = null;
+  });
+
+  // Tactile.
+  svgEl.addEventListener('touchstart', ev => {
+    if (ev.touches.length !== 1) { down = null; return; }
+    if (onControl(ev.target)) return;
+    const t = ev.touches[0];
+    beginTap(t.clientX, t.clientY);
+  }, { passive: true });
+  window.addEventListener('touchmove', ev => {
+    if (!down) return;
+    const t = ev.touches[0];
+    if (!t) return;
+    moveTap(t.clientX, t.clientY);
+  }, { passive: true });
+  window.addEventListener('touchend', ev => {
+    if (!down) return;
+    const t = ev.changedTouches && ev.changedTouches[0];
+    if (!t) { down = null; return; }
+    endTap(t.clientX, t.clientY);
+  });
+  window.addEventListener('touchcancel', () => { down = null; });
 }
 
 // Crée un item scrapbook à partir d'un double-tap sur la frise. (svgX, svgY)
@@ -2568,43 +2640,83 @@ function wireChartInteraction() {
 }
 
 // Double-tap détection manuelle (dblclick natif est capricieux sur mobile).
-// Deux pointerdown sur le SVG à moins de 400 ms l'un de l'autre dans la bande
-// zodiacale = ouvre un file picker pour déposer une image à cet endroit.
+// Deux taps *propres* (sans déplacement) sur le SVG à moins de 400 ms l'un de
+// l'autre dans la bande zodiacale = ouvre un file picker pour déposer une
+// image à cet endroit.
+//
+// Un « tap » = pointerdown → pointerup sans avoir bougé de plus de
+// TAP_SLOP_PX. Sans ce filtre, chaque début de pan (pointerdown) comptait
+// comme un tap : deux coups de doigt rapprochés pour panner la carte
+// déclenchaient la création (bug signalé 2026-10-23). Le double-tap est
+// validé au pointerup du 2e tap, pas au pointerdown — la surface ne réagit
+// plus au simple contact.
 function wireScrapbookGestures() {
   const svgEl = document.getElementById('chart');
   if (!svgEl) return;
+  const TAP_SLOP_PX     = 10;   // au-delà : c'est un pan, pas un tap
+  const DOUBLE_TAP_MS   = 400;
+  const DOUBLE_TAP_DIST = 40;   // unités viewBox
   let lastTap = 0;
   let lastPt  = null;
   let lastTouchPointerAt = 0;
+  let down = null;              // { clientX, clientY, vbX, vbY, moved }
+
+  const inZodiacBand = (pt) => {
+    const r = Math.hypot(pt.x, pt.y);
+    return r >= R_ZODIAC_IN && r <= R_ZODIAC_OUT;
+  };
+
   svgEl.addEventListener('pointerdown', ev => {
+    if (ev.button !== 0) return;                      // contact / bouton gauche
+    if (!ev.isPrimary) { down = null; return; }       // 2e doigt : pinch, pas tap
     if (ev.pointerType === 'mouse' && Date.now() - lastTouchPointerAt < 600) return;
     if (ev.pointerType === 'touch') lastTouchPointerAt = Date.now();
 
     // Ignorer si sur un item scrapbook image existant.
     if (ev.target.classList && ev.target.classList.contains('scrap-img-item')) return;
 
-    const now = Date.now();
-    const pt  = screenToSvg(svgEl, ev.clientX, ev.clientY);
-
+    const pt = screenToSvg(svgEl, ev.clientX, ev.clientY);
     // Création uniquement si le tap tombe dans la bande zodiacale.
-    const r = Math.hypot(pt.x, pt.y);
-    if (r < R_ZODIAC_IN || r > R_ZODIAC_OUT) {
+    if (!inZodiacBand(pt)) {
       lastTap = 0;
       lastPt  = null;
+      down    = null;
       return;
     }
+    down = { clientX: ev.clientX, clientY: ev.clientY, vbX: pt.x, vbY: pt.y, moved: false };
+  });
 
-    if (now - lastTap < 400 && lastPt && Math.hypot(pt.x - lastPt.x, pt.y - lastPt.y) < 40) {
-      const avgX = (pt.x + lastPt.x) / 2;
-      const avgY = (pt.y + lastPt.y) / 2;
+  // Tout déplacement au-delà du seuil annule la séquence : c'est un pan.
+  svgEl.addEventListener('pointermove', ev => {
+    if (!down || down.moved) return;
+    if (Math.hypot(ev.clientX - down.clientX, ev.clientY - down.clientY) > TAP_SLOP_PX) {
+      down.moved = true;
+      lastTap = 0;
+      lastPt  = null;
+    }
+  });
+
+  const endTap = () => {
+    if (!down) return;
+    const wasTap = !down.moved;
+    const vbX = down.vbX, vbY = down.vbY;
+    down = null;
+    if (!wasTap) return;
+    const now = Date.now();
+    if (now - lastTap < DOUBLE_TAP_MS && lastPt
+        && Math.hypot(vbX - lastPt.x, vbY - lastPt.y) < DOUBLE_TAP_DIST) {
+      const avgX = (vbX + lastPt.x) / 2;
+      const avgY = (vbY + lastPt.y) / 2;
       lastTap = 0;
       lastPt  = null;
       createScrapItemAt(avgX, avgY);
     } else {
       lastTap = now;
-      lastPt  = pt;
+      lastPt  = { x: vbX, y: vbY };
     }
-  });
+  };
+  svgEl.addEventListener('pointerup', endTap);
+  svgEl.addEventListener('pointercancel', () => { down = null; });
 }
 
 // ---------- UI astéroïdes ----------
