@@ -513,7 +513,7 @@ function drawChart({ natal, transit }, layers) {
         container.appendChild(svg('text', {
           x: p.x, y: p.y,
           class: 'midpoint-glyph',
-          transform: `rotate(${(radAngle + 90).toFixed(1)}, ${p.x.toFixed(1)}, ${p.y.toFixed(1)})`
+          transform: `rotate(${radAngle.toFixed(1)}, ${p.x.toFixed(1)}, ${p.y.toFixed(1)})`
         }, `${ga}|${gb}`));
       }
     }
