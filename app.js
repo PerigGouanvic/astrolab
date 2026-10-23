@@ -196,6 +196,8 @@ const EXTENDED = [
   { key: 'vesta',   idx: 20, glyph: '⚶' + VS15 },
 ];
 const SIGN_GLYPHS = ['♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓'].map(g => g + VS15);
+const BODY_GLYPH = {};
+for (const b of [...PLANETS, ...EXTENDED]) BODY_GLYPH[b.key] = b.glyph;
 
 // Scales de glyphes planétaires alimentés par l'atelier de création (modale
 // plein écran, voir wireGlyphWorkshop). Chargé depuis localStorage au boot,
@@ -496,12 +498,21 @@ function drawChart({ natal, transit }, layers) {
     }
   }
 
-  // Mi-points natal (ticks côté intérieur de la bande, anneau natal only)
+  // Mi-points natal — tick radial + glyphe de chaque côté (♀|♂).
+  // Lisibles au zoom ; le tick fait office de séparateur visuel.
   if (layers.midpoints && layers.planets) {
     for (const m of computeMidpoints(natal.bodies)) {
       const t1 = project(m.lon, ascLon, R_ZODIAC_IN);
       const t2 = project(m.lon, ascLon, R_MIDPOINT_IN);
       container.appendChild(svg('line', { x1: t1.x, y1: t1.y, x2: t2.x, y2: t2.y, class: 'midpoint-tick' }));
+      const gA = BODY_GLYPH[m.a];
+      const gB = BODY_GLYPH[m.b];
+      if (gA && gB) {
+        const pA = project(m.lon, ascLon, R_ZODIAC_IN + 4);
+        const pB = project(m.lon, ascLon, R_MIDPOINT_IN - 6);
+        container.appendChild(svg('text', { x: pA.x, y: pA.y, class: 'midpoint-glyph' }, gA));
+        container.appendChild(svg('text', { x: pB.x, y: pB.y, class: 'midpoint-glyph' }, gB));
+      }
     }
   }
 
