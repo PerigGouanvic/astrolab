@@ -2057,7 +2057,10 @@ function wireTimelineScrapbookGestures() {
 
   // Tactile.
   svgEl.addEventListener('touchstart', ev => {
-    if (ev.touches.length !== 1) { down = null; return; }
+    if (ev.touches.length !== 1) {
+      down = null; lastTap = 0; lastPt = null;
+      return;
+    }
     if (onControl(ev.target)) return;
     const t = ev.touches[0];
     beginTap(t.clientX, t.clientY);
@@ -2668,12 +2671,18 @@ function wireScrapbookGestures() {
 
   svgEl.addEventListener('pointerdown', ev => {
     if (ev.button !== 0) return;                      // contact / bouton gauche
-    if (!ev.isPrimary) { down = null; return; }       // 2e doigt : pinch, pas tap
+    if (!ev.isPrimary) {                              // 2e doigt : pinch, pas tap
+      down    = null;
+      lastTap = 0;
+      lastPt  = null;
+      return;
+    }
     if (ev.pointerType === 'mouse' && Date.now() - lastTouchPointerAt < 600) return;
     if (ev.pointerType === 'touch') lastTouchPointerAt = Date.now();
 
-    // Ignorer si sur un item scrapbook image existant.
-    if (ev.target.classList && ev.target.classList.contains('scrap-img-item')) return;
+    // Ignorer si sur un item scrapbook image existant, ou sur un glyphe
+    // planétaire (les glyphes tombent dans la bande zodiacale : r=315).
+    if (ev.target.closest && ev.target.closest('.scrap-img-item, .planet-symbol')) return;
 
     const pt = screenToSvg(svgEl, ev.clientX, ev.clientY);
     // Création uniquement si le tap tombe dans la bande zodiacale.
