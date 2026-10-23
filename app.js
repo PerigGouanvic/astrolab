@@ -510,10 +510,12 @@ function drawChart({ natal, transit }, layers) {
       if (ga && gb) {
         const p = project(m.lon, ascLon, R_MIDPOINT_IN - 6);
         const radAngle = Math.atan2(p.y, p.x) * 180 / Math.PI;
+        // Moitié gauche : pivoter de 180° pour ne pas écrire tête en bas.
+        const rot = p.x < 0 ? radAngle + 180 : radAngle;
         container.appendChild(svg('text', {
           x: p.x, y: p.y,
           class: 'midpoint-glyph',
-          transform: `rotate(${radAngle.toFixed(1)}, ${p.x.toFixed(1)}, ${p.y.toFixed(1)})`
+          transform: `rotate(${rot.toFixed(1)}, ${p.x.toFixed(1)}, ${p.y.toFixed(1)})`
         }, `${ga}|${gb}`));
       }
     }
