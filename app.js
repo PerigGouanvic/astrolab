@@ -2598,7 +2598,13 @@ function createScrapItemAt(x, y) {
 const CHART_VB_SIZE = 1040;
 const CHART_VB_HALF = 520;
 const CHART_ZOOM_MIN = 1.0;
-const CHART_ZOOM_MAX = 50;
+// 400 = 8x l'ancien plafond (50). Calibre sur la taille d'un item scrapbook
+// (SCRAP_IMG_BASE = 8 unites viewBox) : a 400 la fenetre visible fait
+// 1040/400 = 2.6 unites, donc un item occupe ~3x la largeur de l'ecran.
+// En longitude, 2.6 unites a r~316 valent ~0.47 deg : on lit le demi-degre.
+// Les traits du cercle passent en `vector-effect: non-scaling-stroke`
+// (style.css) pour rester lisibles a cette profondeur.
+const CHART_ZOOM_MAX = 400;
 
 function clampChartState() {
   const c = state.chart;
@@ -4318,7 +4324,7 @@ async function main() {
     // Transforme le probe en badge version permanent (coin bas-droit).
     // Affiche à la fois la version JS et CSS pour détecter les désynchros
     // de cache (Brave en particulier cache le CSS indépendamment du JS).
-    const CSS_EXPECTED = 60;
+    const CSS_EXPECTED = 61;
     const cssVRaw = getComputedStyle(document.documentElement)
       .getPropertyValue('--css-version').trim().replace(/^"|"$/g, '');
     const cssV = cssVRaw || '?';

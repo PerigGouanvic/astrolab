@@ -1,5 +1,5 @@
 :root {
-  --css-version: "60";
+  --css-version: "61";
   --bg: #faf7f0;
   --ink: #1a1a1a;
   --line-strong: #333;
@@ -386,10 +386,18 @@ h1 {
 }
 
 /* SVG element styles */
+/* `vector-effect: non-scaling-stroke` sur tous les traits structurels du
+   cercle : l'epaisseur est exprimee en pixels ecran, pas en unites viewBox.
+   Sans ca, le zoom profond (CHART_ZOOM_MAX = 400) transforme un trait de
+   1 unite en bande de 38 % de la largeur d'ecran. Avec, les traits restent
+   fins et lisibles a toutes les profondeurs. Effet de bord assume : a
+   zoom 1 les traits sont legerement plus nets qu'avant (1 px au lieu de
+   ~0.4 px sur mobile). */
 .zodiac-ring {
   fill: none;
   stroke: var(--line-medium);
   stroke-width: 1;
+  vector-effect: non-scaling-stroke;
 }
 
 /* Ticks fins tous les degrés à l'intérieur de la ceinture des signes.
@@ -398,6 +406,7 @@ h1 {
   stroke: var(--line-medium);
   stroke-width: 0.3;
   opacity: 0.5;
+  vector-effect: non-scaling-stroke;
 }
 
 /* Séparateurs entre signes (multiples de 30°) : traversent la ceinture,
@@ -405,6 +414,7 @@ h1 {
 .zodiac-divider {
   stroke: var(--line-strong);
   stroke-width: 1;
+  vector-effect: non-scaling-stroke;
 }
 
 /* Glyphes du zodiaque : forcer présentation "text" (monochrome) car sur mobile
@@ -427,6 +437,7 @@ h1 {
   stroke: var(--line-medium);
   stroke-width: 0.5;
   stroke-dasharray: 2 3;
+  vector-effect: non-scaling-stroke;
 }
 
 /* Axes ASC/DSC & MC/IC : traversent tout le viewBox, l'ossature-base de la
@@ -434,6 +445,7 @@ h1 {
 .house-cusp-angle {
   stroke: var(--line-strong);
   stroke-width: 1.4;
+  vector-effect: non-scaling-stroke;
 }
 
 .house-number {
@@ -484,12 +496,14 @@ h1 {
 .planet-tick {
   stroke: var(--planet);
   stroke-width: 1;
+  vector-effect: non-scaling-stroke;
 }
 
 .midpoint-tick {
   stroke: var(--line-medium);
   stroke-width: 1;
   opacity: 0.8;
+  vector-effect: non-scaling-stroke;
 }
 
 .midpoint-glyph {
