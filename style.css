@@ -559,8 +559,11 @@ h1 {
    gardent leur forme naturelle. */
 .scrap-img-item {
   image-rendering: auto;
-  pointer-events: none;
+  pointer-events: auto;
+  cursor: pointer;
+  touch-action: none;
 }
+.scrap-handle { touch-action: none; }
 
 /* Menu déroulant "aspects" — regroupe la sélection des harmoniques (1..9)
    et le choix du style de rendu (ligne / chiffre). Placé au premier niveau

@@ -799,6 +799,11 @@ function pickScrapVariant(it) {
   return it.thumbFileId || it.fullFileId || null;
 }
 
+// Mode édition d'un item scrapbook (toggled par double-tap sur l'item). Un
+// seul item à la fois. Null = pas d'édition. Changer cette valeur ne
+// re-render pas tout seul — l'appelant doit lancer render().
+let editingScrapId = null;
+
 function drawScrapItem(container, it) {
   const ascLon = state.currentAscLon != null ? state.currentAscLon : 0;
   const rawR   = it.radius != null ? it.radius : (R_ZODIAC_IN + R_ZODIAC_OUT) / 2;
@@ -807,9 +812,11 @@ function drawScrapItem(container, it) {
 
   const iw = it.imgWidth || 100;
   const ih = it.imgHeight || 100;
+  const scale = it.scale || 1;
+  const base = SCRAP_IMG_BASE * scale;
   let w, h;
-  if (iw >= ih) { w = SCRAP_IMG_BASE; h = SCRAP_IMG_BASE * ih / iw; }
-  else          { h = SCRAP_IMG_BASE; w = SCRAP_IMG_BASE * iw / ih; }
+  if (iw >= ih) { w = base; h = base * ih / iw; }
+  else          { h = base; w = base * iw / ih; }
 
   // Résolution de l'href selon la source :
   //  - Drive : variante choisie par LOD, chargée via cache mémoire.
@@ -833,6 +840,42 @@ function drawScrapItem(container, it) {
     'data-id': it.id,
   });
   container.appendChild(img);
+
+  // Overlay d'édition : rect pointillé + poignée resize (coin bas-droit) +
+  // bouton retirer (coin haut-droit). Dimensionné en viewBox units de façon
+  // à rester touchable quel que soit le zoom chart. Esthétique dans style.css.
+  if (editingScrapId === it.id) {
+    const svgEl = container.ownerSVGElement || document.getElementById('chart');
+    const zoom = (state.chart && state.chart.zoom) || 1;
+    const screenW = (svgEl && svgEl.clientWidth) || 400;
+    const handleR = Math.max(1.5, Math.min(14, 22 * CHART_VB_SIZE / (zoom * screenW)));
+    const x0 = center.x - w / 2;
+    const y0 = center.y - h / 2;
+
+    container.appendChild(svg('rect', {
+      x: x0, y: y0, width: w, height: h,
+      class: 'scrap-edit-frame',
+    }));
+
+    container.appendChild(svg('circle', {
+      cx: x0 + w, cy: y0 + h, r: handleR,
+      class: 'scrap-edit-handle',
+      'data-scrap-handle': 'resize',
+      'data-id': it.id,
+    }));
+
+    container.appendChild(svg('circle', {
+      cx: x0 + w, cy: y0, r: handleR,
+      class: 'scrap-edit-delete',
+      'data-scrap-handle': 'remove',
+      'data-id': it.id,
+    }));
+    container.appendChild(svg('text', {
+      x: x0 + w, y: y0,
+      class: 'scrap-edit-delete-x',
+      style: `font-size:${handleR * 1.6}px`,
+    }, '×'));
+  }
 }
 
 // Visibilité d'un item scrapbook (bi-wheel) :
@@ -2881,7 +2924,7 @@ function wireChartInteraction() {
     if (ev.button !== 0) return;                     // bouton gauche seulement
     if (ev.pointerType === 'mouse') return;           // desktop : molette + clic milieu
     if (oneFingerPan != null) return;                 // déjà en cours
-    if (ev.target.closest('.scrap-img-item, .planet-symbol')) return;
+    if (ev.target.closest('.scrap-img-item, .planet-symbol, [data-scrap-handle]')) return;
     oneFingerPan = { id: ev.pointerId, startX: ev.clientX, startY: ev.clientY,
                      startCx: state.chart.cx || 0, startCy: state.chart.cy || 0, armed: false };
   });
@@ -2986,9 +3029,9 @@ function wireScrapbookGestures() {
     if (ev.pointerType === 'mouse' && Date.now() - lastTouchPointerAt < 600) return;
     if (ev.pointerType === 'touch') lastTouchPointerAt = Date.now();
 
-    // Ignorer si sur un item scrapbook image existant, ou sur un glyphe
-    // planétaire (les glyphes tombent dans la bande zodiacale : r=315).
-    if (ev.target.closest && ev.target.closest('.scrap-img-item, .planet-symbol')) return;
+    // Ignorer si sur un item scrapbook image existant, un handle d'édition,
+    // ou un glyphe planétaire (les glyphes tombent dans la bande zodiacale : r=315).
+    if (ev.target.closest && ev.target.closest('.scrap-img-item, .planet-symbol, [data-scrap-handle]')) return;
 
     const pt = screenToSvg(svgEl, ev.clientX, ev.clientY);
     // Création uniquement si le tap tombe dans la bande zodiacale.
@@ -3031,6 +3074,227 @@ function wireScrapbookGestures() {
     }
   };
   svgEl.addEventListener('pointerup', endTap);
+  svgEl.addEventListener('pointercancel', () => { down = null; });
+}
+
+// ---------- Scrapbook : gestes sur items existants ----------
+// Trois gestes sur un `.scrap-img-item`, en délégation sur le SVG racine :
+//  - tap simple    → zoom chart sur l'item (anime cx/cy/zoom pour cadrer)
+//  - double-tap    → entre en mode édition (overlay poignée + bouton retirer)
+//  - press long    → drag libre (met à jour lon/radius en bande zodiacale)
+// L'ordre tap vs double-tap est différé : au premier tap on arme un timer
+// SCRAP_DOUBLE_TAP_MS avant de confirmer "tap simple". Un 2e tap avant
+// l'échéance annule et bascule en édition.
+const SCRAP_LONG_PRESS_MS = 500;
+const SCRAP_DOUBLE_TAP_MS = 320;
+const SCRAP_TAP_SLOP_PX   = 10;
+
+function exitScrapEditMode() {
+  if (editingScrapId == null) return;
+  editingScrapId = null;
+  render().catch(e => showError('render error: ' + e.message));
+}
+function enterScrapEditMode(id) {
+  editingScrapId = id;
+  render().catch(e => showError('render error: ' + e.message));
+}
+
+// Anime le viewport chart vers le centre d'un item scrapbook. Zoom cible 100
+// (au-dessus de SCRAP_LOD_FULL_ZOOM=80 → charge la variante full automatiquement).
+function animateChartViewport(cx, cy, zoom, duration = 320) {
+  const sCx = state.chart.cx || 0;
+  const sCy = state.chart.cy || 0;
+  const sZ  = state.chart.zoom || 1;
+  const start = performance.now();
+  function step(t) {
+    const p = Math.min(1, (t - start) / duration);
+    const e = 1 - Math.pow(1 - p, 3);  // easeOutCubic
+    state.chart.zoom = sZ + (zoom - sZ) * e;
+    state.chart.cx   = sCx + (cx  - sCx) * e;
+    state.chart.cy   = sCy + (cy  - sCy) * e;
+    updateChartViewBox();
+    if (p < 1) requestAnimationFrame(step);
+    else render().catch(err => showError('render error: ' + err.message));  // reload LOD final
+  }
+  requestAnimationFrame(step);
+}
+
+function zoomChartToItem(id) {
+  const it = state.scrapbook.find(x => x.id === id);
+  if (!it) return;
+  const ascLon = state.currentAscLon != null ? state.currentAscLon : 0;
+  const rawR = it.radius != null ? it.radius : (R_ZODIAC_IN + R_ZODIAC_OUT) / 2;
+  const dotR = Math.max(R_ZODIAC_IN, Math.min(R_ZODIAC_OUT, rawR));
+  const center = project(it.lon != null ? it.lon : 0, ascLon, dotR);
+  animateChartViewport(center.x, center.y, 100);
+}
+
+function wireScrapItemGestures() {
+  const svgEl = document.getElementById('chart');
+  if (!svgEl) return;
+  let press = null;        // { id, startX, startY, pointerId, longTimer, mode }
+  let lastTap = { id: null, at: 0 };
+  let tapSingleTimer = null;
+
+  const clearSingleTap = () => {
+    if (tapSingleTimer) { clearTimeout(tapSingleTimer); tapSingleTimer = null; }
+  };
+
+  svgEl.addEventListener('pointerdown', ev => {
+    if (ev.button !== 0 || !ev.isPrimary) return;
+    const img = ev.target.closest && ev.target.closest('.scrap-img-item');
+    if (!img) return;
+    // Les handles (resize/×) ont leur propre handler ; ne pas les intercepter ici.
+    if (ev.target.closest('[data-scrap-handle]')) return;
+    ev.stopPropagation();
+    const id = img.getAttribute('data-id');
+    press = {
+      id,
+      startX: ev.clientX,
+      startY: ev.clientY,
+      pointerId: ev.pointerId,
+      mode: 'idle',
+      longTimer: null,
+    };
+    const p = press;
+    p.longTimer = setTimeout(() => {
+      if (!press || press !== p || press.mode !== 'idle') return;
+      press.mode = 'drag';
+      try { svgEl.setPointerCapture(p.pointerId); } catch (e) {}
+    }, SCRAP_LONG_PRESS_MS);
+  });
+
+  svgEl.addEventListener('pointermove', ev => {
+    if (!press || ev.pointerId !== press.pointerId) return;
+    const dx = ev.clientX - press.startX;
+    const dy = ev.clientY - press.startY;
+    if (press.mode === 'idle') {
+      if (Math.hypot(dx, dy) > SCRAP_TAP_SLOP_PX) {
+        // Mouvement trop tôt : annule l'armement, laisse le pan global prendre.
+        if (press.longTimer) clearTimeout(press.longTimer);
+        press = null;
+      }
+      return;
+    }
+    if (press.mode === 'drag') {
+      const pt = screenToSvg(svgEl, ev.clientX, ev.clientY);
+      const ascLon = state.currentAscLon != null ? state.currentAscLon : 0;
+      const lon = xyToLon(pt.x, pt.y, ascLon);
+      const r = Math.max(R_ZODIAC_IN, Math.min(R_ZODIAC_OUT, Math.hypot(pt.x, pt.y)));
+      updateScrapItem(press.id, { lon, radius: r });
+    }
+  });
+
+  const endPress = ev => {
+    if (!press) return;
+    if (ev && ev.pointerId != null && ev.pointerId !== press.pointerId) return;
+    if (press.longTimer) clearTimeout(press.longTimer);
+    const { id, mode, startX, startY } = press;
+    press = null;
+    if (mode === 'drag') return;  // position déjà sauvée pendant pointermove
+    if (ev && Math.hypot(ev.clientX - startX, ev.clientY - startY) > SCRAP_TAP_SLOP_PX) return;
+    // Tap propre. Distinguer simple vs double.
+    const now = Date.now();
+    if (lastTap.id === id && now - lastTap.at < SCRAP_DOUBLE_TAP_MS) {
+      clearSingleTap();
+      lastTap = { id: null, at: 0 };
+      // Double-tap : entrer ou sortir du mode édition (toggle)
+      if (editingScrapId === id) exitScrapEditMode();
+      else enterScrapEditMode(id);
+      return;
+    }
+    lastTap = { id, at: now };
+    clearSingleTap();
+    tapSingleTimer = setTimeout(() => {
+      tapSingleTimer = null;
+      lastTap = { id: null, at: 0 };
+      // Si item en édition et tap simple dessus : on sort de l'édition
+      // (comportement cohérent avec "tap ailleurs = exit")
+      if (editingScrapId === id) { exitScrapEditMode(); return; }
+      // Sinon : zoom sur l'item
+      if (editingScrapId != null) exitScrapEditMode();
+      zoomChartToItem(id);
+    }, SCRAP_DOUBLE_TAP_MS);
+  };
+  svgEl.addEventListener('pointerup', endPress);
+  svgEl.addEventListener('pointercancel', endPress);
+  svgEl.addEventListener('lostpointercapture', endPress);
+}
+
+// Handles du mode édition : poignée resize (drag depuis le coin bas-droit,
+// scale proportionnelle à la distance au centre) + bouton × (retire l'item,
+// réversible via slider temporel).
+function wireScrapEditHandles() {
+  const svgEl = document.getElementById('chart');
+  if (!svgEl) return;
+  let dragH = null;  // { id, pointerId, cx, cy, startDist, startScale }
+
+  svgEl.addEventListener('pointerdown', ev => {
+    const h = ev.target.closest && ev.target.closest('[data-scrap-handle]');
+    if (!h) return;
+    ev.stopPropagation();
+    ev.preventDefault();
+    const id = h.getAttribute('data-id');
+    const kind = h.getAttribute('data-scrap-handle');
+    if (kind === 'remove') {
+      retireScrapItem(id);
+      exitScrapEditMode();
+      return;
+    }
+    if (kind === 'resize') {
+      const it = state.scrapbook.find(x => x.id === id);
+      if (!it) return;
+      const ascLon = state.currentAscLon != null ? state.currentAscLon : 0;
+      const rawR = it.radius != null ? it.radius : (R_ZODIAC_IN + R_ZODIAC_OUT) / 2;
+      const dotR = Math.max(R_ZODIAC_IN, Math.min(R_ZODIAC_OUT, rawR));
+      const c = project(it.lon != null ? it.lon : 0, ascLon, dotR);
+      const pt = screenToSvg(svgEl, ev.clientX, ev.clientY);
+      const d0 = Math.max(0.5, Math.hypot(pt.x - c.x, pt.y - c.y));
+      dragH = {
+        id, pointerId: ev.pointerId,
+        cx: c.x, cy: c.y,
+        startDist: d0,
+        startScale: it.scale || 1,
+      };
+      try { svgEl.setPointerCapture(ev.pointerId); } catch (e) {}
+    }
+  });
+
+  svgEl.addEventListener('pointermove', ev => {
+    if (!dragH || ev.pointerId !== dragH.pointerId) return;
+    const pt = screenToSvg(svgEl, ev.clientX, ev.clientY);
+    const d = Math.hypot(pt.x - dragH.cx, pt.y - dragH.cy);
+    const scale = Math.max(0.3, Math.min(20, dragH.startScale * (d / dragH.startDist)));
+    updateScrapItem(dragH.id, { scale });
+  });
+  const endH = ev => {
+    if (!dragH) return;
+    if (ev && ev.pointerId != null && ev.pointerId !== dragH.pointerId) return;
+    dragH = null;
+  };
+  svgEl.addEventListener('pointerup', endH);
+  svgEl.addEventListener('pointercancel', endH);
+  svgEl.addEventListener('lostpointercapture', endH);
+}
+
+// Sortie du mode édition quand on tape dans le vide (hors item, hors handles).
+function wireScrapEditExitOnBlankTap() {
+  const svgEl = document.getElementById('chart');
+  if (!svgEl) return;
+  let down = null;
+  svgEl.addEventListener('pointerdown', ev => {
+    if (editingScrapId == null) return;
+    if (!ev.isPrimary) return;
+    if (ev.target.closest && ev.target.closest('.scrap-img-item, [data-scrap-handle]')) return;
+    down = { x: ev.clientX, y: ev.clientY, pid: ev.pointerId };
+  });
+  svgEl.addEventListener('pointerup', ev => {
+    if (!down || ev.pointerId !== down.pid) return;
+    const moved = Math.hypot(ev.clientX - down.x, ev.clientY - down.y);
+    down = null;
+    if (moved > SCRAP_TAP_SLOP_PX) return;  // c'était un pan, pas un tap
+    if (editingScrapId != null) exitScrapEditMode();
+  });
   svgEl.addEventListener('pointercancel', () => { down = null; });
 }
 
@@ -3680,6 +3944,9 @@ function wireControls() {
   wireAsteroidSearch();
   wireProxySettings();
   wireScrapbookGestures();
+  wireScrapItemGestures();
+  wireScrapEditHandles();
+  wireScrapEditExitOnBlankTap();
   wireScrapPurge();
   wireChartInteraction();
   updateChartViewBox();
