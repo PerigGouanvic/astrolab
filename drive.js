@@ -1,7 +1,8 @@
 // drive.js — source Google Drive pour contenu astrologique (fiches planètes).
 // Scope `drive.file` : accès uniquement aux fichiers créés ou ouverts par l'app.
-// Flow implicite (GIS token flow) — pas de secret côté client, token en mémoire
-// + localStorage avec expiration.
+// Flow Authorization Code + PKCE (initCodeClient) — remplace le flux implicite
+// (initTokenClient) déprécié par Google et bloqué sur navigateur standard.
+// L'APK WebView tolérait encore l'ancien flux, d'où le différentiel APK OK / browser KO.
 
 const CLIENT_ID = '178447645683-l3ls02t7f7ksjphqbv87d7m15d7vri5b.apps.googleusercontent.com';
 const SCOPE = 'https://www.googleapis.com/auth/drive.file';
@@ -14,10 +15,29 @@ const FOLDER_KEY = 'astrolab.drive.planetsFolderId';
 const SCRAP_FOLDER_KEY = 'astrolab.drive.scrapbookFolderId';
 
 let accessToken = null;
-let tokenClient = null;
+let codeClient = null;
 let planetsFolderId = null;
 let scrapbookFolderId = null;
 let onAuthChange = () => {};
+
+// ---------- PKCE (Proof Key for Code Exchange) ----------
+
+function generateCodeVerifier() {
+  const array = new Uint8Array(64);
+  crypto.getRandomValues(array);
+  return btoa(String.fromCharCode(...array))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+async function generateCodeChallenge(verifier) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(verifier);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return btoa(String.fromCharCode(...new Uint8Array(hash)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+// ---------- GIS loader ----------
 
 function waitForGIS() {
   return new Promise((resolve, reject) => {
@@ -31,6 +51,8 @@ function waitForGIS() {
   });
 }
 
+// ---------- Token storage ----------
+
 function loadStoredToken() {
   try {
     const raw = localStorage.getItem(TOKEN_KEY);
@@ -38,24 +60,54 @@ function loadStoredToken() {
     const { token, expiresAt } = JSON.parse(raw);
     if (expiresAt > Date.now() + 60000) return token;
   } catch {}
-  localStorage.removeItem(TOKEN_KEY);
+  // Token expiré mais on garde le refresh_token dans le stockage
   return null;
 }
 
-function storeToken(token, expiresInSec) {
+function storeToken(token, expiresInSec, refreshToken = null) {
+  const prev = JSON.parse(localStorage.getItem(TOKEN_KEY) || '{}');
   localStorage.setItem(TOKEN_KEY, JSON.stringify({
     token,
-    expiresAt: Date.now() + (expiresInSec * 1000)
+    expiresAt: Date.now() + (expiresInSec * 1000),
+    refreshToken: refreshToken || prev.refreshToken || null
   }));
 }
+
+async function refreshAccessToken() {
+  const stored = JSON.parse(localStorage.getItem(TOKEN_KEY) || '{}');
+  if (!stored.refreshToken) return null;
+  try {
+    const res = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: CLIENT_ID,
+        grant_type: 'refresh_token',
+        refresh_token: stored.refreshToken
+      })
+    });
+    if (!res.ok) {
+      localStorage.removeItem(TOKEN_KEY);
+      return null;
+    }
+    const data = await res.json();
+    accessToken = data.access_token;
+    storeToken(accessToken, data.expires_in || 3600, data.refresh_token || stored.refreshToken);
+    return accessToken;
+  } catch {
+    return null;
+  }
+}
+
+// ---------- Init ----------
 
 export async function initDrive(onChange) {
   if (typeof onChange === 'function') onAuthChange = onChange;
   await waitForGIS();
-  tokenClient = google.accounts.oauth2.initTokenClient({
+  codeClient = google.accounts.oauth2.initCodeClient({
     client_id: CLIENT_ID,
     scope: SCOPE,
-    callback: () => {}
+    callback: () => {} // sera remplacé dans signIn()
   });
   accessToken = loadStoredToken();
   planetsFolderId = localStorage.getItem(FOLDER_KEY) || null;
@@ -67,17 +119,46 @@ export function isAuthenticated() {
   return !!accessToken;
 }
 
+// ---------- Auth flow (Authorization Code + PKCE) ----------
+
 export function signIn() {
-  return new Promise((resolve, reject) => {
-    if (!tokenClient) return reject(new Error('Drive non initialisé'));
-    tokenClient.callback = (resp) => {
+  return new Promise(async (resolve, reject) => {
+    if (!codeClient) return reject(new Error('Drive non initialisé'));
+
+    const codeVerifier = generateCodeVerifier();
+    const codeChallenge = await generateCodeChallenge(codeVerifier);
+
+    codeClient.callback = async (resp) => {
       if (resp.error) return reject(new Error(resp.error));
-      accessToken = resp.access_token;
-      storeToken(accessToken, resp.expires_in || 3600);
-      onAuthChange(true);
-      resolve();
+
+      // Échange authorization code → access token + refresh token
+      try {
+        const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            code: resp.code,
+            client_id: CLIENT_ID,
+            code_verifier: codeVerifier,
+            grant_type: 'authorization_code',
+            redirect_uri: window.location.origin
+          })
+        });
+        if (!tokenRes.ok) {
+          const err = await tokenRes.text();
+          return reject(new Error(`Token exchange failed: ${err}`));
+        }
+        const data = await tokenRes.json();
+        accessToken = data.access_token;
+        storeToken(accessToken, data.expires_in || 3600, data.refresh_token || null);
+        onAuthChange(true);
+        resolve();
+      } catch (e) {
+        reject(e);
+      }
     };
-    tokenClient.requestAccessToken({ prompt: 'consent' });
+
+    codeClient.requestCode({ prompt: 'consent' });
   });
 }
 
@@ -94,6 +175,8 @@ export function signOut() {
   onAuthChange(false);
 }
 
+// ---------- Drive API wrapper ----------
+
 async function driveFetch(path, options = {}) {
   const url = path.startsWith('http') ? path : `https://www.googleapis.com/drive/v3/${path}`;
   const res = await fetch(url, {
@@ -104,6 +187,18 @@ async function driveFetch(path, options = {}) {
     }
   });
   if (res.status === 401) {
+    // Tente un refresh silencieux avant d'abandonner
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      const retryRes = await fetch(url, {
+        ...options,
+        headers: {
+          'Authorization': `Bearer ${refreshed}`,
+          ...(options.headers || {})
+        }
+      });
+      if (retryRes.ok) return retryRes;
+    }
     accessToken = null;
     localStorage.removeItem(TOKEN_KEY);
     onAuthChange(false);
@@ -112,6 +207,8 @@ async function driveFetch(path, options = {}) {
   if (!res.ok) throw new Error(`Drive API ${res.status}: ${await res.text()}`);
   return res;
 }
+
+// ---------- Folder helpers ----------
 
 async function findOrCreateFolder(name, parentId = null) {
   const parentClause = parentId ? `and '${parentId}' in parents` : `and 'root' in parents`;
@@ -144,6 +241,8 @@ async function findFileInFolder(folderId, name) {
   const { files } = await res.json();
   return files && files.length > 0 ? files[0].id : null;
 }
+
+// ---------- JSON upload / download ----------
 
 async function uploadJSON(folderId, name, content, existingFileId = null) {
   const boundary = 'astrolab_' + Math.random().toString(36).slice(2);
