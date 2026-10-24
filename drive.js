@@ -141,6 +141,7 @@ export function signIn() {
             client_id: CLIENT_ID,
             code_verifier: codeVerifier,
             grant_type: 'authorization_code',
+            redirect_uri: window.location.origin,
           })
         });
         if (!tokenRes.ok) {
