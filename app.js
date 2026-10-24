@@ -8,7 +8,7 @@
 
 // Source Google Drive pour les fiches planètes (modèle salon à venir).
 // Si pas connecté, les fiches sont vides (fallback silencieux).
-import * as Drive from './drive.js?v=4';
+import * as Drive from './drive.js?v=5';
 
 // jsDelivr +esm : bundle self-contained avec process.browser=true.
 // esm.sh polyfille process.versions.node truthy → swisseph tente createRequire() → boom.
@@ -655,6 +655,48 @@ async function prepareScrapImage(file) {
   return encodeScrapImage(await loadImageFromFile(file));
 }
 
+// ---------- Scrapbook : variantes pour Drive (thumb + full en Blob) ----------
+// Quand Drive est connecté, on stocke 2 variantes par item (jamais en dataURL
+// base64, jamais en localStorage) : thumb pour la vue de loin, full pour le
+// zoom profond. Le swap selon zoom est fait côté rendu (LOD).
+const SCRAP_THUMB_PX = 256;
+const SCRAP_FULL_PX  = 2048;
+const SCRAP_THUMB_QUALITY = 0.80;
+const SCRAP_FULL_QUALITY  = 0.85;
+
+function encodeCanvasToBlob(canvas, type, quality) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      blob => blob ? resolve(blob) : reject(new Error('encodage impossible')),
+      type, quality
+    );
+  });
+}
+
+async function makeVariantBlob(img, maxPx, quality, type) {
+  const sw = img.naturalWidth || img.width;
+  const sh = img.naturalHeight || img.height;
+  if (!sw || !sh) throw new Error('dimensions inconnues');
+  const scale = Math.min(1, maxPx / Math.max(sw, sh));
+  const w = Math.max(1, Math.round(sw * scale));
+  const h = Math.max(1, Math.round(sh * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+  const blob = await encodeCanvasToBlob(canvas, type, quality);
+  return { blob, width: w, height: h };
+}
+
+// Retourne { thumb: {blob,width,height}, full: {blob,width,height}, mimeType }
+// — les deux variantes à uploader vers Drive.
+async function prepareScrapImageVariants(file) {
+  const img = await loadImageFromFile(file);
+  const type = webpSupported() ? 'image/webp' : 'image/jpeg';
+  const thumb = await makeVariantBlob(img, SCRAP_THUMB_PX, SCRAP_THUMB_QUALITY, type);
+  const full  = await makeVariantBlob(img, SCRAP_FULL_PX,  SCRAP_FULL_QUALITY,  type);
+  return { thumb, full, mimeType: type };
+}
+
 // Recompression one-shot des items déjà stockés (2026-10-23). Les images
 // importées avant le redimensionnement pèsent plusieurs Mo chacune et saturent
 // le quota : le scrapbook devient inutilisable (plus aucun ajout possible).
@@ -699,8 +741,61 @@ async function recompressScrapbookImages() {
 // Les images avec transparence (PNG) gardent leur forme naturelle.
 const SCRAP_IMG_BASE = 8;  // unités viewBox sur le côté le plus long
 
+// LOD : au-dessus de ce seuil de zoom, on sert le `full` au lieu du `thumb`.
+// Thumb 256 px est net tant qu'il tient dans sa case à l'écran. Pour un
+// écran 400 px, un item fait ~3.08 × zoom pixels : à zoom 80 → ~246 px,
+// à zoom 100 → ~308 px. Au-dessus de 80 on bascule sur full 2048.
+const SCRAP_LOD_FULL_ZOOM = 80;
+
+// Cache en mémoire des blobs Drive. Clef = fileId Drive. La valeur est un
+// objectURL créé via URL.createObjectURL — à révoquer si on vide le cache,
+// mais tant que la page vit on garde (coût mémoire négligeable, ~qq Mo).
+// Un deuxième Map suit les Promises en vol pour éviter les doubles fetches
+// quand drawScrapItem est appelé plusieurs fois pendant que le blob charge.
+const scrapBlobCache  = new Map();  // fileId → objectURL
+const scrapBlobInFlight = new Map();  // fileId → Promise<objectURL>
+
+// Pré-charge un blob fraîchement encodé côté client dans le cache, sans
+// aller-retour Drive. Appelé juste après l'upload à la création d'item.
+function preloadThumbBlob(fileId, blob) {
+  if (!fileId || scrapBlobCache.has(fileId)) return;
+  scrapBlobCache.set(fileId, URL.createObjectURL(blob));
+}
+
+// Résout un fileId Drive en objectURL. Appel synchrone : retourne l'URL si
+// déjà en cache, sinon null + lance le fetch en arrière-plan et déclenche
+// un render au retour (pour que drawScrapItem repasse et pose l'href).
+function getScrapBlobUrl(fileId) {
+  if (!fileId) return null;
+  if (scrapBlobCache.has(fileId)) return scrapBlobCache.get(fileId);
+  if (!scrapBlobInFlight.has(fileId)) {
+    const p = Drive.loadBlobFromDrive(fileId)
+      .then(blob => {
+        const url = URL.createObjectURL(blob);
+        scrapBlobCache.set(fileId, url);
+        scrapBlobInFlight.delete(fileId);
+        render().catch(e => console.warn('render after blob load:', e.message));
+        return url;
+      })
+      .catch(e => {
+        scrapBlobInFlight.delete(fileId);
+        console.warn('loadBlobFromDrive', fileId, e.message);
+      });
+    scrapBlobInFlight.set(fileId, p);
+  }
+  return null;
+}
+
+// Choisit la variante selon le zoom courant. Retourne un fileId Drive, ou
+// null si l'item n'a pas la variante demandée (ex. thumb absent).
+function pickScrapVariant(it) {
+  const zoom = (state.chart && state.chart.zoom) || 1;
+  const wantsFull = zoom >= SCRAP_LOD_FULL_ZOOM;
+  if (wantsFull && it.fullFileId) return it.fullFileId;
+  return it.thumbFileId || it.fullFileId || null;
+}
+
 function drawScrapItem(container, it) {
-  if (!it.imgDataUrl) return;
   const ascLon = state.currentAscLon != null ? state.currentAscLon : 0;
   const rawR   = it.radius != null ? it.radius : (R_ZODIAC_IN + R_ZODIAC_OUT) / 2;
   const dotR   = Math.max(R_ZODIAC_IN, Math.min(R_ZODIAC_OUT, rawR));
@@ -712,10 +807,24 @@ function drawScrapItem(container, it) {
   if (iw >= ih) { w = SCRAP_IMG_BASE; h = SCRAP_IMG_BASE * ih / iw; }
   else          { h = SCRAP_IMG_BASE; w = SCRAP_IMG_BASE * iw / ih; }
 
+  // Résolution de l'href selon la source :
+  //  - Drive : variante choisie par LOD, chargée via cache mémoire.
+  //  - Legacy localStorage : dataURL inline.
+  let href = null;
+  if (it.imgSrc === 'drive') {
+    const fileId = pickScrapVariant(it);
+    if (!fileId) return;
+    href = getScrapBlobUrl(fileId);
+    if (!href) return;  // chargement en cours, re-render au retour
+  } else {
+    if (!it.imgDataUrl) return;
+    href = it.imgDataUrl;
+  }
+
   const img = svg('image', {
     x: center.x - w / 2, y: center.y - h / 2,
     width: w, height: h,
-    href: it.imgDataUrl,
+    href,
     class: 'scrap-img-item',
     'data-id': it.id,
   });
@@ -2294,10 +2403,10 @@ function openTimelineEditor(item, clientX, clientY) {
 
 // Migration : les anciens items (texte, foreignObject, collapsed/expanded)
 // sont des données de test sans valeur. On les purge. Ne garde que les items
-// image (imgDataUrl) du nouveau modèle.
+// porteurs d'une image : legacy (imgDataUrl) OU Drive (imgSrc === 'drive').
 function migrateScrapbookItems() {
   const before = state.scrapbook.length;
-  state.scrapbook = state.scrapbook.filter(it => it.imgDataUrl);
+  state.scrapbook = state.scrapbook.filter(it => it.imgDataUrl || it.imgSrc === 'drive');
   if (state.scrapbook.length !== before) saveScrapbook();
 }
 
@@ -2545,8 +2654,10 @@ function wireScrapPurge() {
 function createScrapItemAt(x, y) {
   // Ouvre un file picker pour choisir une image. L'item est ancré
   // à la longitude écliptique du point de tap, dans la bande zodiacale.
-  // L'image est stockée en dataURL, affichée directement dans le SVG
-  // via <image> — pas de foreignObject, pas de collapsed/expanded.
+  // Deux modes de stockage selon connexion Drive :
+  //  - Drive connecté : upload 2 variantes (thumb + full), item ne stocke que
+  //    les fileIds. LocalStorage reste léger ; quota disparaît.
+  //  - Drive non connecté : fallback historique (dataURL 512 px en localStorage).
   const ascLon = state.currentAscLon != null ? state.currentAscLon : 0;
   const lon    = xyToLon(x, y, ascLon);
   const radius = (R_ZODIAC_IN + R_ZODIAC_OUT) / 2;
@@ -2558,6 +2669,47 @@ function createScrapItemAt(x, y) {
   input.addEventListener('change', async () => {
     const file = input.files && input.files[0];
     if (!file) return;
+
+    if (Drive.isAuthenticated()) {
+      // Pipeline Drive — 2 variantes blob uploadées en parallèle.
+      let variants;
+      try {
+        variants = await prepareScrapImageVariants(file);
+      } catch (e) {
+        showError(`Image « ${file.name} » illisible : ${e.message}`);
+        return;
+      }
+      const itemId = genId();
+      const ext = variants.mimeType === 'image/webp' ? 'webp' : 'jpg';
+      try {
+        const [thumbFileId, fullFileId] = await Promise.all([
+          Drive.uploadScrapBlob(`${itemId}-thumb.${ext}`, variants.thumb.blob, variants.mimeType),
+          Drive.uploadScrapBlob(`${itemId}-full.${ext}`,  variants.full.blob,  variants.mimeType),
+        ]);
+        const item = {
+          id: itemId,
+          lon, radius,
+          imgSrc: 'drive',
+          thumbFileId, fullFileId,
+          imgMime: variants.mimeType,
+          imgWidth:  variants.full.width,
+          imgHeight: variants.full.height,
+          createdAt: stamp,
+          scope: 'timed',
+        };
+        // Pré-cache le thumb Blob fraîchement encodé : évite un aller-retour
+        // Drive pour l'affichage immédiat.
+        preloadThumbBlob(thumbFileId, variants.thumb.blob);
+        state.scrapbook.push(item);
+        saveScrapbook();
+        render().catch(e => showError('render error: ' + e.message));
+      } catch (e) {
+        showError(`Upload Drive échoué : ${e.message}`);
+      }
+      return;
+    }
+
+    // Fallback localStorage (Drive non connecté).
     let prepared;
     try {
       prepared = await prepareScrapImage(file);
@@ -2567,8 +2719,7 @@ function createScrapItemAt(x, y) {
     }
     const item = {
       id: genId(),
-      lon,
-      radius,
+      lon, radius,
       imgDataUrl: prepared.dataUrl,
       imgWidth: prepared.width,
       imgHeight: prepared.height,
@@ -2578,7 +2729,6 @@ function createScrapItemAt(x, y) {
     };
     state.scrapbook.push(item);
     if (!saveScrapbook()) {
-      // Quota dépassé : on annule l'ajout pour que l'écran reflète le stockage.
       state.scrapbook = state.scrapbook.filter(x => x.id !== item.id);
       return;
     }

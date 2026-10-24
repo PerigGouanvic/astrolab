@@ -7,13 +7,16 @@ const CLIENT_ID = '178447645683-l3ls02t7f7ksjphqbv87d7m15d7vri5b.apps.googleuser
 const SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const ROOT_FOLDER = 'astrolab';
 const PLANETS_FOLDER = 'planets';
+const SCRAPBOOK_FOLDER = 'scrapbook';
 
 const TOKEN_KEY = 'astrolab.drive.token';
 const FOLDER_KEY = 'astrolab.drive.planetsFolderId';
+const SCRAP_FOLDER_KEY = 'astrolab.drive.scrapbookFolderId';
 
 let accessToken = null;
 let tokenClient = null;
 let planetsFolderId = null;
+let scrapbookFolderId = null;
 let onAuthChange = () => {};
 
 function waitForGIS() {
@@ -56,6 +59,7 @@ export async function initDrive(onChange) {
   });
   accessToken = loadStoredToken();
   planetsFolderId = localStorage.getItem(FOLDER_KEY) || null;
+  scrapbookFolderId = localStorage.getItem(SCRAP_FOLDER_KEY) || null;
   onAuthChange(isAuthenticated());
 }
 
@@ -83,8 +87,10 @@ export function signOut() {
   }
   accessToken = null;
   planetsFolderId = null;
+  scrapbookFolderId = null;
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(FOLDER_KEY);
+  localStorage.removeItem(SCRAP_FOLDER_KEY);
   onAuthChange(false);
 }
 
@@ -204,4 +210,65 @@ export async function savePlanetToDrive(key, data) {
   const name = `${key}.json`;
   const existingId = await findFileInFolder(folderId, name);
   await uploadJSON(folderId, name, data, existingId);
+}
+
+// ---------- Scrapbook (blobs binaires : images, plus tard audio/vidéo) ----------
+// Dossier dédié `astrolab/scrapbook/`, flat : un fichier par variante,
+// nommé `<itemId>-<variant>.webp` (ex. `abc123-thumb.webp`, `abc123-full.webp`).
+// Les IDs Drive sont stockés dans l'item scrapbook ; le nom de fichier n'est
+// qu'une étiquette lisible côté Drive, l'app ne s'en sert pas pour résoudre.
+
+export async function ensureScrapbookFolder() {
+  if (scrapbookFolderId) return scrapbookFolderId;
+  const rootId = await findOrCreateFolder(ROOT_FOLDER);
+  scrapbookFolderId = await findOrCreateFolder(SCRAPBOOK_FOLDER, rootId);
+  localStorage.setItem(SCRAP_FOLDER_KEY, scrapbookFolderId);
+  return scrapbookFolderId;
+}
+
+// Upload multipart d'un Blob binaire. Retourne l'ID Drive créé.
+async function uploadBlob(folderId, name, blob, mimeType, existingFileId = null) {
+  const boundary = 'astrolab_' + Math.random().toString(36).slice(2);
+  const metadata = existingFileId ? { name } : { name, parents: [folderId], mimeType };
+  const metaPart = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n`;
+  const binaryPrefix = `--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`;
+  const binarySuffix = `\r\n--${boundary}--\r\n`;
+  const body = new Blob([metaPart, binaryPrefix, blob, binarySuffix]);
+  const url = existingFileId
+    ? `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=multipart&fields=id`
+    : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id`;
+  const res = await driveFetch(url, {
+    method: existingFileId ? 'PATCH' : 'POST',
+    headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
+    body
+  });
+  const { id } = await res.json();
+  return id;
+}
+
+// Uploade un blob dans astrolab/scrapbook/. Retourne l'ID Drive.
+export async function uploadScrapBlob(name, blob, mimeType = 'image/webp') {
+  if (!accessToken) throw new Error('Drive non connecté');
+  const folderId = await ensureScrapbookFolder();
+  return uploadBlob(folderId, name, blob, mimeType);
+}
+
+// Récupère un blob depuis Drive par son ID. Retourne un Blob natif
+// (à passer à URL.createObjectURL côté app).
+export async function loadBlobFromDrive(fileId) {
+  if (!accessToken) throw new Error('Drive non connecté');
+  const res = await driveFetch(`files/${fileId}?alt=media`);
+  return res.blob();
+}
+
+// Supprime un fichier Drive (nettoyage lors de la purge d'un item scrapbook).
+// Best-effort : si ça rate, on log et on avance — l'orphelin dans Drive n'est
+// pas critique côté app.
+export async function deleteDriveFile(fileId) {
+  if (!accessToken) return;
+  try {
+    await driveFetch(`files/${fileId}`, { method: 'DELETE' });
+  } catch (e) {
+    console.warn('deleteDriveFile', fileId, e.message);
+  }
 }
