@@ -8,7 +8,7 @@
 
 // Source Google Drive pour les fiches planètes (modèle salon à venir).
 // Si pas connecté, les fiches sont vides (fallback silencieux).
-import * as Drive from './drive.js?v=7';
+import * as Drive from './drive.js?v=8';
 
 // jsDelivr +esm : bundle self-contained avec process.browser=true.
 // esm.sh polyfille process.versions.node truthy → swisseph tente createRequire() → boom.
