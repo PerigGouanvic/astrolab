@@ -563,13 +563,21 @@ h1 {
   cursor: pointer;
   touch-action: none;
   /* Désactive le menu contextuel système Android/iOS sur un long press
-     (sinon « enregistrer l'image » intercepte notre drag). */
+     (sinon « enregistrer l'image » ou le caret bleu intercepte notre drag). */
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
   -webkit-user-drag: none;
+  -webkit-tap-highlight-color: transparent;
 }
 .scrap-handle { touch-action: none; }
+
+/* Supprime le flash de focus bleu sur tap mobile pour tout le SVG chart. */
+#chart {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
 
 /* Overlay mode édition d'un item scrapbook (double-tap sur item) */
 .scrap-edit-frame {

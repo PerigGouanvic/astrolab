@@ -845,18 +845,14 @@ function drawScrapItem(container, it) {
   container.appendChild(img);
 
   // Overlay d'édition : rect pointillé + poignée resize (coin bas-droit) +
-  // bouton retirer (coin haut-droit). Taille des poignées plafonnée par la
-  // dimension de l'image (sinon à bas zoom les poignées débordent l'image)
-  // tout en visant ~22px écran constants.
+  // bouton retirer (coin haut-droit). Poignées strictement proportionnelles
+  // à la petite dimension de l'image (30 %) — si l'item est petit à l'écran,
+  // l'utilisateur zoome la vue (pinch libre pendant le mode édition) et les
+  // poignées grandissent avec.
   if (editingScrapId === it.id) {
-    const svgEl = container.ownerSVGElement || document.getElementById('chart');
-    const zoom = (state.chart && state.chart.zoom) || 1;
-    const screenW = (svgEl && svgEl.clientWidth) || 400;
-    const target = 22 * CHART_VB_SIZE / (zoom * screenW);
-    const maxFromImg = Math.min(w, h) * 0.4;
-    const handleR = Math.max(0.5, Math.min(target, maxFromImg));
-    const strokeW = Math.max(0.15, handleR * 0.12);
-    const dash    = Math.max(0.4, handleR * 0.6);
+    const handleR = Math.min(w, h) * 0.3;
+    const strokeW = handleR * 0.12;
+    const dash    = handleR * 0.6;
     const x0 = center.x - w / 2;
     const y0 = center.y - h / 2;
 
@@ -3155,6 +3151,17 @@ function wireScrapItemGestures() {
       ev.preventDefault();
     }
   });
+
+  // Bloque les gestes système sur un touchstart (sélecteur de texte, caret
+  // bleu, highlight). preventDefault sur pointerdown ne suffit pas sur
+  // WebView Android : il faut intervenir dès touchstart avec passive:false.
+  // Portée restreinte aux items/handles pour ne pas casser le pinch global.
+  svgEl.addEventListener('touchstart', ev => {
+    if (!ev.target || !ev.target.closest) return;
+    if (ev.target.closest('.scrap-img-item, [data-scrap-handle]')) {
+      ev.preventDefault();
+    }
+  }, { passive: false });
 
   const clearSingleTap = () => {
     if (tapSingleTimer) { clearTimeout(tapSingleTimer); tapSingleTimer = null; }
