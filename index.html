@@ -8,6 +8,32 @@
   <meta http-equiv="Expires" content="0">
   <title>astrolab — carte natale</title>
   <link rel="stylesheet" href="style.css?v=66">
+  <style>
+    html, body { overscroll-behavior-y: contain; }
+    .ptr-indicator {
+      position: fixed;
+      top: 0; left: 50%;
+      width: 40px; height: 40px;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(26,26,26,0.92);
+      color: #e8e8ea;
+      border-radius: 50%;
+      font-size: 22px; line-height: 1;
+      pointer-events: none;
+      z-index: 9999;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+      transform: translate(-50%, -100%);
+      will-change: transform;
+    }
+    .ptr-indicator.ptr-ready {
+      color: #5aa868;
+      box-shadow: 0 0 14px rgba(90,168,104,0.7);
+    }
+    .ptr-indicator.ptr-spinning svg {
+      animation: ptr-spin 0.6s linear infinite;
+    }
+    @keyframes ptr-spin { to { transform: rotate(360deg); } }
+  </style>
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#1a1a1a">
   <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
@@ -15,6 +41,7 @@
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
+  <div id="pull-refresh-indicator" class="ptr-indicator" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M4 12 a8 8 0 1 0 2.3-5.6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M3 3 L3 8 L8 8" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
   <main>
     <div id="chart-header-fixed">
       <h1 id="chart-title">Maintenant</h1>
@@ -256,7 +283,7 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=86"></script>
+  <script type="module" src="app.js?v=89"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {

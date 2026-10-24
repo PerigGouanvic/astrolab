@@ -8,7 +8,7 @@
 
 // Source Google Drive pour les fiches planètes (modèle salon à venir).
 // Si pas connecté, les fiches sont vides (fallback silencieux).
-import * as Drive from './drive.js?v=8';
+import * as Drive from './drive.js?v=10';
 
 // jsDelivr +esm : bundle self-contained avec process.browser=true.
 // esm.sh polyfille process.versions.node truthy → swisseph tente createRequire() → boom.
@@ -106,11 +106,15 @@ function loadNatives() {
 }
 let nativesState = loadNatives();
 
+const NATIVES_SAVED_AT_KEY = 'astrolab.natives.savedAt';
 function saveNatives() {
+  const savedAt = Date.now();
   localStorage.setItem(NATIVES_KEY, JSON.stringify({
     natives: nativesState.natives,
     currentId: nativesState.currentId,
   }));
+  localStorage.setItem(NATIVES_SAVED_AT_KEY, String(savedAt));
+  scheduleNativesSync(savedAt);
 }
 function currentNative() {
   return nativesState.natives.find(n => n.id === nativesState.currentId)
@@ -2514,6 +2518,9 @@ function saveAspectStyle() { localStorage.setItem(ASPECT_STYLE_KEY,  state.aspec
 // stockage indisponible…). Les appelants qui viennent d'ajouter un item
 // doivent le retirer de state.scrapbook en cas d'échec, sinon l'item reste
 // en RAM et disparaît au reload — pire que l'erreur elle-même.
+function scrapbookSavedAtKey(nativeId = nativesState.currentId) {
+  return 'astrolab.scrapbook.' + nativeId + '.savedAt';
+}
 function saveScrapbook()   {
   const clean = state.scrapbook.map(it => {
     const out = {};
@@ -2523,6 +2530,9 @@ function saveScrapbook()   {
   const json = JSON.stringify(clean);
   try {
     localStorage.setItem(scrapbookKey(), json);
+    const savedAt = Date.now();
+    localStorage.setItem(scrapbookSavedAtKey(), String(savedAt));
+    scheduleScrapbookSync(nativesState.currentId, clean, savedAt);
     return true;
   } catch (e) {
     const quota = e && (e.name === 'QuotaExceededError'
@@ -2682,9 +2692,10 @@ function createScrapItemAt(x, y) {
       const itemId = genId();
       const ext = variants.mimeType === 'image/webp' ? 'webp' : 'jpg';
       try {
+        const nid = nativesState.currentId;
         const [thumbFileId, fullFileId] = await Promise.all([
-          Drive.uploadScrapBlob(`${itemId}-thumb.${ext}`, variants.thumb.blob, variants.mimeType),
-          Drive.uploadScrapBlob(`${itemId}-full.${ext}`,  variants.full.blob,  variants.mimeType),
+          Drive.uploadScrapBlob(nid, `${itemId}-thumb.${ext}`, variants.thumb.blob, variants.mimeType),
+          Drive.uploadScrapBlob(nid, `${itemId}-full.${ext}`,  variants.full.blob,  variants.mimeType),
         ]);
         const item = {
           id: itemId,
@@ -3684,6 +3695,96 @@ function wireControls() {
   wirePlanetInfo();
   wireNatives();
   wireDrive();
+  wirePullToRefresh();
+}
+
+// ---------- Pull-to-refresh (hard reload) ----------
+// Workflow APK-only (OAuth navigateur bloqué sur TLD non-public) : chaque test
+// = push vers prod GitHub Pages, donc il faut un geste rapide pour forcer la
+// dernière version. Swipe vers le bas depuis la bande haute (y < 60 px) +
+// scrollY === 0 + mono-doigt + aucune modale ouverte. Au seuil (80 px),
+// unregister SW + clear caches + redirect avec ?r=timestamp (bypass cache HTTP
+// du TWA).
+function wirePullToRefresh() {
+  const indicator = document.getElementById('pull-refresh-indicator');
+  if (!indicator) return;
+
+  const TOP_BAND = 60;
+  const THRESHOLD = 80;
+  const MAX_PULL = 130;
+
+  let active = false;
+  let startY = 0;
+  let startX = 0;
+  let readied = false;
+
+  const isModalOpen = () => !!document.querySelector(
+    '.natives-modal:not([hidden]), ' +
+    '.positions-modal:not([hidden]), ' +
+    '.planet-info-modal:not([hidden]), ' +
+    '.glyph-workshop:not([hidden])'
+  );
+
+  const reset = () => {
+    active = false;
+    readied = false;
+    indicator.classList.remove('ptr-ready');
+    indicator.style.transition = 'transform 0.2s ease-out';
+    indicator.style.transform = 'translate(-50%, -100%)';
+  };
+
+  document.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) return;
+    if (window.scrollY > 0) return;
+    const t = e.touches[0];
+    if (t.clientY > TOP_BAND) return;
+    if (isModalOpen()) return;
+    active = true;
+    readied = false;
+    startY = t.clientY;
+    startX = t.clientX;
+    indicator.style.transition = '';
+  }, { passive: true });
+
+  document.addEventListener('touchmove', (e) => {
+    if (!active) return;
+    if (e.touches.length !== 1) { reset(); return; }
+    const t = e.touches[0];
+    const dy = t.clientY - startY;
+    const dx = t.clientX - startX;
+    if (dy < 4) return;
+    if (Math.abs(dx) > Math.abs(dy)) { reset(); return; }
+    const pulled = dy < THRESHOLD ? dy : THRESHOLD + (dy - THRESHOLD) * 0.4;
+    const yShift = Math.min(pulled, MAX_PULL) - 50;
+    indicator.style.transform = `translate(-50%, ${yShift}px)`;
+    const nowReady = dy >= THRESHOLD;
+    if (nowReady !== readied) {
+      readied = nowReady;
+      indicator.classList.toggle('ptr-ready', readied);
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchend', async () => {
+    if (!active) return;
+    if (!readied) { reset(); return; }
+    active = false;
+    indicator.classList.add('ptr-spinning');
+    try {
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(r => r.unregister()));
+      }
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k => caches.delete(k)));
+      }
+    } catch (_) { /* best-effort */ }
+    const u = new URL(location.href);
+    u.searchParams.set('r', Date.now().toString());
+    location.replace(u.pathname + '?' + u.searchParams.toString() + u.hash);
+  }, { passive: true });
+
+  document.addEventListener('touchcancel', reset, { passive: true });
 }
 
 // ---------- Drive (fiches planètes sur Google Drive) ----------
@@ -3696,6 +3797,207 @@ const PLANET_KEYS_FOR_SYNC = [
   'sun','moon','mercury','venus','mars','jupiter','saturn',
   'uranus','neptune','pluto','chiron','ceres','pallas','juno','node'
 ];
+
+// ---------- Sync Drive : natifs + scrapbook ----------
+// Modèle : Drive = source of truth dès que l'utilisateur est authentifié.
+// À chaque save local, on pousse une copie sur Drive (debounced ~1,5 s pour
+// absorber les rafales de drag/edit). Au boot authentifié, on compare les
+// timestamps `savedAt` : si Drive est plus récent → local est remplacé par
+// Drive + re-render ; sinon → Drive est écrasé par local. Pas de merge fin,
+// last-write-wins — suffisant tant que Perig est seul contributeur.
+
+let nativesSyncTimer = null;
+function scheduleNativesSync(savedAt) {
+  if (!Drive.isAuthenticated()) return;
+  clearTimeout(nativesSyncTimer);
+  nativesSyncTimer = setTimeout(async () => {
+    try {
+      await Drive.saveNativesToDrive({
+        natives: nativesState.natives,
+        currentId: nativesState.currentId,
+        savedAt,
+      });
+    } catch (e) {
+      console.warn('sync natives:', e.message);
+    }
+  }, 1500);
+}
+
+const scrapbookSyncTimers = new Map();  // nativeId → timeout handle
+function scheduleScrapbookSync(nativeId, cleanItems, savedAt) {
+  if (!Drive.isAuthenticated()) return;
+  const prev = scrapbookSyncTimers.get(nativeId);
+  if (prev) clearTimeout(prev);
+  const t = setTimeout(async () => {
+    scrapbookSyncTimers.delete(nativeId);
+    try {
+      await Drive.saveScrapbookDataToDrive(nativeId, {
+        items: cleanItems,
+        savedAt,
+      });
+    } catch (e) {
+      console.warn('sync scrapbook:', e.message);
+    }
+  }, 1500);
+  scrapbookSyncTimers.set(nativeId, t);
+}
+
+// Pull depuis Drive au boot (après init auth confirmé). Compare timestamps
+// et remplace local si Drive est plus récent. Si Drive n'a rien, push local
+// pour amorcer le fichier distant. Re-render à la fin si le local a bougé.
+async function syncFromDriveOnBoot() {
+  if (!Drive.isAuthenticated()) return;
+  let needRender = false;
+
+  // --- Natifs ---
+  try {
+    const remote = await Drive.loadNativesFromDrive();
+    const localSavedAt = parseInt(localStorage.getItem(NATIVES_SAVED_AT_KEY) || '0', 10);
+    if (remote && Array.isArray(remote.natives) && remote.natives.length) {
+      const remoteSavedAt = Number(remote.savedAt) || 0;
+      if (remoteSavedAt > localSavedAt) {
+        nativesState.natives = remote.natives;
+        nativesState.currentId = remote.natives.find(n => n.id === remote.currentId)
+          ? remote.currentId : remote.natives[0].id;
+        localStorage.setItem(NATIVES_KEY, JSON.stringify({
+          natives: nativesState.natives,
+          currentId: nativesState.currentId,
+        }));
+        localStorage.setItem(NATIVES_SAVED_AT_KEY, String(remoteSavedAt));
+        needRender = true;
+      } else if (remoteSavedAt < localSavedAt) {
+        scheduleNativesSync(localSavedAt);
+      }
+    } else {
+      // Drive vide → amorce avec le local courant (même si pas encore marqué).
+      const now = Date.now();
+      localStorage.setItem(NATIVES_SAVED_AT_KEY, String(now));
+      scheduleNativesSync(now);
+    }
+  } catch (e) {
+    console.warn('boot sync natives:', e.message);
+  }
+
+  // --- Scrapbook du natif courant ---
+  try {
+    const nid = nativesState.currentId;
+    const remote = await Drive.loadScrapbookDataFromDrive(nid);
+    const localSavedAt = parseInt(localStorage.getItem(scrapbookSavedAtKey(nid)) || '0', 10);
+    if (remote && Array.isArray(remote.items)) {
+      const remoteSavedAt = Number(remote.savedAt) || 0;
+      if (remoteSavedAt > localSavedAt) {
+        state.scrapbook = remote.items;
+        localStorage.setItem(scrapbookKey(), JSON.stringify(remote.items));
+        localStorage.setItem(scrapbookSavedAtKey(nid), String(remoteSavedAt));
+        needRender = true;
+      } else if (remoteSavedAt < localSavedAt && state.scrapbook.length) {
+        const clean = state.scrapbook.map(it => {
+          const out = {};
+          for (const [k, v] of Object.entries(it)) if (!k.startsWith('_')) out[k] = v;
+          return out;
+        });
+        scheduleScrapbookSync(nid, clean, localSavedAt);
+      }
+    } else if (state.scrapbook.length) {
+      const now = Date.now();
+      const clean = state.scrapbook.map(it => {
+        const out = {};
+        for (const [k, v] of Object.entries(it)) if (!k.startsWith('_')) out[k] = v;
+        return out;
+      });
+      localStorage.setItem(scrapbookSavedAtKey(nid), String(now));
+      scheduleScrapbookSync(nid, clean, now);
+    }
+  } catch (e) {
+    console.warn('boot sync scrapbook:', e.message);
+  }
+
+  if (needRender) {
+    try { await render(); } catch (e) { showError('render after Drive sync: ' + e.message); }
+  }
+}
+
+// Migration one-shot : les blobs scrapbook et l'ancien <nativeId>.json qui
+// vivent à plat sous astrolab/scrapbook/ sont déplacés vers le sous-dossier
+// astrolab/scrapbook/<nativeId>/. Posé après que syncFromDriveOnBoot a tiré
+// les natifs distants (pour maximiser les chances d'avoir la map complète
+// fileId→nativeId). Marqueur localStorage pour ne tenter qu'une fois par
+// device une fois complété proprement.
+const SCRAP_BLOBS_MIGRATED_KEY = 'astrolab.scrapbook.subfoldersMigrated';
+async function migrateScrapbookToSubfolders() {
+  if (!Drive.isAuthenticated()) return;
+  if (localStorage.getItem(SCRAP_BLOBS_MIGRATED_KEY) === 'true') return;
+
+  // Construit la map fileId → nativeId depuis TOUS les scrapbooks locaux
+  // (le natif courant + les autres natifs via leurs clés localStorage scopées).
+  const fileToNative = new Map();
+  for (const n of nativesState.natives) {
+    try {
+      const raw = localStorage.getItem(SCRAPBOOK_KEY_PREFIX + n.id);
+      if (!raw) continue;
+      const items = JSON.parse(raw);
+      if (!Array.isArray(items)) continue;
+      for (const it of items) {
+        if (it.thumbFileId) fileToNative.set(it.thumbFileId, n.id);
+        if (it.fullFileId)  fileToNative.set(it.fullFileId,  n.id);
+      }
+    } catch {}
+  }
+
+  let listing;
+  try {
+    listing = await Drive.listScrapbookRootFiles();
+  } catch (e) {
+    console.warn('migration scrapbook : listing échoué :', e.message);
+    return;
+  }
+  const { folderId: scrapRootId, files } = listing;
+  if (!scrapRootId || !files.length) {
+    localStorage.setItem(SCRAP_BLOBS_MIGRATED_KEY, 'true');
+    return;
+  }
+
+  let allAccountedFor = true;
+  let moved = 0;
+  for (const f of files) {
+    // Ancien JSON à plat : <nativeId>.json → bascule vers <nativeId>/data.json.
+    const legacyJsonMatch = f.name.match(/^(.+)\.json$/);
+    if (legacyJsonMatch && f.mimeType === 'application/json') {
+      const nid = legacyJsonMatch[1];
+      if (!nativesState.natives.find(n => n.id === nid)) {
+        allAccountedFor = false;
+        continue;
+      }
+      try {
+        // loadScrapbookDataFromDrive retombe sur l'ancien emplacement via
+        // fallback tant que data.json n'existe pas dans le sous-dossier.
+        const data = await Drive.loadScrapbookDataFromDrive(nid);
+        if (data) await Drive.saveScrapbookDataToDrive(nid, data);
+        await Drive.deleteDriveFileStrict(f.id);
+        moved++;
+      } catch (e) {
+        console.warn('migration JSON scrapbook', f.name, ':', e.message);
+        allAccountedFor = false;
+      }
+      continue;
+    }
+    // Blob : on cherche son propriétaire via la map locale.
+    const nid = fileToNative.get(f.id);
+    if (!nid) { allAccountedFor = false; continue; }
+    try {
+      const subFolder = await Drive.ensureNativeScrapbookFolder(nid);
+      await Drive.moveFile(f.id, subFolder, scrapRootId);
+      moved++;
+    } catch (e) {
+      console.warn('migration blob', f.name, ':', e.message);
+      allAccountedFor = false;
+    }
+  }
+  if (allAccountedFor) {
+    localStorage.setItem(SCRAP_BLOBS_MIGRATED_KEY, 'true');
+  }
+  if (moved) console.info(`migration scrapbook : ${moved} fichier(s) déplacé(s)`);
+}
 
 function wireDrive() {
   const toggleBtn = document.getElementById('drive-toggle');
@@ -3715,6 +4017,11 @@ function wireDrive() {
     signoutBtn.hidden = !authed;
     // Vide le cache pour que les prochaines ouvertures de fiche relisent la source
     planetInfoCache.clear();
+    if (authed) {
+      syncFromDriveOnBoot()
+        .then(() => migrateScrapbookToSubfolders())
+        .catch(e => console.warn('Drive sync/migration:', e.message));
+    }
   }
 
   Drive.initDrive(refreshUI).catch(e => {
@@ -4256,6 +4563,31 @@ async function switchNative(id) {
   migrateScrapbookItems();
   migrateScrapbookLon();
   await render();
+  // Pull Drive en arrière-plan pour le scrapbook du nouveau natif (si plus
+  // récent côté distant, remplacer local + re-render). Non bloquant.
+  syncScrapbookForCurrentNative();
+}
+
+// Pull Drive pour le scrapbook du natif courant uniquement. Appelé au switch
+// de natif pour s'assurer qu'on affiche la dernière version distante quand
+// elle est plus récente.
+async function syncScrapbookForCurrentNative() {
+  if (!Drive.isAuthenticated()) return;
+  const nid = nativesState.currentId;
+  try {
+    const remote = await Drive.loadScrapbookDataFromDrive(nid);
+    if (!remote || !Array.isArray(remote.items)) return;
+    const localSavedAt = parseInt(localStorage.getItem(scrapbookSavedAtKey(nid)) || '0', 10);
+    const remoteSavedAt = Number(remote.savedAt) || 0;
+    if (remoteSavedAt > localSavedAt && nid === nativesState.currentId) {
+      state.scrapbook = remote.items;
+      localStorage.setItem(scrapbookKey(), JSON.stringify(remote.items));
+      localStorage.setItem(scrapbookSavedAtKey(nid), String(remoteSavedAt));
+      await render();
+    }
+  } catch (e) {
+    console.warn('syncScrapbookForCurrentNative:', e.message);
+  }
 }
 
 function addNative(data) {
@@ -4411,6 +4743,7 @@ function wireNatives() {
       migrateScrapbookItems();
       migrateScrapbookLon();
       await render();
+      syncScrapbookForCurrentNative();
     }
     renderList();
     closeForm();
