@@ -502,16 +502,25 @@ function drawChart({ natal, transit }, layers) {
   }
 
   // Mi-points natal — tick radial + label « ♀|♂ » côté intérieur.
-  // Un seul <text> pour le couple, lisible au zoom.
+  // Triés par longitude et décalés radialement quand conjoints (même
+  // politique que les planètes : MIN_SEP=8°, offset=-28 vers le centre).
   if (layers.midpoints && layers.planets) {
-    for (const m of computeMidpoints(natal.bodies)) {
+    const midpoints = computeMidpoints(natal.bodies);
+    midpoints.sort((a, b) => normDeg(a.lon - ascLon) - normDeg(b.lon - ascLon));
+    const MIN_SEP = 8;
+    let lastLon = -999, ringOffset = 0;
+    for (const m of midpoints) {
+      const sep = normDeg(m.lon - lastLon);
+      if (sep < MIN_SEP && lastLon > -999) ringOffset -= 28; else ringOffset = 0;
+      const rTickEnd = R_MIDPOINT_IN + ringOffset;
+      const rLabel   = rTickEnd - 6;
       const t1 = project(m.lon, ascLon, R_ZODIAC_IN);
-      const t2 = project(m.lon, ascLon, R_MIDPOINT_IN);
+      const t2 = project(m.lon, ascLon, rTickEnd);
       container.appendChild(svg('line', { x1: t1.x, y1: t1.y, x2: t2.x, y2: t2.y, class: 'midpoint-tick' }));
       const ga = BODY_GLYPH[m.a];
       const gb = BODY_GLYPH[m.b];
       if (ga && gb) {
-        const p = project(m.lon, ascLon, R_MIDPOINT_IN - 6);
+        const p = project(m.lon, ascLon, rLabel);
         const radAngle = Math.atan2(p.y, p.x) * 180 / Math.PI;
         // Moitié gauche : pivoter de 180° pour ne pas écrire tête en bas.
         const rot = p.x < 0 ? radAngle + 180 : radAngle;
@@ -521,6 +530,7 @@ function drawChart({ natal, transit }, layers) {
           transform: `rotate(${rot.toFixed(1)}, ${p.x.toFixed(1)}, ${p.y.toFixed(1)})`
         }, `${ga}|${gb}`));
       }
+      lastLon = m.lon;
     }
   }
 
