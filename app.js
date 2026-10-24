@@ -501,21 +501,23 @@ function drawChart({ natal, transit }, layers) {
     }
   }
 
-  // Mi-points natal — tick radial + label « ♀|♂ » côté intérieur.
-  // Triés par longitude et décalés radialement quand conjoints (même
-  // politique que les planètes : MIN_SEP=8°, offset=-28 vers le centre).
+  // Mi-points natal — tick radial de longueur fixe + label « ♀|♂ » côté intérieur.
+  // Densité ~45 mi-points vs 10 planètes : on étage uniquement le LABEL
+  // (pas le tick) sur 3 niveaux (0, −14, −28), puis wrap. Au-delà on tolère
+  // la superposition — c'est de l'info secondaire.
   if (layers.midpoints && layers.planets) {
     const midpoints = computeMidpoints(natal.bodies);
     midpoints.sort((a, b) => normDeg(a.lon - ascLon) - normDeg(b.lon - ascLon));
     const MIN_SEP = 8;
-    let lastLon = -999, ringOffset = 0;
+    const LABEL_STEP = 14;
+    const MAX_LEVELS = 2;
+    let lastLon = -999, level = 0;
     for (const m of midpoints) {
       const sep = normDeg(m.lon - lastLon);
-      if (sep < MIN_SEP && lastLon > -999) ringOffset -= 28; else ringOffset = 0;
-      const rTickEnd = R_MIDPOINT_IN + ringOffset;
-      const rLabel   = rTickEnd - 6;
+      if (sep < MIN_SEP && lastLon > -999) level = (level + 1) % (MAX_LEVELS + 1); else level = 0;
+      const rLabel = R_MIDPOINT_IN - 6 - level * LABEL_STEP;
       const t1 = project(m.lon, ascLon, R_ZODIAC_IN);
-      const t2 = project(m.lon, ascLon, rTickEnd);
+      const t2 = project(m.lon, ascLon, R_MIDPOINT_IN);
       container.appendChild(svg('line', { x1: t1.x, y1: t1.y, x2: t2.x, y2: t2.y, class: 'midpoint-tick' }));
       const ga = BODY_GLYPH[m.a];
       const gb = BODY_GLYPH[m.b];
