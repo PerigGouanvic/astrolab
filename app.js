@@ -3086,14 +3086,13 @@ function wireScrapbookGestures() {
 }
 
 // ---------- Scrapbook : gestes sur items existants ----------
-// Trois gestes sur un `.scrap-img-item`, en délégation sur le SVG racine :
-//  - tap simple    → zoom chart sur l'item (anime cx/cy/zoom pour cadrer)
-//  - double-tap    → entre en mode édition (overlay poignée + bouton retirer)
-//  - press long    → drag libre (met à jour lon/radius en bande zodiacale)
-// L'ordre tap vs double-tap est différé : au premier tap on arme un timer
-// SCRAP_DOUBLE_TAP_MS avant de confirmer "tap simple". Un 2e tap avant
-// l'échéance annule et bascule en édition.
-const SCRAP_LONG_PRESS_MS = 500;
+// Gestes sur un `.scrap-img-item`, en délégation sur le SVG racine :
+//  - tap simple        → zoom chart sur l'item (anime cx/cy/zoom pour cadrer)
+//  - double-tap        → entre en mode édition (overlay poignée + bouton ×)
+//  - drag en édition   → déplace l'item (met à jour lon/radius)
+// Le drag n'est actif QUE quand l'item est en mode édition (déclenché par
+// double-tap). Hors édition, un drag sur item laisse le pan global prendre.
+// Évite tout conflit avec les gestes système long-press Android.
 const SCRAP_DOUBLE_TAP_MS = 320;
 const SCRAP_TAP_SLOP_PX   = 10;
 
@@ -3174,8 +3173,8 @@ function wireScrapItemGestures() {
     // Les handles (resize/×) ont leur propre handler ; ne pas les intercepter ici.
     if (ev.target.closest('[data-scrap-handle]')) return;
     ev.stopPropagation();
-    // Empêche le navigateur de déclencher ses propres gestes long-press
-    // (drag natif de l'image, menu « enregistrer », text selection).
+    // Empêche le navigateur de déclencher ses propres gestes
+    // (drag natif de l'image, menu « enregistrer », sélection de texte).
     if (ev.pointerType === 'touch') ev.preventDefault();
     const id = img.getAttribute('data-id');
     press = {
@@ -3183,28 +3182,23 @@ function wireScrapItemGestures() {
       startX: ev.clientX,
       startY: ev.clientY,
       pointerId: ev.pointerId,
-      mode: 'idle',
-      longTimer: null,
+      editing: editingScrapId === id,  // snapshot au moment du down
+      mode: 'tap',                      // 'tap' | 'drag'
     };
-    const p = press;
-    p.longTimer = setTimeout(() => {
-      if (!press || press !== p || press.mode !== 'idle') return;
-      press.mode = 'drag';
-      try { svgEl.setPointerCapture(p.pointerId); } catch (e) {}
-    }, SCRAP_LONG_PRESS_MS);
   });
 
   svgEl.addEventListener('pointermove', ev => {
     if (!press || ev.pointerId !== press.pointerId) return;
     const dx = ev.clientX - press.startX;
     const dy = ev.clientY - press.startY;
-    if (press.mode === 'idle') {
-      if (Math.hypot(dx, dy) > SCRAP_TAP_SLOP_PX) {
-        // Mouvement trop tôt : annule l'armement, laisse le pan global prendre.
-        if (press.longTimer) clearTimeout(press.longTimer);
-        press = null;
-      }
-      return;
+    if (press.mode === 'tap') {
+      if (Math.hypot(dx, dy) <= SCRAP_TAP_SLOP_PX) return;
+      // Dépassement du slop :
+      //  - item en mode édition → bascule en drag et capture le pointeur
+      //  - sinon → abandonne, laisse le pan global prendre
+      if (!press.editing) { press = null; return; }
+      press.mode = 'drag';
+      try { svgEl.setPointerCapture(press.pointerId); } catch (e) {}
     }
     if (press.mode === 'drag') {
       const pt = screenToSvg(svgEl, ev.clientX, ev.clientY);
@@ -3218,7 +3212,6 @@ function wireScrapItemGestures() {
   const endPress = ev => {
     if (!press) return;
     if (ev && ev.pointerId != null && ev.pointerId !== press.pointerId) return;
-    if (press.longTimer) clearTimeout(press.longTimer);
     const { id, mode, startX, startY } = press;
     press = null;
     if (mode === 'drag') return;  // position déjà sauvée pendant pointermove
