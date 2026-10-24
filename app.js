@@ -838,28 +838,39 @@ function drawScrapItem(container, it) {
     href,
     class: 'scrap-img-item',
     'data-id': it.id,
+    // Évite que le navigateur WebView traite l'image comme draggable natif
+    // (sinon long-press déclenche "enregistrer l'image" sur Android)
+    draggable: 'false',
   });
   container.appendChild(img);
 
   // Overlay d'édition : rect pointillé + poignée resize (coin bas-droit) +
-  // bouton retirer (coin haut-droit). Dimensionné en viewBox units de façon
-  // à rester touchable quel que soit le zoom chart. Esthétique dans style.css.
+  // bouton retirer (coin haut-droit). Taille des poignées plafonnée par la
+  // dimension de l'image (sinon à bas zoom les poignées débordent l'image)
+  // tout en visant ~22px écran constants.
   if (editingScrapId === it.id) {
     const svgEl = container.ownerSVGElement || document.getElementById('chart');
     const zoom = (state.chart && state.chart.zoom) || 1;
     const screenW = (svgEl && svgEl.clientWidth) || 400;
-    const handleR = Math.max(1.5, Math.min(14, 22 * CHART_VB_SIZE / (zoom * screenW)));
+    const target = 22 * CHART_VB_SIZE / (zoom * screenW);
+    const maxFromImg = Math.min(w, h) * 0.4;
+    const handleR = Math.max(0.5, Math.min(target, maxFromImg));
+    const strokeW = Math.max(0.15, handleR * 0.12);
+    const dash    = Math.max(0.4, handleR * 0.6);
     const x0 = center.x - w / 2;
     const y0 = center.y - h / 2;
 
     container.appendChild(svg('rect', {
       x: x0, y: y0, width: w, height: h,
       class: 'scrap-edit-frame',
+      'stroke-width': strokeW,
+      'stroke-dasharray': `${dash} ${dash * 0.7}`,
     }));
 
     container.appendChild(svg('circle', {
       cx: x0 + w, cy: y0 + h, r: handleR,
       class: 'scrap-edit-handle',
+      'stroke-width': strokeW,
       'data-scrap-handle': 'resize',
       'data-id': it.id,
     }));
@@ -867,6 +878,7 @@ function drawScrapItem(container, it) {
     container.appendChild(svg('circle', {
       cx: x0 + w, cy: y0, r: handleR,
       class: 'scrap-edit-delete',
+      'stroke-width': strokeW,
       'data-scrap-handle': 'remove',
       'data-id': it.id,
     }));
@@ -3136,6 +3148,14 @@ function wireScrapItemGestures() {
   let lastTap = { id: null, at: 0 };
   let tapSingleTimer = null;
 
+  // Bloque le menu contextuel système (long-press WebView Android →
+  // « Enregistrer l'image ») qui intercepterait notre press long.
+  svgEl.addEventListener('contextmenu', ev => {
+    if (ev.target.closest && ev.target.closest('.scrap-img-item, [data-scrap-handle]')) {
+      ev.preventDefault();
+    }
+  });
+
   const clearSingleTap = () => {
     if (tapSingleTimer) { clearTimeout(tapSingleTimer); tapSingleTimer = null; }
   };
@@ -3147,6 +3167,9 @@ function wireScrapItemGestures() {
     // Les handles (resize/×) ont leur propre handler ; ne pas les intercepter ici.
     if (ev.target.closest('[data-scrap-handle]')) return;
     ev.stopPropagation();
+    // Empêche le navigateur de déclencher ses propres gestes long-press
+    // (drag natif de l'image, menu « enregistrer », text selection).
+    if (ev.pointerType === 'touch') ev.preventDefault();
     const id = img.getAttribute('data-id');
     press = {
       id,

@@ -562,8 +562,44 @@ h1 {
   pointer-events: auto;
   cursor: pointer;
   touch-action: none;
+  /* Désactive le menu contextuel système Android/iOS sur un long press
+     (sinon « enregistrer l'image » intercepte notre drag). */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 .scrap-handle { touch-action: none; }
+
+/* Overlay mode édition d'un item scrapbook (double-tap sur item) */
+.scrap-edit-frame {
+  fill: none;
+  stroke: #ffb84a;
+  stroke-opacity: 0.9;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+.scrap-edit-handle {
+  fill: #ffb84a;
+  stroke: #2a1e08;
+  cursor: nwse-resize;
+  touch-action: none;
+}
+.scrap-edit-delete {
+  fill: #d84444;
+  stroke: #2a0808;
+  cursor: pointer;
+  touch-action: none;
+}
+.scrap-edit-delete-x {
+  fill: #fff;
+  pointer-events: none;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: central;
+  user-select: none;
+}
 
 /* Menu déroulant "aspects" — regroupe la sélection des harmoniques (1..9)
    et le choix du style de rendu (ligne / chiffre). Placé au premier niveau
