@@ -501,28 +501,19 @@ function drawChart({ natal, transit }, layers) {
     }
   }
 
-  // Mi-points natal — tick radial de longueur fixe + label « ♀|♂ » côté intérieur.
-  // Densité ~45 mi-points vs 10 planètes : on étage uniquement le LABEL
-  // (pas le tick) sur 3 niveaux (0, −14, −28), puis wrap. Au-delà on tolère
-  // la superposition — c'est de l'info secondaire.
+  // Mi-points natal — tick radial + label « ♀|♂ » côté intérieur.
+  // Superposition assumée : les clusters denses sont significatifs (micro-univers
+  // de sens sur 1-2°). L'anti-collision radiale les étalerait et trahirait la
+  // concentration réelle. Lisibilité → affaire du zoom (à venir).
   if (layers.midpoints && layers.planets) {
-    const midpoints = computeMidpoints(natal.bodies);
-    midpoints.sort((a, b) => normDeg(a.lon - ascLon) - normDeg(b.lon - ascLon));
-    const MIN_SEP = 8;
-    const LABEL_STEP = 14;
-    const MAX_LEVELS = 2;
-    let lastLon = -999, level = 0;
-    for (const m of midpoints) {
-      const sep = normDeg(m.lon - lastLon);
-      if (sep < MIN_SEP && lastLon > -999) level = (level + 1) % (MAX_LEVELS + 1); else level = 0;
-      const rLabel = R_MIDPOINT_IN - 6 - level * LABEL_STEP;
+    for (const m of computeMidpoints(natal.bodies)) {
       const t1 = project(m.lon, ascLon, R_ZODIAC_IN);
       const t2 = project(m.lon, ascLon, R_MIDPOINT_IN);
       container.appendChild(svg('line', { x1: t1.x, y1: t1.y, x2: t2.x, y2: t2.y, class: 'midpoint-tick' }));
       const ga = BODY_GLYPH[m.a];
       const gb = BODY_GLYPH[m.b];
       if (ga && gb) {
-        const p = project(m.lon, ascLon, rLabel);
+        const p = project(m.lon, ascLon, R_MIDPOINT_IN - 6);
         const radAngle = Math.atan2(p.y, p.x) * 180 / Math.PI;
         // Moitié gauche : pivoter de 180° pour ne pas écrire tête en bas.
         const rot = p.x < 0 ? radAngle + 180 : radAngle;
@@ -532,7 +523,6 @@ function drawChart({ natal, transit }, layers) {
           transform: `rotate(${rot.toFixed(1)}, ${p.x.toFixed(1)}, ${p.y.toFixed(1)})`
         }, `${ga}|${gb}`));
       }
-      lastLon = m.lon;
     }
   }
 
