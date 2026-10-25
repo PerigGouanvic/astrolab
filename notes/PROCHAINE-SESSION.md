@@ -1,62 +1,46 @@
 # Prochaine session astrolab — à ouvrir en premier
 
-**Contexte** : la session précédente (2026-10-20 midi, 11h43 → 12h25) a été close après **arrêt conceptuel** décidé par Perig. Son brief est archivé dans `./notes/2026-10-20-session-v02-arret-conceptuel.md`. **Lecture obligatoire** avant de taper du code : `./memory/project_zoom_continu_apories.md`.
+**Contexte** : la session précédente (nuit du 2026-10-24 au 2026-10-25, 12h30 → 00h14) a été ouverte sur un fix mi-points raté de DeepSeek et s'est déplacée vers une pensée ouverte sur l'articulation cercle↔frise + la durée des scraps. **Lecture obligatoire** avant toute suite : `./memory/project_articulation_cercle_frise.md`.
 
-## Ce qui a été acté le 2026-10-20
+## État du code à l'ouverture
 
-- Le **pinch continu H+V multi-strates** est abandonné (impasse technique Chrome Android + distorsion images dans foreignObject + tranches illisibles aux hautes strates).
-- Direction cible esquissée par Perig : **snap par crans H discrets** (année ↔ mois ↔ jour ↔ heure) + **drag H temporel** à l'intérieur du cran + **pinch V continu préservé** pour explorer les signes/degrés.
-- **Dette conceptuelle** à traiter AVANT toute implémentation : *quelle étendue verticale a un élément scrapbook ?* (point du zodiaque = 1/360 ? signe = 1/12 ? multi-signes libres ?)
+- Working tree **propre**, poussé sur `origin/astrolab-2d`.
+- Dernier commit : `509e18f [2D] mi-points : revert anti-collision — la superposition est significative`.
+- Les mi-points sont revenus à leur état avant `725e391` : ticks identiques, labels superposés sur clusters denses — c'est voulu.
+
+## Ce qui a été acté dans la nuit du 24→25
+
+- Les patchs anti-collision mi-points (de DeepSeek `725e391`, puis mitigation `aeaf0cd`) sont tous les deux **rejetés**. Revert complet appliqué.
+- Diagnostic : la densité ~45 mi-points en 360° est intrinsèque. Étaler trahit la concentration réelle sur 1-2°. Les clusters sont des micro-univers de sens.
+- Les mi-points n'étaient qu'un révélateur d'un problème plus large qui concernera aussi les aspects serrés et les scraps externes.
+
+## Ce qui a été ouvert mais pas tranché
+
+Voir fiche `project_articulation_cercle_frise.md` pour le détail. Résumé des pivots :
+
+1. **Invariant 1° écliptique = 4 min temps terrestre** — zoom cercle et palier frise sont la même grandeur en deux unités.
+2. **Deux régimes de cercle** (ASC-global vs sidéral-zoomé-fixe).
+3. **Scraps = marqueurs lieu-moment** (coordonnée écliptique × date).
+4. **Durée scraps = gestes utilisateur** (ne rien faire → atténuation / relâcher / sacrer) + vibration par rappels futurs des transits.
+5. **Zoom out années/décennies** = seuls sacrés subsistent (« en arrière de la tête »).
+
+**Apories ouvertes** (à ne pas trancher prématurément) : seuil de bascule entre régimes de cercle, comportement du cercle en vue années, pondération des rappels, couplage auto zoom↔palier ou non.
 
 ## Première chose à faire à l'ouverture
 
-**NE PAS commencer par du code.** La prochaine session doit s'ouvrir par une **discussion de définition** avec Perig :
+**NE PAS commencer par du code.** Perig a demandé explicitement « on recommence demain soir » et la session a été close sur « pas de code tant que l'usage n'a pas tranché les apories ».
 
-1. Est-ce que l'élément scrapbook a toujours une étendue verticale, ou peut-il être ponctuel (1 degré) ?
-2. Si étendue : bornes libres (`lonStart`, `lonEnd`) ou snap sur signes (enum `scope`) ?
-3. Quand on zoom V, les éléments doivent-ils **grossir avec le zoom** (distorsion image acceptée ? refusée ?), ou **garder une taille fixe en pixels** avec étendue sémantique indiquée séparément (ex. barre latérale) ?
-4. Point d'entrée du re-engineering : partir de **l'élément lui-même** (le cadre texte riche + image, inaltérable) et laisser son invariant dicter l'interaction.
+À l'ouverture :
+1. Lire `memory/project_articulation_cercle_frise.md` en entier.
+2. Demander à Perig où il en est de la pensée (a-t-elle incubé pendant la nuit ? un angle s'est-il précisé ?).
+3. Si Perig veut avancer sur un sous-chantier concret (ex. prototyper une maquette statique d'un cercle sidéral-fixe pour voir, ou implémenter le geste de « sacrer » manuel), tracer un plan court. Sinon, continuer à penser.
 
-## État du working tree
+## Ne pas confondre avec les chantiers antérieurs encore vivants
 
-**Rien n'a été commité depuis `f725e98` (matin du 2026-10-19).** Modifs non commitées dans `app.js` et `style.css` accumulent :
-- Travail d'hier soir 2026-10-19 : zoom V, lonRange, graduation adaptative années/mois/jours/heures, rect visible pour items ponctuels, foreignObject titre+corps, click re-édition.
-- Travail de la session matinale 2026-10-20 (préexistante à v02) : pointer events filtrés `pointerType==='touch'`, pan 1-doigt via touchstart, listeners `window` + `capture:true` pour touchmove, `PINCH_AXIS_DEADZONE=20`, panneau debug `?debug=pinch`.
-- Toute l'instrumentation debug de la session v02 (midi) a été **retirée**. Le fix pinch tenté a été **reverté**.
+Le `project_refondation_plan_v1.md` du 2026-10-21 reste la boussole pour la refondation frise + scrapbook si on y retourne sans passer par les pivots du 24. Les deux ne sont pas incompatibles — la pensée du 24 vient compléter, pas remplacer.
 
-**Décision à prendre à l'ouverture** :
-- (A) **Commit « sédimentation 2026-10-19 + ajustements pinch » en l'état** (ce qu'on a marche, c'est frustrant mais pas pire que `f725e98`), puis partir du re-design proprement par-dessus.
-- (B) **Revert complet à `f725e98`** (`git restore app.js style.css`) et repartir vraiment de zéro — on perd le zoom V, la graduation adaptative, les améliorations de pinch pré-session-matin. Cohérent si le re-design cran-par-cran impose un rendu différent.
-- (C) **Commit l'état et créer une branche d'archive** `pre-redesign-2026-10-20` avant de bosser.
+## Antidrift
 
-Mon avis d'orienteur (à challenger) : **(A)**. Les améliorations d'hier soir (graduation multi-strates, foreignObject titre+corps) seront réutilisables dans le nouveau paradigme. Le pinch cassé sera réécrit de toute façon.
-
-## Chantiers à faire après que le re-design soit tranché conceptuellement
-
-- Modèle de données élément scrapbook (champs `lonStart`, `lonEnd`, `crans[]` ou équivalent selon décision).
-- Logique de rendu par cran (pleine géométrie / barre verticale / cadre vide).
-- Interaction tap-pour-zoom-au-cran (bidirectionnelle).
-- Snap H + drag H fluide (transition entre crans).
-- Pinch V préservé (compatible avec étendue sémantique des éléments).
-
-## Chantiers hérités toujours valides (après re-design)
-
-- Florilinks — demander à agent poietic le mérite et le pattern.
-- Swipe-down → hard reload — reporté à jeudi 2026-10-22.
-- Lignes de jours visibles (si le re-design conserve une graduation fine).
-
-## Lecture préalable obligatoire (ordre)
-
-1. `./CLAUDE.md`
-2. `./memory/MEMORY.md`
-3. **`./memory/project_zoom_continu_apories.md`** — fiche fondatrice de la nouvelle direction
-4. `./memory/project_paradigme_frise_centrique.md` — boussole non remise en cause
-5. `./memory/feedback_pas_de_theorisation_predictive.md` — ne pas sur-théoriser le re-design non plus
-6. `./notes/2026-10-20-session-v02-arret-conceptuel.md` — récit complet de l'arrêt
-
-## Règles non négociables (rappel)
-
-- Pas de commit sans aval explicite.
-- Dev server systemd user `astrolab-dev` sur `http://perig:8787/`.
-- Si prompt Agora échoue, fournir commande CLI exacte.
-- **Nouvelle règle issue de cette session** : ne pas replonger dans le debug du pinch continu si une nouvelle session l'exhume. L'aporie n'est pas technique.
+- Ne pas lancer de web search auto-correctif sur l'astrologie, Scira/Perplexity sont le canal de Perig si besoin.
+- Pas de modif de code sans plan validé.
+- Si Perig dit « rien n'avance », rappel : c'est le domaine du 3e canal (consultation spirituelle), pas une invitation à produire des options.
