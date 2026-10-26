@@ -633,8 +633,9 @@ h1 {
 .scrap-md li { margin-top: 0.15em; }
 .scrap-md li::marker { font-size: 0.9em; }
 .scrap-md blockquote {
-  border-left: 2px solid #aaa;
+  border-left: 0.15em solid #aaa;
   padding-left: 0.6em;
+  margin-left: 0;
   color: #555;
   font-style: italic;
 }

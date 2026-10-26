@@ -3368,8 +3368,11 @@ function wireScrapItemGestures() {
   // bleu, highlight). preventDefault sur pointerdown ne suffit pas sur
   // WebView Android : il faut intervenir dès touchstart avec passive:false.
   // Portée restreinte aux items/handles pour ne pas casser le pinch global.
+  // Exception .scrap-text-content : laisser le scroll vertical natif
+  // fonctionner (preventDefault ici tue le touch-action:pan-y).
   svgEl.addEventListener('touchstart', ev => {
     if (!ev.target || !ev.target.closest) return;
+    if (ev.target.closest('.scrap-text-content')) return;
     if (ev.target.closest('.scrap-img-item, .scrap-text-item, [data-scrap-handle]')) {
       ev.preventDefault();
     }
@@ -3389,7 +3392,11 @@ function wireScrapItemGestures() {
     ev.stopPropagation();
     // Empêche le navigateur de déclencher ses propres gestes
     // (drag natif de l'image, menu « enregistrer », sélection de texte).
-    if (ev.pointerType === 'touch') ev.preventDefault();
+    // Exception .scrap-text-content : ne pas preventDefault pour que le
+    // scroll natif puisse démarrer (sinon pointerdown preventDefault bloque
+    // aussi l'initiation du scroll vertical sur WebView Android).
+    const inText = ev.target.closest && ev.target.closest('.scrap-text-content');
+    if (ev.pointerType === 'touch' && !inText) ev.preventDefault();
     const id = img.getAttribute('data-id');
     press = {
       id,
