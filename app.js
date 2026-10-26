@@ -9,6 +9,11 @@
 // Source Google Drive pour les fiches planètes (modèle salon à venir).
 // Si pas connecté, les fiches sont vides (fallback silencieux).
 import * as Drive from './drive.js?v=10';
+import { marked } from 'https://cdn.jsdelivr.net/npm/marked@14/+esm';
+
+// Markdown compact pour les scraps : pas de HTML inline (sécurité basique
+// même si l'auteur est a priori de confiance), pas d'autolink lourd.
+marked.use({ gfm: true, breaks: true, pedantic: false });
 
 // jsDelivr +esm : bundle self-contained avec process.browser=true.
 // esm.sh polyfille process.versions.node truthy → swisseph tente createRequire() → boom.
@@ -999,7 +1004,7 @@ const TL_PALIER_SPEC = {
 
 // P1 : objets scrap + pinch désactivés. Le code reste intact pour P2+.
 // (plan v1 : « grille vivante SANS objets », pinch continu rejeté).
-const TL_SHOW_SCRAPS = false;
+const TL_SHOW_SCRAPS = true;
 const PINCH_H_ENABLED = false;
 const PINCH_V_ENABLED = false;
 
@@ -1565,30 +1570,19 @@ function drawTimeline() {
         openTimelineEditor(it, e.clientX, e.clientY);
       });
       svgEl.appendChild(rect);
-      // Contenu via foreignObject : titre (1ère ligne, plus gros) + corps.
-      // Pointer-events désactivés sur le contenu pour que le clic traverse
-      // vers le rect en-dessous (évite d'avoir à dupliquer le handler).
+      // Contenu via foreignObject : markdown rendu HTML. Pointer-events
+      // désactivés pour que le clic traverse vers le rect en-dessous.
       if (it.text && w > 10 && h > 10) {
         const fo = svg('foreignObject', {
           x: x1, y, width: w, height: h, 'data-id': it.id,
         });
         fo.classList.add('tl-scrap-fo');
         const div = document.createElementNS('http://www.w3.org/1999/xhtml', 'div');
-        div.setAttribute('class', 'tl-scrap-content');
-        const lines = (it.text || '').split('\n');
-        const title = lines[0] || '';
-        const body  = lines.slice(1).join('\n').trim();
-        if (title) {
-          const t = document.createElementNS('http://www.w3.org/1999/xhtml', 'div');
-          t.setAttribute('class', 'tl-scrap-title');
-          t.textContent = title;
-          div.appendChild(t);
-        }
-        if (body) {
-          const b = document.createElementNS('http://www.w3.org/1999/xhtml', 'div');
-          b.setAttribute('class', 'tl-scrap-body');
-          b.textContent = body;
-          div.appendChild(b);
+        div.setAttribute('class', 'tl-scrap-content tl-scrap-md');
+        try {
+          div.innerHTML = marked.parse(it.text);
+        } catch (e) {
+          div.textContent = it.text;
         }
         fo.appendChild(div);
         svgEl.appendChild(fo);
@@ -2391,52 +2385,42 @@ function createScrapItemOnTimeline(svgX, svgY, clientX, clientY) {
   try { drawTimeline(); } catch (e) { showError('timeline error: ' + e.message); }
 }
 
-// Overlay DOM contenteditable positionné en absolute dans #timeline-container
-// à l'endroit du tap. Enter = commit, Escape = cancel (supprime l'item),
-// blur sur vide = cancel aussi. Resté minimal : textarea simple pour l'instant,
-// pas d'embeds médias ni redimensionnement — ces chantiers viendront quand
-// l'usage les appellera.
+// Overlay DOM textarea positionné en absolute dans #timeline-container à
+// l'endroit du tap. Textarea (pas contenteditable) pour que le paste reste
+// en texte brut — l'usage est : coller un bout de markdown, corriger deux
+// mots. Ctrl/Cmd+Enter = commit (laisse Enter libre pour les sauts de
+// ligne naturels dans un markdown multi-paragraphes), Escape = cancel
+// (supprime l'item), blur = commit.
 function openTimelineEditor(item, clientX, clientY) {
   const containerEl = document.getElementById('timeline-container');
   if (!containerEl) return;
-  // Nettoie un éventuel éditeur précédent.
   const prev = containerEl.querySelector('.tl-scrap-editor');
   if (prev) prev.remove();
   const rect = containerEl.getBoundingClientRect();
   const relX = clientX - rect.left;
   const relY = clientY - rect.top;
-  const editor = document.createElement('div');
+  const editor = document.createElement('textarea');
   editor.className = 'tl-scrap-editor';
-  editor.setAttribute('contenteditable', 'true');
   editor.setAttribute('spellcheck', 'true');
   editor.setAttribute('data-id', item.id);
+  editor.setAttribute('placeholder', '# Titre\n\nTexte markdown…');
   editor.style.left = `${relX}px`;
   editor.style.top  = `${relY}px`;
-  // Pré-remplit le contenu si l'item existe déjà (re-édition via clic sur
-  // le rect). Pour un item fraîchement créé, item.text est '' donc rien.
-  if (item.text) editor.innerText = item.text;
+  if (item.text) editor.value = item.text;
   containerEl.appendChild(editor);
-  // Focus immédiat pour taper sans friction. Place le curseur en fin de texte.
   setTimeout(() => {
     editor.focus();
-    if (item.text) {
-      const sel = window.getSelection();
-      const r = document.createRange();
-      r.selectNodeContents(editor);
-      r.collapse(false);
-      sel.removeAllRanges();
-      sel.addRange(r);
-    }
+    const n = editor.value.length;
+    editor.setSelectionRange(n, n);
   }, 0);
   let cancelled = false;
   let done = false;
   const commit = () => {
     if (done) return;
     done = true;
-    const text = editor.innerText.trim();
+    const text = editor.value.trim();
     editor.remove();
     if (!text || cancelled) {
-      // Pas de contenu ou annulation explicite : on supprime l'item posé.
       state.scrapbook = state.scrapbook.filter(x => x.id !== item.id);
     } else {
       item.text = text;
@@ -2446,7 +2430,7 @@ function openTimelineEditor(item, clientX, clientY) {
     try { drawTimeline(); } catch (e) { showError('timeline error: ' + e.message); }
   };
   editor.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Enter' && !ev.shiftKey) {
+    if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) {
       ev.preventDefault();
       commit();
     } else if (ev.key === 'Escape') {

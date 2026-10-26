@@ -1128,28 +1128,35 @@ body.timeline-fullscreen .timeline-expand-btn {
   display: none;
 }
 
-/* Éditeur in-situ posé par double-tap dans la frise agrandie (consigne Perig
-   2026-10-19). Overlay DOM par-dessus le SVG — pas foreignObject, pour
-   éviter les surprises de preserveAspectRatio="none". Minimal pour le
-   premier pas : zone texte éditable, pas d'embeds ni resize. */
+/* Éditeur in-situ posé par double-tap dans la frise agrandie. Textarea
+   (pas contenteditable) pour que le paste reste du texte brut — l'auteur
+   colle du markdown et le modifie à la main, pas de WYSIWYG. Ctrl/Cmd+Enter
+   = commit, Escape = cancel, blur = commit. */
 .tl-scrap-editor {
   position: absolute;
   transform: translate(-50%, -50%);
-  min-width: 200px;
-  max-width: 320px;
-  min-height: 60px;
+  width: 320px;
+  max-width: calc(100vw - 24px);
+  min-height: 120px;
+  max-height: 60vh;
   padding: 10px 12px;
   background: rgba(255, 255, 255, 0.98);
   border: 1.5px solid var(--accent);
   border-radius: 6px;
-  font-family: var(--font-sans);
-  font-size: 14px;
+  font-family: var(--font-mono, ui-monospace, Menlo, Consolas, monospace);
+  font-size: 13px;
   color: #1a1a1a;
   line-height: 1.4;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
   outline: none;
   z-index: 15;
   touch-action: auto;
+  resize: both;
+  white-space: pre-wrap;
+}
+.tl-scrap-editor::placeholder {
+  color: #999;
+  font-style: italic;
 }
 
 /* Bandes signes alternées : fond très discret pour baliser 12 régions
@@ -1463,6 +1470,70 @@ body.timeline-fullscreen .timeline-expand-btn {
   flex: 1 1 auto;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* Markdown rendu dans le rect scrapbook de la frise. Les tailles sont
+   compactes pour que du contenu riche tienne dans un rect petit — c'est
+   le zoom de la frise qui agrandit. On évite les marges externes qui
+   gaspillent la place ; marges internes légères entre blocs. */
+.tl-scrap-md {
+  gap: 0;
+  overflow: hidden;
+}
+.tl-scrap-md > * { margin: 0; }
+.tl-scrap-md > * + * { margin-top: 3px; }
+.tl-scrap-md h1,
+.tl-scrap-md h2,
+.tl-scrap-md h3,
+.tl-scrap-md h4,
+.tl-scrap-md h5,
+.tl-scrap-md h6 {
+  font-weight: 700;
+  line-height: 1.1;
+  color: #111;
+}
+.tl-scrap-md h1 { font-size: 15px; }
+.tl-scrap-md h2 { font-size: 13px; }
+.tl-scrap-md h3 { font-size: 12px; }
+.tl-scrap-md h4,
+.tl-scrap-md h5,
+.tl-scrap-md h6 { font-size: 11px; }
+.tl-scrap-md p { font-size: 10px; line-height: 1.25; }
+.tl-scrap-md ul,
+.tl-scrap-md ol { font-size: 10px; line-height: 1.25; padding-left: 14px; }
+.tl-scrap-md li { margin-top: 1px; }
+.tl-scrap-md blockquote {
+  font-size: 10px;
+  line-height: 1.25;
+  border-left: 2px solid #aaa;
+  padding-left: 6px;
+  color: #555;
+  font-style: italic;
+}
+.tl-scrap-md code {
+  font-family: var(--font-mono, ui-monospace, Menlo, Consolas, monospace);
+  font-size: 9px;
+  background: rgba(0, 0, 0, 0.06);
+  padding: 0 2px;
+  border-radius: 2px;
+}
+.tl-scrap-md pre {
+  font-family: var(--font-mono, ui-monospace, Menlo, Consolas, monospace);
+  font-size: 9px;
+  background: rgba(0, 0, 0, 0.06);
+  padding: 4px 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  white-space: pre-wrap;
+}
+.tl-scrap-md pre code { background: none; padding: 0; }
+.tl-scrap-md a { color: #2a5db0; text-decoration: underline; }
+.tl-scrap-md strong { font-weight: 700; }
+.tl-scrap-md em { font-style: italic; }
+.tl-scrap-md hr {
+  border: none;
+  border-top: 1px solid #ccc;
+  margin: 4px 0;
 }
 
 @media (max-width: 600px) {
