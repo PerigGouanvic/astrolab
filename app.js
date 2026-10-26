@@ -824,6 +824,13 @@ function drawScrapItem(container, it) {
   if (it.type === 'text') {
     const base = SCRAP_IMG_BASE * scale * 2.4;  // texte un peu plus grand
     const w = base, h = base;
+    // Rendu interne à grande échelle (SCRAP_TEXT_RENDER_PX) pour éviter les
+    // bugs sub-pixel du foreignObject sur WebView Android : à font-size < 1px,
+    // les lignes se superposent et certains caractères sautent. On rend à
+    // 14px dans un wrapper de 400px, puis on scale pour tenir dans la case.
+    // Le resize change w → k change → le texte scale avec, pixel-propre.
+    const SCRAP_TEXT_RENDER_PX = 400;
+    const k = w / SCRAP_TEXT_RENDER_PX;
     const fo = svg('foreignObject', {
       x: center.x - w / 2, y: center.y - h / 2,
       width: w, height: h,
@@ -832,10 +839,11 @@ function drawScrapItem(container, it) {
     });
     const div = document.createElementNS('http://www.w3.org/1999/xhtml', 'div');
     div.setAttribute('class', 'scrap-text-content scrap-md');
-    // Font-size proportionnelle à la case : scale avec le resize (it.scale).
-    // ~2.5% du côté le plus court → ~10 lignes visibles sans scroll à l'état
-    // initial, le reste défile.
-    div.style.fontSize = (Math.min(w, h) * 0.025) + 'px';
+    div.style.width = SCRAP_TEXT_RENDER_PX + 'px';
+    div.style.height = SCRAP_TEXT_RENDER_PX + 'px';
+    div.style.fontSize = '14px';
+    div.style.transform = `scale(${k})`;
+    div.style.transformOrigin = 'top left';
     try {
       div.innerHTML = marked.parse(it.text || '');
     } catch (e) {

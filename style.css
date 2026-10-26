@@ -582,12 +582,13 @@ h1 {
   pointer-events: auto;
   cursor: pointer;
   touch-action: none;
-  overflow: visible;
+  overflow: hidden;  /* clippe le div interne scaled de 400×400 */
 }
 .scrap-text-content {
-  width: 100%;
-  height: 100%;
-  padding: 4%;
+  /* Dimensions posées inline en JS (400×400 CSS px), scalées via
+     transform depuis drawScrapItem pour éviter les bugs sub-pixel
+     du foreignObject sur WebView Android. */
+  padding: 14px;
   box-sizing: border-box;
   background: #fcfaf4;
   color: #1a1a1a;
@@ -597,20 +598,16 @@ h1 {
   -webkit-user-select: none;
   user-select: none;
   scrollbar-width: none;
-  /* pan-y = scroll vertical natif autorisé, le gesture pipeline SVG
-     (pan global, pinch) ne capture pas le touchmove vertical sur le
-     contenu — scroll interne fonctionne. L'ancêtre .scrap-text-item
-     garde touch-action:none pour drag/resize en mode édition. */
   touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
 }
 .scrap-text-content::-webkit-scrollbar { display: none; width: 0; height: 0; }
-/* Markdown compact rendu dans un scrap texte. font-size posée en JS
-   (proportionnelle à min(w,h) de la case) pour que le texte scale avec
-   le resize. text-size-adjust:none neutralise le font-boosting Android. */
+/* Markdown rendu à font-size 14px (posée en JS) dans un wrapper 400×400 px,
+   puis scalé via transform. Styles redeviennent « normaux » (plus de bugs
+   sub-pixel). text-size-adjust:none neutralise le font-boosting Android. */
 .scrap-md {
   font-family: Georgia, serif;
-  line-height: 1.25;
+  line-height: 1.35;
   -webkit-text-size-adjust: none;
   text-size-adjust: none;
   word-wrap: break-word;
@@ -633,7 +630,7 @@ h1 {
 .scrap-md li { margin-top: 0.15em; }
 .scrap-md li::marker { font-size: 0.9em; }
 .scrap-md blockquote {
-  border-left: 0.15em solid #aaa;
+  border-left: 2px solid #aaa;
   padding-left: 0.6em;
   margin-left: 0;
   color: #555;
