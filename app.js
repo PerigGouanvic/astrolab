@@ -816,10 +816,35 @@ function drawScrapItem(container, it) {
   const rawR   = it.radius != null ? it.radius : (R_ZODIAC_IN + R_ZODIAC_OUT) / 2;
   const dotR   = Math.max(R_ZODIAC_IN, Math.min(R_ZODIAC_OUT, rawR));
   const center = project(it.lon != null ? it.lon : 0, ascLon, dotR);
+  const scale = it.scale || 1;
+
+  // Items texte markdown : rendus via foreignObject, dimensions dérivées
+  // du scale (comme pour les images), aspect carré par défaut. Markdown
+  // parsé à chaque render — pas de cache (contenu court, pas critique).
+  if (it.type === 'text') {
+    const base = SCRAP_IMG_BASE * scale * 2.4;  // texte un peu plus grand
+    const w = base, h = base;
+    const fo = svg('foreignObject', {
+      x: center.x - w / 2, y: center.y - h / 2,
+      width: w, height: h,
+      class: 'scrap-text-item',
+      'data-id': it.id,
+    });
+    const div = document.createElementNS('http://www.w3.org/1999/xhtml', 'div');
+    div.setAttribute('class', 'scrap-text-content scrap-md');
+    try {
+      div.innerHTML = marked.parse(it.text || '');
+    } catch (e) {
+      div.textContent = it.text || '';
+    }
+    fo.appendChild(div);
+    container.appendChild(fo);
+    drawScrapEditOverlay(container, it, center.x, center.y, w, h);
+    return;
+  }
 
   const iw = it.imgWidth || 100;
   const ih = it.imgHeight || 100;
-  const scale = it.scale || 1;
   const base = SCRAP_IMG_BASE * scale;
   let w, h;
   if (iw >= ih) { w = base; h = base * ih / iw; }
@@ -856,41 +881,47 @@ function drawScrapItem(container, it) {
   // à la petite dimension de l'image (30 %) — si l'item est petit à l'écran,
   // l'utilisateur zoome la vue (pinch libre pendant le mode édition) et les
   // poignées grandissent avec.
-  if (editingScrapId === it.id) {
-    const handleR = Math.min(w, h) * 0.3;
-    const strokeW = handleR * 0.12;
-    const dash    = handleR * 0.6;
-    const x0 = center.x - w / 2;
-    const y0 = center.y - h / 2;
+  drawScrapEditOverlay(container, it, center.x, center.y, w, h);
+}
 
-    container.appendChild(svg('rect', {
-      x: x0, y: y0, width: w, height: h,
-      class: 'scrap-edit-frame',
-      'stroke-width': strokeW,
-      'stroke-dasharray': `${dash} ${dash * 0.7}`,
-    }));
+// Overlay commun du mode édition (rect pointillé + poignée resize + × remove)
+// — partagé entre items image et texte. (cx, cy) = centre de l'item ; (w, h)
+// = dimensions dans le viewBox chart.
+function drawScrapEditOverlay(container, it, cx, cy, w, h) {
+  if (editingScrapId !== it.id) return;
+  const handleR = Math.min(w, h) * 0.3;
+  const strokeW = handleR * 0.12;
+  const dash    = handleR * 0.6;
+  const x0 = cx - w / 2;
+  const y0 = cy - h / 2;
 
-    container.appendChild(svg('circle', {
-      cx: x0 + w, cy: y0 + h, r: handleR,
-      class: 'scrap-edit-handle',
-      'stroke-width': strokeW,
-      'data-scrap-handle': 'resize',
-      'data-id': it.id,
-    }));
+  container.appendChild(svg('rect', {
+    x: x0, y: y0, width: w, height: h,
+    class: 'scrap-edit-frame',
+    'stroke-width': strokeW,
+    'stroke-dasharray': `${dash} ${dash * 0.7}`,
+  }));
 
-    container.appendChild(svg('circle', {
-      cx: x0 + w, cy: y0, r: handleR,
-      class: 'scrap-edit-delete',
-      'stroke-width': strokeW,
-      'data-scrap-handle': 'remove',
-      'data-id': it.id,
-    }));
-    container.appendChild(svg('text', {
-      x: x0 + w, y: y0,
-      class: 'scrap-edit-delete-x',
-      style: `font-size:${handleR * 1.6}px`,
-    }, '×'));
-  }
+  container.appendChild(svg('circle', {
+    cx: x0 + w, cy: y0 + h, r: handleR,
+    class: 'scrap-edit-handle',
+    'stroke-width': strokeW,
+    'data-scrap-handle': 'resize',
+    'data-id': it.id,
+  }));
+
+  container.appendChild(svg('circle', {
+    cx: x0 + w, cy: y0, r: handleR,
+    class: 'scrap-edit-delete',
+    'stroke-width': strokeW,
+    'data-scrap-handle': 'remove',
+    'data-id': it.id,
+  }));
+  container.appendChild(svg('text', {
+    x: x0 + w, y: y0,
+    class: 'scrap-edit-delete-x',
+    style: `font-size:${handleR * 1.6}px`,
+  }, '×'));
 }
 
 // Visibilité d'un item scrapbook (bi-wheel) :
@@ -1004,7 +1035,7 @@ const TL_PALIER_SPEC = {
 
 // P1 : objets scrap + pinch désactivés. Le code reste intact pour P2+.
 // (plan v1 : « grille vivante SANS objets », pinch continu rejeté).
-const TL_SHOW_SCRAPS = true;
+const TL_SHOW_SCRAPS = false;
 const PINCH_H_ENABLED = false;
 const PINCH_V_ENABLED = false;
 
@@ -1570,19 +1601,30 @@ function drawTimeline() {
         openTimelineEditor(it, e.clientX, e.clientY);
       });
       svgEl.appendChild(rect);
-      // Contenu via foreignObject : markdown rendu HTML. Pointer-events
-      // désactivés pour que le clic traverse vers le rect en-dessous.
+      // Contenu via foreignObject : titre (1ère ligne, plus gros) + corps.
+      // Pointer-events désactivés sur le contenu pour que le clic traverse
+      // vers le rect en-dessous (évite d'avoir à dupliquer le handler).
       if (it.text && w > 10 && h > 10) {
         const fo = svg('foreignObject', {
           x: x1, y, width: w, height: h, 'data-id': it.id,
         });
         fo.classList.add('tl-scrap-fo');
         const div = document.createElementNS('http://www.w3.org/1999/xhtml', 'div');
-        div.setAttribute('class', 'tl-scrap-content tl-scrap-md');
-        try {
-          div.innerHTML = marked.parse(it.text);
-        } catch (e) {
-          div.textContent = it.text;
+        div.setAttribute('class', 'tl-scrap-content');
+        const lines = (it.text || '').split('\n');
+        const title = lines[0] || '';
+        const body  = lines.slice(1).join('\n').trim();
+        if (title) {
+          const t = document.createElementNS('http://www.w3.org/1999/xhtml', 'div');
+          t.setAttribute('class', 'tl-scrap-title');
+          t.textContent = title;
+          div.appendChild(t);
+        }
+        if (body) {
+          const b = document.createElementNS('http://www.w3.org/1999/xhtml', 'div');
+          b.setAttribute('class', 'tl-scrap-body');
+          b.textContent = body;
+          div.appendChild(b);
         }
         fo.appendChild(div);
         svgEl.appendChild(fo);
@@ -2385,42 +2427,52 @@ function createScrapItemOnTimeline(svgX, svgY, clientX, clientY) {
   try { drawTimeline(); } catch (e) { showError('timeline error: ' + e.message); }
 }
 
-// Overlay DOM textarea positionné en absolute dans #timeline-container à
-// l'endroit du tap. Textarea (pas contenteditable) pour que le paste reste
-// en texte brut — l'usage est : coller un bout de markdown, corriger deux
-// mots. Ctrl/Cmd+Enter = commit (laisse Enter libre pour les sauts de
-// ligne naturels dans un markdown multi-paragraphes), Escape = cancel
-// (supprime l'item), blur = commit.
+// Overlay DOM contenteditable positionné en absolute dans #timeline-container
+// à l'endroit du tap. Enter = commit, Escape = cancel (supprime l'item),
+// blur sur vide = cancel aussi. Resté minimal : textarea simple pour l'instant,
+// pas d'embeds médias ni redimensionnement — ces chantiers viendront quand
+// l'usage les appellera.
 function openTimelineEditor(item, clientX, clientY) {
   const containerEl = document.getElementById('timeline-container');
   if (!containerEl) return;
+  // Nettoie un éventuel éditeur précédent.
   const prev = containerEl.querySelector('.tl-scrap-editor');
   if (prev) prev.remove();
   const rect = containerEl.getBoundingClientRect();
   const relX = clientX - rect.left;
   const relY = clientY - rect.top;
-  const editor = document.createElement('textarea');
+  const editor = document.createElement('div');
   editor.className = 'tl-scrap-editor';
+  editor.setAttribute('contenteditable', 'true');
   editor.setAttribute('spellcheck', 'true');
   editor.setAttribute('data-id', item.id);
-  editor.setAttribute('placeholder', '# Titre\n\nTexte markdown…');
   editor.style.left = `${relX}px`;
   editor.style.top  = `${relY}px`;
-  if (item.text) editor.value = item.text;
+  // Pré-remplit le contenu si l'item existe déjà (re-édition via clic sur
+  // le rect). Pour un item fraîchement créé, item.text est '' donc rien.
+  if (item.text) editor.innerText = item.text;
   containerEl.appendChild(editor);
+  // Focus immédiat pour taper sans friction. Place le curseur en fin de texte.
   setTimeout(() => {
     editor.focus();
-    const n = editor.value.length;
-    editor.setSelectionRange(n, n);
+    if (item.text) {
+      const sel = window.getSelection();
+      const r = document.createRange();
+      r.selectNodeContents(editor);
+      r.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(r);
+    }
   }, 0);
   let cancelled = false;
   let done = false;
   const commit = () => {
     if (done) return;
     done = true;
-    const text = editor.value.trim();
+    const text = editor.innerText.trim();
     editor.remove();
     if (!text || cancelled) {
+      // Pas de contenu ou annulation explicite : on supprime l'item posé.
       state.scrapbook = state.scrapbook.filter(x => x.id !== item.id);
     } else {
       item.text = text;
@@ -2430,7 +2482,7 @@ function openTimelineEditor(item, clientX, clientY) {
     try { drawTimeline(); } catch (e) { showError('timeline error: ' + e.message); }
   };
   editor.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) {
+    if (ev.key === 'Enter' && !ev.shiftKey) {
       ev.preventDefault();
       commit();
     } else if (ev.key === 'Escape') {
@@ -2442,12 +2494,17 @@ function openTimelineEditor(item, clientX, clientY) {
   editor.addEventListener('blur', commit);
 }
 
-// Migration : les anciens items (texte, foreignObject, collapsed/expanded)
-// sont des données de test sans valeur. On les purge. Ne garde que les items
-// porteurs d'une image : legacy (imgDataUrl) OU Drive (imgSrc === 'drive').
+// Migration : purge les anciens items de test (texte brut sans structure
+// claire d'avant la refonte). Garde les items porteurs d'une image legacy
+// (imgDataUrl), d'une image Drive (imgSrc === 'drive'), OU d'un texte
+// markdown courant (type:'text' + text non vide).
 function migrateScrapbookItems() {
   const before = state.scrapbook.length;
-  state.scrapbook = state.scrapbook.filter(it => it.imgDataUrl || it.imgSrc === 'drive');
+  state.scrapbook = state.scrapbook.filter(it =>
+    it.imgDataUrl
+    || it.imgSrc === 'drive'
+    || (it.type === 'text' && typeof it.text === 'string' && it.text.trim())
+  );
   if (state.scrapbook.length !== before) saveScrapbook();
 }
 
@@ -2699,17 +2756,99 @@ function wireScrapPurge() {
 }
 
 function createScrapItemAt(x, y) {
-  // Ouvre un file picker pour choisir une image. L'item est ancré
-  // à la longitude écliptique du point de tap, dans la bande zodiacale.
-  // Deux modes de stockage selon connexion Drive :
-  //  - Drive connecté : upload 2 variantes (thumb + full), item ne stocke que
-  //    les fileIds. LocalStorage reste léger ; quota disparaît.
-  //  - Drive non connecté : fallback historique (dataURL 512 px en localStorage).
+  // Double-tap sur zone zodiacale vide → chooser minimal {texte, image}
+  // posé à l'endroit du tap. Un tap sur l'une des deux options déclenche
+  // la création correspondante. Le chooser disparait sur tap ailleurs ou
+  // Escape. Pas de « vrai » UI de boutons : deux glyphes espacés, sans
+  // cadre lourd, pour rester fidèle à l'esthétique « objet-matière » du
+  // scrapbook (pas de rectangle d'app).
   const ascLon = state.currentAscLon != null ? state.currentAscLon : 0;
   const lon    = xyToLon(x, y, ascLon);
   const radius = (R_ZODIAC_IN + R_ZODIAC_OUT) / 2;
   const stamp  = state.chartTime != null ? state.chartTime : Date.now();
 
+  openScrapChooser(x, y, {
+    onText: () => createTextScrapAt(lon, radius, stamp, x, y),
+    onImage: () => createImageScrapAt(lon, radius, stamp),
+  });
+}
+
+// Petit menu posé en overlay au-dessus du SVG chart. Deux options
+// « texte » / « image ». Sélection → close + callback.
+function openScrapChooser(vbX, vbY, { onText, onImage }) {
+  const svgEl = document.getElementById('chart');
+  const containerEl = svgEl ? svgEl.closest('#chart-container') || svgEl.parentElement : null;
+  if (!containerEl) { onText(); return; }  // fallback silencieux : texte par défaut
+  const prev = containerEl.querySelector('.scrap-chooser');
+  if (prev) prev.remove();
+  // Convertit vbCoords → clientCoords via screenCTM inverse.
+  let clientX = 0, clientY = 0;
+  try {
+    const pt = svgEl.createSVGPoint();
+    pt.x = vbX; pt.y = vbY;
+    const screenPt = pt.matrixTransform(svgEl.getScreenCTM());
+    const rect = containerEl.getBoundingClientRect();
+    clientX = screenPt.x - rect.left;
+    clientY = screenPt.y - rect.top;
+  } catch (e) {
+    const rect = containerEl.getBoundingClientRect();
+    clientX = rect.width / 2;
+    clientY = rect.height / 2;
+  }
+  const chooser = document.createElement('div');
+  chooser.className = 'scrap-chooser';
+  chooser.style.left = `${clientX}px`;
+  chooser.style.top  = `${clientY}px`;
+  const btnText = document.createElement('button');
+  btnText.type = 'button';
+  btnText.className = 'scrap-chooser-opt';
+  btnText.textContent = '✎ texte';
+  const btnImg = document.createElement('button');
+  btnImg.type = 'button';
+  btnImg.className = 'scrap-chooser-opt';
+  btnImg.textContent = '📷 image';
+  chooser.append(btnText, btnImg);
+  containerEl.appendChild(chooser);
+
+  const close = () => {
+    chooser.remove();
+    document.removeEventListener('pointerdown', onOutside, true);
+    document.removeEventListener('keydown', onKey, true);
+  };
+  const onOutside = (ev) => {
+    if (!chooser.contains(ev.target)) close();
+  };
+  const onKey = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); close(); } };
+  btnText.addEventListener('click', (ev) => { ev.stopPropagation(); close(); onText(); });
+  btnImg .addEventListener('click', (ev) => { ev.stopPropagation(); close(); onImage(); });
+  setTimeout(() => {
+    document.addEventListener('pointerdown', onOutside, true);
+    document.addEventListener('keydown', onKey, true);
+  }, 0);
+}
+
+// Crée un item texte markdown vide + ouvre immédiatement le textarea
+// à la position du tap. Blur/Escape/vide ⇒ item supprimé (cf. éditeur).
+function createTextScrapAt(lon, radius, stamp, vbX, vbY) {
+  const item = {
+    id: genId(),
+    type: 'text',
+    text: '',
+    lon, radius,
+    scale: 1,
+    createdAt: stamp,
+    scope: 'timed',
+  };
+  state.scrapbook.push(item);
+  if (!saveScrapbook()) {
+    state.scrapbook = state.scrapbook.filter(x => x.id !== item.id);
+    return;
+  }
+  render().catch(e => showError('render error: ' + e.message));
+  openScrapTextEditor(item, vbX, vbY, { newlyCreated: true });
+}
+
+function createImageScrapAt(lon, radius, stamp) {
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = 'image/*';
@@ -2783,6 +2922,75 @@ function createScrapItemAt(x, y) {
     render().catch(e => showError('render error: ' + e.message));
   });
   input.click();
+}
+
+// Overlay DOM textarea posé par-dessus le SVG chart, à la position
+// (vbX, vbY) convertie en coords client via screenCTM. Édition d'un
+// item texte markdown : paste de markdown + petites corrections.
+// Ctrl/Cmd+Enter = commit, Escape = cancel, blur = commit. Enter libre
+// pour les sauts de ligne. Si l'item vient d'être créé (newlyCreated) et
+// que l'édition se termine sur vide, l'item est retiré de scrapbook.
+function openScrapTextEditor(item, vbX, vbY, opts = {}) {
+  const newlyCreated = !!opts.newlyCreated;
+  const svgEl = document.getElementById('chart');
+  const containerEl = svgEl ? svgEl.closest('#chart-container') || svgEl.parentElement : null;
+  if (!containerEl) return;
+  const prev = containerEl.querySelector('.scrap-text-editor');
+  if (prev) prev.remove();
+  let clientX = 0, clientY = 0;
+  try {
+    const pt = svgEl.createSVGPoint();
+    pt.x = vbX; pt.y = vbY;
+    const screenPt = pt.matrixTransform(svgEl.getScreenCTM());
+    const rect = containerEl.getBoundingClientRect();
+    clientX = screenPt.x - rect.left;
+    clientY = screenPt.y - rect.top;
+  } catch (e) {
+    const rect = containerEl.getBoundingClientRect();
+    clientX = rect.width / 2;
+    clientY = rect.height / 2;
+  }
+  const editor = document.createElement('textarea');
+  editor.className = 'scrap-text-editor';
+  editor.setAttribute('spellcheck', 'true');
+  editor.setAttribute('data-id', item.id);
+  editor.setAttribute('placeholder', '# Titre\n\nTexte markdown…');
+  editor.style.left = `${clientX}px`;
+  editor.style.top  = `${clientY}px`;
+  if (item.text) editor.value = item.text;
+  containerEl.appendChild(editor);
+  setTimeout(() => {
+    editor.focus();
+    const n = editor.value.length;
+    editor.setSelectionRange(n, n);
+  }, 0);
+  let cancelled = false;
+  let done = false;
+  const commit = () => {
+    if (done) return;
+    done = true;
+    const text = editor.value.trim();
+    editor.remove();
+    if ((cancelled && newlyCreated) || (!text && newlyCreated)) {
+      state.scrapbook = state.scrapbook.filter(x => x.id !== item.id);
+    } else if (text) {
+      item.text = text;
+      item.updatedAt = Date.now();
+    }
+    saveScrapbook();
+    render().catch(e => showError('render error: ' + e.message));
+  };
+  editor.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) {
+      ev.preventDefault();
+      commit();
+    } else if (ev.key === 'Escape') {
+      ev.preventDefault();
+      cancelled = true;
+      commit();
+    }
+  });
+  editor.addEventListener('blur', commit);
 }
 
 // Zoom cercle : viewBox dynamique, indépendant du zoom frise.
@@ -2918,7 +3126,7 @@ function wireChartInteraction() {
     if (ev.button !== 0) return;                     // bouton gauche seulement
     if (ev.pointerType === 'mouse') return;           // desktop : molette + clic milieu
     if (oneFingerPan != null) return;                 // déjà en cours
-    if (ev.target.closest('.scrap-img-item, .planet-symbol, [data-scrap-handle]')) return;
+    if (ev.target.closest('.scrap-img-item, .scrap-text-item, .planet-symbol, [data-scrap-handle]')) return;
     oneFingerPan = { id: ev.pointerId, startX: ev.clientX, startY: ev.clientY,
                      startCx: state.chart.cx || 0, startCy: state.chart.cy || 0, armed: false };
   });
@@ -3025,7 +3233,7 @@ function wireScrapbookGestures() {
 
     // Ignorer si sur un item scrapbook image existant, un handle d'édition,
     // ou un glyphe planétaire (les glyphes tombent dans la bande zodiacale : r=315).
-    if (ev.target.closest && ev.target.closest('.scrap-img-item, .planet-symbol, [data-scrap-handle]')) return;
+    if (ev.target.closest && ev.target.closest('.scrap-img-item, .scrap-text-item, .planet-symbol, [data-scrap-handle]')) return;
 
     const pt = screenToSvg(svgEl, ev.clientX, ev.clientY);
     // Création uniquement si le tap tombe dans la bande zodiacale.
@@ -3132,7 +3340,7 @@ function wireScrapItemGestures() {
   // Bloque le menu contextuel système (long-press WebView Android →
   // « Enregistrer l'image ») qui intercepterait notre press long.
   svgEl.addEventListener('contextmenu', ev => {
-    if (ev.target.closest && ev.target.closest('.scrap-img-item, [data-scrap-handle]')) {
+    if (ev.target.closest && ev.target.closest('.scrap-img-item, .scrap-text-item, [data-scrap-handle]')) {
       ev.preventDefault();
     }
   });
@@ -3143,7 +3351,7 @@ function wireScrapItemGestures() {
   // Portée restreinte aux items/handles pour ne pas casser le pinch global.
   svgEl.addEventListener('touchstart', ev => {
     if (!ev.target || !ev.target.closest) return;
-    if (ev.target.closest('.scrap-img-item, [data-scrap-handle]')) {
+    if (ev.target.closest('.scrap-img-item, .scrap-text-item, [data-scrap-handle]')) {
       ev.preventDefault();
     }
   }, { passive: false });
@@ -3154,7 +3362,8 @@ function wireScrapItemGestures() {
 
   svgEl.addEventListener('pointerdown', ev => {
     if (ev.button !== 0 || !ev.isPrimary) return;
-    const img = ev.target.closest && ev.target.closest('.scrap-img-item');
+    const img = ev.target.closest
+      && (ev.target.closest('.scrap-img-item') || ev.target.closest('.scrap-text-item'));
     if (!img) return;
     // Les handles (resize/×) ont leur propre handler ; ne pas les intercepter ici.
     if (ev.target.closest('[data-scrap-handle]')) return;
@@ -3217,9 +3426,22 @@ function wireScrapItemGestures() {
     tapSingleTimer = setTimeout(() => {
       tapSingleTimer = null;
       lastTap = { id: null, at: 0 };
-      // Si item en édition et tap simple dessus : on sort de l'édition
-      // (comportement cohérent avec "tap ailleurs = exit")
-      if (editingScrapId === id) { exitScrapEditMode(); return; }
+      // Si item en édition et tap simple dessus :
+      //  - item texte → rouvre le textarea pour éditer le markdown
+      //  - item image → sort du mode édition (pas de contenu à ré-éditer)
+      if (editingScrapId === id) {
+        const it = state.scrapbook.find(x => x.id === id);
+        if (it && it.type === 'text') {
+          const ascLon = state.currentAscLon != null ? state.currentAscLon : 0;
+          const rawR = it.radius != null ? it.radius : (R_ZODIAC_IN + R_ZODIAC_OUT) / 2;
+          const dotR = Math.max(R_ZODIAC_IN, Math.min(R_ZODIAC_OUT, rawR));
+          const c = project(it.lon != null ? it.lon : 0, ascLon, dotR);
+          openScrapTextEditor(it, c.x, c.y);
+          return;
+        }
+        exitScrapEditMode();
+        return;
+      }
       // Sinon : zoom sur l'item
       if (editingScrapId != null) exitScrapEditMode();
       zoomChartToItem(id);
@@ -3294,7 +3516,7 @@ function wireScrapEditExitOnBlankTap() {
   svgEl.addEventListener('pointerdown', ev => {
     if (editingScrapId == null) return;
     if (!ev.isPrimary) return;
-    if (ev.target.closest && ev.target.closest('.scrap-img-item, [data-scrap-handle]')) return;
+    if (ev.target.closest && ev.target.closest('.scrap-img-item, .scrap-text-item, [data-scrap-handle]')) return;
     down = { x: ev.clientX, y: ev.clientY, pid: ev.pointerId };
   });
   svgEl.addEventListener('pointerup', ev => {

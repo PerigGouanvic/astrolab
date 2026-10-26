@@ -363,6 +363,7 @@ h1 {
    aspect carré, contraint par la hauteur dispo (53vh) ou la largeur viewport
    si écran étroit (min des deux). */
 #chart-container {
+  position: relative;  /* ancre pour overlays absolus (scrap-chooser, scrap-text-editor) */
   width: 100%;
   max-width: 800px;
   height: 53vh;
@@ -571,6 +572,130 @@ h1 {
   -webkit-tap-highlight-color: transparent;
 }
 .scrap-handle { touch-action: none; }
+
+/* Items scrapbook texte : foreignObject contenant du markdown rendu HTML.
+   « Pas de cadre » (fiche objets_scrapbook_esthetique 2026-10-21) — fond
+   légèrement teinté papier, ombre douce pour la matérialité. Le contenu
+   interne ne reçoit pas les pointer events : ils remontent au foreignObject
+   (classe .scrap-text-item) via délégation sur le SVG racine. */
+.scrap-text-item {
+  pointer-events: auto;
+  cursor: pointer;
+  touch-action: none;
+  overflow: visible;
+}
+.scrap-text-content {
+  width: 100%;
+  height: 100%;
+  padding: 4%;
+  box-sizing: border-box;
+  background: #fcfaf4;
+  color: #1a1a1a;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+  pointer-events: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+/* Markdown compact rendu dans un scrap texte. Les tailles sont relatives
+   via em : la base vient de la hauteur du foreignObject (viewBox units)
+   qui scale avec le zoom chart — donc automatiquement lisible au zoom. */
+.scrap-md { font-family: Georgia, serif; line-height: 1.25; font-size: 2.2px; }
+.scrap-md > * { margin: 0; }
+.scrap-md > * + * { margin-top: 0.4em; }
+.scrap-md h1, .scrap-md h2, .scrap-md h3,
+.scrap-md h4, .scrap-md h5, .scrap-md h6 {
+  font-weight: 700; line-height: 1.1; color: #111;
+}
+.scrap-md h1 { font-size: 1.5em; }
+.scrap-md h2 { font-size: 1.3em; }
+.scrap-md h3 { font-size: 1.15em; }
+.scrap-md h4, .scrap-md h5, .scrap-md h6 { font-size: 1em; }
+.scrap-md ul, .scrap-md ol { padding-left: 1.2em; }
+.scrap-md li { margin-top: 0.15em; }
+.scrap-md blockquote {
+  border-left: 2px solid #aaa;
+  padding-left: 0.6em;
+  color: #555;
+  font-style: italic;
+}
+.scrap-md code {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  background: rgba(0, 0, 0, 0.06);
+  padding: 0 0.2em;
+  border-radius: 2px;
+  font-size: 0.9em;
+}
+.scrap-md pre {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  background: rgba(0, 0, 0, 0.06);
+  padding: 0.3em 0.5em;
+  border-radius: 2px;
+  overflow: hidden;
+  white-space: pre-wrap;
+  font-size: 0.85em;
+}
+.scrap-md pre code { background: none; padding: 0; }
+.scrap-md a { color: #2a5db0; text-decoration: underline; }
+.scrap-md strong { font-weight: 700; }
+.scrap-md em { font-style: italic; }
+.scrap-md hr { border: none; border-top: 1px solid #ccc; margin: 0.4em 0; }
+
+/* Chooser {texte, image} posé au double-tap sur zone zodiacale vide.
+   Minimaliste : deux options en pastille, pas de cadre lourd. */
+.scrap-chooser {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.98);
+  border-radius: 20px;
+  padding: 4px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  z-index: 16;
+  touch-action: auto;
+}
+.scrap-chooser-opt {
+  border: none;
+  background: transparent;
+  padding: 6px 12px;
+  border-radius: 16px;
+  font-family: var(--font-sans, system-ui, sans-serif);
+  font-size: 14px;
+  color: #1a1a1a;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.scrap-chooser-opt:hover,
+.scrap-chooser-opt:active { background: rgba(0, 0, 0, 0.07); }
+
+/* Éditeur textarea markdown d'un scrap texte sur le cercle. */
+.scrap-text-editor {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 320px;
+  max-width: calc(100vw - 24px);
+  min-height: 120px;
+  max-height: 60vh;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1.5px solid var(--accent, #ffb84a);
+  border-radius: 6px;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 13px;
+  color: #1a1a1a;
+  line-height: 1.4;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  outline: none;
+  z-index: 16;
+  touch-action: auto;
+  resize: both;
+  white-space: pre-wrap;
+}
+.scrap-text-editor::placeholder {
+  color: #999;
+  font-style: italic;
+}
 
 /* Supprime le flash de focus bleu sur tap mobile pour tout le SVG chart. */
 #chart {
@@ -1128,35 +1253,28 @@ body.timeline-fullscreen .timeline-expand-btn {
   display: none;
 }
 
-/* Éditeur in-situ posé par double-tap dans la frise agrandie. Textarea
-   (pas contenteditable) pour que le paste reste du texte brut — l'auteur
-   colle du markdown et le modifie à la main, pas de WYSIWYG. Ctrl/Cmd+Enter
-   = commit, Escape = cancel, blur = commit. */
+/* Éditeur in-situ posé par double-tap dans la frise agrandie (consigne Perig
+   2026-10-19). Overlay DOM par-dessus le SVG — pas foreignObject, pour
+   éviter les surprises de preserveAspectRatio="none". Minimal pour le
+   premier pas : zone texte éditable, pas d'embeds ni resize. */
 .tl-scrap-editor {
   position: absolute;
   transform: translate(-50%, -50%);
-  width: 320px;
-  max-width: calc(100vw - 24px);
-  min-height: 120px;
-  max-height: 60vh;
+  min-width: 200px;
+  max-width: 320px;
+  min-height: 60px;
   padding: 10px 12px;
   background: rgba(255, 255, 255, 0.98);
   border: 1.5px solid var(--accent);
   border-radius: 6px;
-  font-family: var(--font-mono, ui-monospace, Menlo, Consolas, monospace);
-  font-size: 13px;
+  font-family: var(--font-sans);
+  font-size: 14px;
   color: #1a1a1a;
   line-height: 1.4;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
   outline: none;
   z-index: 15;
   touch-action: auto;
-  resize: both;
-  white-space: pre-wrap;
-}
-.tl-scrap-editor::placeholder {
-  color: #999;
-  font-style: italic;
 }
 
 /* Bandes signes alternées : fond très discret pour baliser 12 régions
@@ -1472,69 +1590,6 @@ body.timeline-fullscreen .timeline-expand-btn {
   word-break: break-word;
 }
 
-/* Markdown rendu dans le rect scrapbook de la frise. Les tailles sont
-   compactes pour que du contenu riche tienne dans un rect petit — c'est
-   le zoom de la frise qui agrandit. On évite les marges externes qui
-   gaspillent la place ; marges internes légères entre blocs. */
-.tl-scrap-md {
-  gap: 0;
-  overflow: hidden;
-}
-.tl-scrap-md > * { margin: 0; }
-.tl-scrap-md > * + * { margin-top: 3px; }
-.tl-scrap-md h1,
-.tl-scrap-md h2,
-.tl-scrap-md h3,
-.tl-scrap-md h4,
-.tl-scrap-md h5,
-.tl-scrap-md h6 {
-  font-weight: 700;
-  line-height: 1.1;
-  color: #111;
-}
-.tl-scrap-md h1 { font-size: 15px; }
-.tl-scrap-md h2 { font-size: 13px; }
-.tl-scrap-md h3 { font-size: 12px; }
-.tl-scrap-md h4,
-.tl-scrap-md h5,
-.tl-scrap-md h6 { font-size: 11px; }
-.tl-scrap-md p { font-size: 10px; line-height: 1.25; }
-.tl-scrap-md ul,
-.tl-scrap-md ol { font-size: 10px; line-height: 1.25; padding-left: 14px; }
-.tl-scrap-md li { margin-top: 1px; }
-.tl-scrap-md blockquote {
-  font-size: 10px;
-  line-height: 1.25;
-  border-left: 2px solid #aaa;
-  padding-left: 6px;
-  color: #555;
-  font-style: italic;
-}
-.tl-scrap-md code {
-  font-family: var(--font-mono, ui-monospace, Menlo, Consolas, monospace);
-  font-size: 9px;
-  background: rgba(0, 0, 0, 0.06);
-  padding: 0 2px;
-  border-radius: 2px;
-}
-.tl-scrap-md pre {
-  font-family: var(--font-mono, ui-monospace, Menlo, Consolas, monospace);
-  font-size: 9px;
-  background: rgba(0, 0, 0, 0.06);
-  padding: 4px 6px;
-  border-radius: 3px;
-  overflow: hidden;
-  white-space: pre-wrap;
-}
-.tl-scrap-md pre code { background: none; padding: 0; }
-.tl-scrap-md a { color: #2a5db0; text-decoration: underline; }
-.tl-scrap-md strong { font-weight: 700; }
-.tl-scrap-md em { font-style: italic; }
-.tl-scrap-md hr {
-  border: none;
-  border-top: 1px solid #ccc;
-  margin: 4px 0;
-}
 
 @media (max-width: 600px) {
   body {
