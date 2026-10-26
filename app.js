@@ -3094,12 +3094,24 @@ function wireChartInteraction() {
   }, { passive: false });
 
   // Pinch 2-doigts : zoom + pan combinés, ancrés sur le milieu.
+  // multiTouchActive : passe à true dès qu'un 2e doigt touche, ne retombe à
+  // false qu'une fois TOUS les doigts levés. Verrouille le pan 1-doigt sur
+  // toute cette durée. Sans ça : le pointer du 1er doigt continue de tirer
+  // `pointermove` pendant le pinch et écrit par-dessus cx/cy ; et au
+  // relâchement du 2e doigt, le pan 1-doigt reprend avec un startCx figé sur
+  // l'état d'avant pinch → saut brutal au prochain pointermove (bug "focus
+  // se déplace d'un coup" diagnostiqué 2026-10-26).
+  const PAN_THRESHOLD = 5;
+  let oneFingerPan = null;  // { id, startX, startY, startCx, startCy, armed }
   let pinchStartDist = null;
   let pinchStartZoom = null;
   let pinchAnchorVb  = null;  // (x,y) viewBox initial sous le milieu au start
+  let multiTouchActive = false;
   svgEl.addEventListener('touchstart', ev => {
     if (ev.touches.length >= 2) {
       ev.preventDefault();
+      multiTouchActive = true;
+      oneFingerPan = null;  // annule tout pan 1-doigt en cours
       const t0 = ev.touches[0], t1 = ev.touches[1];
       pinchStartDist = Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY) || 1;
       pinchStartZoom = state.chart.zoom || 1;
@@ -3136,10 +3148,13 @@ function wireChartInteraction() {
     }
   }, { passive: false });
 
-  const endPinch = () => {
+  const endPinch = (ev) => {
     pinchStartDist = null;
     pinchStartZoom = null;
     pinchAnchorVb  = null;
+    // multiTouchActive ne retombe que quand il ne reste plus aucun doigt :
+    // tant qu'un doigt subsiste, on l'ignore (pas de pan 1-doigt résiduel).
+    if (!ev || !ev.touches || ev.touches.length === 0) multiTouchActive = false;
   };
   svgEl.addEventListener('touchend',    endPinch);
   svgEl.addEventListener('touchcancel', endPinch);
@@ -3147,11 +3162,10 @@ function wireChartInteraction() {
   // Pan 1-doigt (mobile) : drag simple pour déplacer la vue.
   // Seuil de 5 px avant de démarrer le pan (pour ne pas confondre avec un tap).
   // Ignore les pointerdown sur des éléments scrapbook (disque, cadre, grip…).
-  const PAN_THRESHOLD = 5;
-  let oneFingerPan = null;  // { id, startX, startY, startCx, startCy, armed }
   svgEl.addEventListener('pointerdown', ev => {
     if (ev.button !== 0) return;                     // bouton gauche seulement
     if (ev.pointerType === 'mouse') return;           // desktop : molette + clic milieu
+    if (multiTouchActive) return;                     // pinch en cours ou en relâchement
     if (oneFingerPan != null) return;                 // déjà en cours
     if (ev.target.closest('.scrap-img-item, .scrap-text-item, .planet-symbol, [data-scrap-handle]')) return;
     oneFingerPan = { id: ev.pointerId, startX: ev.clientX, startY: ev.clientY,
