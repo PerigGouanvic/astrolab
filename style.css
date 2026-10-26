@@ -591,24 +591,30 @@ h1 {
   box-sizing: border-box;
   background: #fcfaf4;
   color: #1a1a1a;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
   -webkit-user-select: none;
   user-select: none;
   scrollbar-width: none;
+  /* pan-y = scroll vertical natif autorisé, le gesture pipeline SVG
+     (pan global, pinch) ne capture pas le touchmove vertical sur le
+     contenu — scroll interne fonctionne. L'ancêtre .scrap-text-item
+     garde touch-action:none pour drag/resize en mode édition. */
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
 }
 .scrap-text-content::-webkit-scrollbar { display: none; width: 0; height: 0; }
-/* Markdown compact rendu dans un scrap texte. Les tailles sont relatives
-   via em : la base vient de la hauteur du foreignObject (viewBox units)
-   qui scale avec le zoom chart — donc automatiquement lisible au zoom.
-   text-size-adjust:none neutralise le font-boosting Chrome Android qui
-   gonflait le texte ~10×. */
+/* Markdown compact rendu dans un scrap texte. font-size posée en JS
+   (proportionnelle à min(w,h) de la case) pour que le texte scale avec
+   le resize. text-size-adjust:none neutralise le font-boosting Android. */
 .scrap-md {
   font-family: Georgia, serif;
   line-height: 1.25;
-  font-size: 0.22px;
   -webkit-text-size-adjust: none;
   text-size-adjust: none;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
 }
 .scrap-md > * { margin: 0; }
 .scrap-md > * + * { margin-top: 0.4em; }
@@ -620,8 +626,12 @@ h1 {
 .scrap-md h2 { font-size: 1.3em; }
 .scrap-md h3 { font-size: 1.15em; }
 .scrap-md h4, .scrap-md h5, .scrap-md h6 { font-size: 1em; }
-.scrap-md ul, .scrap-md ol { padding-left: 1.2em; }
+/* list-style-position: inside → markers restent dans la zone de contenu,
+   évite les deux rectangles/bullets qui débordaient dans la marge gauche
+   quand Chrome Android rendait les ::marker à taille minimale fixe. */
+.scrap-md ul, .scrap-md ol { padding-left: 1em; list-style-position: inside; }
 .scrap-md li { margin-top: 0.15em; }
+.scrap-md li::marker { font-size: 0.9em; }
 .scrap-md blockquote {
   border-left: 2px solid #aaa;
   padding-left: 0.6em;

@@ -832,6 +832,10 @@ function drawScrapItem(container, it) {
     });
     const div = document.createElementNS('http://www.w3.org/1999/xhtml', 'div');
     div.setAttribute('class', 'scrap-text-content scrap-md');
+    // Font-size proportionnelle à la case : scale avec le resize (it.scale).
+    // ~2.5% du côté le plus court → ~10 lignes visibles sans scroll à l'état
+    // initial, le reste défile.
+    div.style.fontSize = (Math.min(w, h) * 0.025) + 'px';
     try {
       div.innerHTML = marked.parse(it.text || '');
     } catch (e) {
