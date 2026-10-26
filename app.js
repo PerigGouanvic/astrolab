@@ -2775,13 +2775,19 @@ function createScrapItemAt(x, y) {
 
 // Petit menu posé en overlay au-dessus du SVG chart. Deux options
 // « texte » / « image ». Sélection → close + callback.
+// Garde-fou : le chooser est inactif aux clics pendant SCRAP_CHOOSER_ARM_MS
+// — sinon le ghost click Android qui suit le double-tap tombait pile sur
+// un des boutons et sélectionnait sans intention. Décalé verticalement
+// pour sortir de la zone du pouce.
+const SCRAP_CHOOSER_ARM_MS   = 220;
+const SCRAP_CHOOSER_Y_OFFSET = 44;  // px, remonté au-dessus du point de tap
 function openScrapChooser(vbX, vbY, { onText, onImage }) {
   const svgEl = document.getElementById('chart');
   const containerEl = svgEl ? svgEl.closest('#chart-container') || svgEl.parentElement : null;
   if (!containerEl) { onText(); return; }  // fallback silencieux : texte par défaut
   const prev = containerEl.querySelector('.scrap-chooser');
   if (prev) prev.remove();
-  // Convertit vbCoords → clientCoords via screenCTM inverse.
+  // Convertit vbCoords → clientCoords via screenCTM.
   let clientX = 0, clientY = 0;
   try {
     const pt = svgEl.createSVGPoint();
@@ -2795,8 +2801,13 @@ function openScrapChooser(vbX, vbY, { onText, onImage }) {
     clientX = rect.width / 2;
     clientY = rect.height / 2;
   }
+  // Décale vers le haut, puis clampe aux bords du container.
+  const rect = containerEl.getBoundingClientRect();
+  clientY = Math.max(28, clientY - SCRAP_CHOOSER_Y_OFFSET);
+  clientX = Math.max(60, Math.min(rect.width - 60, clientX));
+
   const chooser = document.createElement('div');
-  chooser.className = 'scrap-chooser';
+  chooser.className = 'scrap-chooser scrap-chooser-arming';
   chooser.style.left = `${clientX}px`;
   chooser.style.top  = `${clientY}px`;
   const btnText = document.createElement('button');
@@ -2821,10 +2832,14 @@ function openScrapChooser(vbX, vbY, { onText, onImage }) {
   const onKey = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); close(); } };
   btnText.addEventListener('click', (ev) => { ev.stopPropagation(); close(); onText(); });
   btnImg .addEventListener('click', (ev) => { ev.stopPropagation(); close(); onImage(); });
+  // Arming : fenêtre où le chooser est visible mais ignore les clics
+  // (CSS pointer-events: none). Au bout de SCRAP_CHOOSER_ARM_MS, on
+  // réactive et on écoute l'outside-tap pour fermer.
   setTimeout(() => {
+    chooser.classList.remove('scrap-chooser-arming');
     document.addEventListener('pointerdown', onOutside, true);
     document.addEventListener('keydown', onKey, true);
-  }, 0);
+  }, SCRAP_CHOOSER_ARM_MS);
 }
 
 // Crée un item texte markdown vide + ouvre immédiatement le textarea

@@ -591,16 +591,25 @@ h1 {
   box-sizing: border-box;
   background: #fcfaf4;
   color: #1a1a1a;
-  overflow: hidden;
+  overflow: auto;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
-  pointer-events: none;
   -webkit-user-select: none;
   user-select: none;
+  scrollbar-width: none;
 }
+.scrap-text-content::-webkit-scrollbar { display: none; width: 0; height: 0; }
 /* Markdown compact rendu dans un scrap texte. Les tailles sont relatives
    via em : la base vient de la hauteur du foreignObject (viewBox units)
-   qui scale avec le zoom chart — donc automatiquement lisible au zoom. */
-.scrap-md { font-family: Georgia, serif; line-height: 1.25; font-size: 2.2px; }
+   qui scale avec le zoom chart — donc automatiquement lisible au zoom.
+   text-size-adjust:none neutralise le font-boosting Chrome Android qui
+   gonflait le texte ~10×. */
+.scrap-md {
+  font-family: Georgia, serif;
+  line-height: 1.25;
+  font-size: 0.22px;
+  -webkit-text-size-adjust: none;
+  text-size-adjust: none;
+}
 .scrap-md > * { margin: 0; }
 .scrap-md > * + * { margin-top: 0.4em; }
 .scrap-md h1, .scrap-md h2, .scrap-md h3,
@@ -668,6 +677,11 @@ h1 {
 }
 .scrap-chooser-opt:hover,
 .scrap-chooser-opt:active { background: rgba(0, 0, 0, 0.07); }
+/* Fenêtre d'armement : pendant SCRAP_CHOOSER_ARM_MS après l'apparition,
+   le chooser ignore les pointer events — évite le ghost click Chrome
+   Android qui sélectionnait une option juste après le double-tap. */
+.scrap-chooser.scrap-chooser-arming { pointer-events: none; }
+.scrap-chooser.scrap-chooser-arming .scrap-chooser-opt { pointer-events: none; }
 
 /* Éditeur textarea markdown d'un scrap texte sur le cercle. */
 .scrap-text-editor {
