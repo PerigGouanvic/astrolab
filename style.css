@@ -588,7 +588,7 @@ h1 {
   /* Dimensions posées inline en JS (400×400 CSS px), scalées via
      transform depuis drawScrapItem pour éviter les bugs sub-pixel
      du foreignObject sur WebView Android. */
-  padding: 14px;
+  padding: 28px;
   box-sizing: border-box;
   background: #fcfaf4;
   color: #1a1a1a;
