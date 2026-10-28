@@ -851,6 +851,11 @@ function syncLegacyTextToBlocks(it) {
   if (b0 && b0.type === 'text') b0.text = it.text || '';
 }
 
+// Renderer compositif (étape 2 chantier composition riche). Lit blocks[] +
+// layout. Bbox globale calculée par computeItemBBox, partition en cells par
+// partitionCells, puis chaque bloc est dessiné par drawTextBlock /
+// drawImageBlock. Pour un item 1-bloc (toute la base actuelle), le résultat
+// est pixel-identique à l'ancien chemin.
 function drawScrapItem(container, it) {
   const ascLon = state.currentAscLon != null ? state.currentAscLon : 0;
   const rawR   = it.radius != null ? it.radius : (R_ZODIAC_IN + R_ZODIAC_OUT) / 2;
@@ -858,82 +863,149 @@ function drawScrapItem(container, it) {
   const center = project(it.lon != null ? it.lon : 0, ascLon, dotR);
   const scale = it.scale || 1;
 
-  // Items texte markdown : rendus via foreignObject, dimensions dérivées
-  // du scale (comme pour les images), aspect carré par défaut. Markdown
-  // parsé à chaque render — pas de cache (contenu court, pas critique).
-  if (it.type === 'text') {
-    const base = SCRAP_IMG_BASE * scale * 2.4;  // texte un peu plus grand
-    const w = base, h = base;
-    // Rendu interne à grande échelle (SCRAP_TEXT_RENDER_PX) pour éviter les
-    // bugs sub-pixel du foreignObject sur WebView Android : à font-size < 1px,
-    // les lignes se superposent et certains caractères sautent. On rend à
-    // 14px dans un wrapper de 400px, puis on scale pour tenir dans la case.
-    // Le resize change w → k change → le texte scale avec, pixel-propre.
-    const SCRAP_TEXT_RENDER_PX = 400;
-    const k = w / SCRAP_TEXT_RENDER_PX;
-    const fo = svg('foreignObject', {
-      x: center.x - w / 2, y: center.y - h / 2,
-      width: w, height: h,
-      class: 'scrap-text-item',
-      'data-id': it.id,
-    });
-    const div = document.createElementNS('http://www.w3.org/1999/xhtml', 'div');
-    div.setAttribute('class', 'scrap-text-content scrap-md');
-    div.style.width = SCRAP_TEXT_RENDER_PX + 'px';
-    div.style.height = SCRAP_TEXT_RENDER_PX + 'px';
-    div.style.fontSize = '14px';
-    div.style.transform = `scale(${k})`;
-    div.style.transformOrigin = 'top left';
-    try {
-      div.innerHTML = marked.parse(it.text || '');
-    } catch (e) {
-      div.textContent = it.text || '';
+  const blocks = getItemBlocks(it);
+  const layout = getItemLayout(it);
+  if (!blocks.length) return;
+
+  const bbox = computeItemBBox(blocks, scale);
+  const cx = center.x, cy = center.y;
+  const w  = bbox.w,   h = bbox.h;
+  const x0 = cx - w / 2, y0 = cy - h / 2;
+
+  const cells = partitionCells(blocks, layout, x0, y0, w, h);
+
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i];
+    const cell = cells[i];
+    const overlay = (layout === 'overlay' && i > 0);
+    if (b.type === 'text') {
+      drawTextBlock(container, it, b, cell.x, cell.y, cell.w, cell.h, { overlay });
+    } else if (b.type === 'image') {
+      const href = resolveImageHref(b);
+      if (!href) continue;  // chargement en cours ou source manquante
+      drawImageBlock(container, it, href, cell.x, cell.y, cell.w, cell.h);
     }
-    fo.appendChild(div);
-    container.appendChild(fo);
-    drawScrapEditOverlay(container, it, center.x, center.y, w, h);
-    return;
   }
 
-  const iw = it.imgWidth || 100;
-  const ih = it.imgHeight || 100;
+  drawScrapEditOverlay(container, it, cx, cy, w, h);
+}
+
+// Bbox globale de l'item en unités viewBox chart. Règle :
+//   - au moins un bloc image → bbox dérivée du premier bloc image par ratio
+//     (comportement actuel image seule : base × base·ih/iw ou base·iw/ih × base)
+//   - sinon (texte seul ou multi-blocs texte) → carré 2.4× (comportement actuel
+//     texte seul)
+function computeItemBBox(blocks, scale) {
   const base = SCRAP_IMG_BASE * scale;
-  let w, h;
-  if (iw >= ih) { w = base; h = base * ih / iw; }
-  else          { h = base; w = base * iw / ih; }
+  const firstImg = blocks.find(b => b.type === 'image');
+  if (firstImg) {
+    const iw = firstImg.width || 100;
+    const ih = firstImg.height || 100;
+    if (iw >= ih) return { w: base,            h: base * ih / iw };
+    else          return { w: base * iw / ih,  h: base            };
+  }
+  return { w: base * 2.4, h: base * 2.4 };
+}
 
-  // Résolution de l'href selon la source :
-  //  - Drive : variante choisie par LOD, chargée via cache mémoire.
-  //  - Legacy localStorage : dataURL inline.
-  let href = null;
-  if (it.imgSrc === 'drive') {
-    const fileId = pickScrapVariant(it);
-    if (!fileId) return;
-    href = getScrapBlobUrl(fileId);
-    if (!href) return;  // chargement en cours, re-render au retour
-  } else {
-    if (!it.imgDataUrl) return;
-    href = it.imgDataUrl;
+// Partitionne la bbox en cells, une par bloc, selon layout.
+//   - 1 bloc        → pleine case (chemin pixel-identique à l'ancien renderer)
+//   - stack         → bandes horizontales de même hauteur
+//   - overlay       → tous blocs pleine case (empilés en z via ordre DOM)
+//   - mosaic 2      → deux colonnes
+//   - mosaic 3      → bande haute pleine + 2 cases bas
+//   - mosaic 4+     → grille 2×ceil(n/2)
+function partitionCells(blocks, layout, x, y, w, h) {
+  const n = blocks.length;
+  if (n === 1) return [{ x, y, w, h }];
+
+  if (layout === 'overlay') {
+    return blocks.map(() => ({ x, y, w, h }));
   }
 
+  if (layout === 'mosaic') {
+    if (n === 2) {
+      return [
+        { x,            y, w: w / 2, h },
+        { x: x + w / 2, y, w: w / 2, h },
+      ];
+    }
+    if (n === 3) {
+      const h2 = h / 2;
+      return [
+        { x, y,            w,       h: h2 },
+        { x, y: y + h2,    w: w / 2, h: h2 },
+        { x: x + w / 2, y: y + h2, w: w / 2, h: h2 },
+      ];
+    }
+    const cols = 2, rows = Math.ceil(n / 2);
+    const cw = w / cols, ch = h / rows;
+    return blocks.map((_, i) => ({
+      x: x + (i % cols) * cw,
+      y: y + Math.floor(i / cols) * ch,
+      w: cw, h: ch,
+    }));
+  }
+
+  // stack (défaut) : empilement vertical, hauteurs égales
+  const ch = h / n;
+  return blocks.map((_, i) => ({ x, y: y + i * ch, w, h: ch }));
+}
+
+// Résout l'href d'un bloc image. src='drive' → LOD-aware (thumb/full selon
+// zoom) via cache blob mémoire. src='inline' → dataUrl brut.
+function resolveImageHref(block) {
+  if (block.src === 'drive') {
+    const zoom = (state.chart && state.chart.zoom) || 1;
+    const wantsFull = zoom >= SCRAP_LOD_FULL_ZOOM;
+    const fileId = (wantsFull && block.fullFileId)
+      ? block.fullFileId
+      : (block.thumbFileId || block.fullFileId);
+    if (!fileId) return null;
+    return getScrapBlobUrl(fileId);
+  }
+  if (block.src === 'inline') return block.dataUrl || null;
+  return null;
+}
+
+// Rend un bloc texte dans une case (x, y, w, h). opts.overlay=true → ajoute
+// la classe --overlay (fond transparent) pour les blocs texte posés par-dessus
+// une image en layout 'overlay'. Rendu via foreignObject + div scalé à partir
+// d'un wrapper 400×(400·h/w) CSS px : évite les bugs sub-pixel du foreignObject
+// WebView Android. Hauteur CSS interne proportionnelle au ratio h/w pour que
+// les cases non-carrées (stack avec plusieurs blocs) restent bien remplies.
+const SCRAP_TEXT_RENDER_PX = 400;
+function drawTextBlock(container, it, block, x, y, w, h, opts = {}) {
+  const k = w / SCRAP_TEXT_RENDER_PX;
+  const fo = svg('foreignObject', {
+    x, y, width: w, height: h,
+    class: 'scrap-text-item',
+    'data-id': it.id,
+  });
+  const div = document.createElementNS('http://www.w3.org/1999/xhtml', 'div');
+  const cls = opts.overlay
+    ? 'scrap-text-content scrap-text-content--overlay scrap-md'
+    : 'scrap-text-content scrap-md';
+  div.setAttribute('class', cls);
+  div.style.width  = SCRAP_TEXT_RENDER_PX + 'px';
+  div.style.height = (SCRAP_TEXT_RENDER_PX * h / w) + 'px';
+  div.style.fontSize = '14px';
+  div.style.transform = `scale(${k})`;
+  div.style.transformOrigin = 'top left';
+  try { div.innerHTML = marked.parse(block.text || ''); }
+  catch (e) { div.textContent = block.text || ''; }
+  fo.appendChild(div);
+  container.appendChild(fo);
+}
+
+function drawImageBlock(container, it, href, x, y, w, h) {
   const img = svg('image', {
-    x: center.x - w / 2, y: center.y - h / 2,
-    width: w, height: h,
+    x, y, width: w, height: h,
     href,
     class: 'scrap-img-item',
     'data-id': it.id,
-    // Évite que le navigateur WebView traite l'image comme draggable natif
-    // (sinon long-press déclenche "enregistrer l'image" sur Android)
     draggable: 'false',
   });
   container.appendChild(img);
-
-  // Overlay d'édition : rect pointillé + poignée resize (coin bas-droit) +
-  // bouton retirer (coin haut-droit). Poignées strictement proportionnelles
-  // à la petite dimension de l'image (30 %) — si l'item est petit à l'écran,
-  // l'utilisateur zoome la vue (pinch libre pendant le mode édition) et les
-  // poignées grandissent avec.
-  drawScrapEditOverlay(container, it, center.x, center.y, w, h);
 }
 
 // Overlay commun du mode édition (rect pointillé + poignée resize + × remove)
@@ -5438,7 +5510,7 @@ async function main() {
     // Transforme le probe en badge version permanent (coin bas-droit).
     // Affiche à la fois la version JS et CSS pour détecter les désynchros
     // de cache (Brave en particulier cache le CSS indépendamment du JS).
-    const CSS_EXPECTED = 61;
+    const CSS_EXPECTED = 62;
     const cssVRaw = getComputedStyle(document.documentElement)
       .getPropertyValue('--css-version').trim().replace(/^"|"$/g, '');
     const cssV = cssVRaw || '?';

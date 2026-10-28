@@ -1,5 +1,5 @@
 :root {
-  --css-version: "61";
+  --css-version: "62";
   --bg: #faf7f0;
   --ink: #1a1a1a;
   --line-strong: #333;
@@ -602,6 +602,21 @@ h1 {
   -webkit-overflow-scrolling: touch;
 }
 .scrap-text-content::-webkit-scrollbar { display: none; width: 0; height: 0; }
+/* Variante overlay (layout:'overlay' en multi-blocs) : fond transparent pour
+   que le texte apparaisse par-dessus l'image en fond. L'ombre de la case et
+   son fond papier disparaissent ; le texte reste lisible via text-shadow. */
+.scrap-text-content--overlay {
+  background: transparent;
+  box-shadow: none;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75), 0 0 2px rgba(0, 0, 0, 0.6);
+}
+.scrap-text-content--overlay.scrap-md h1,
+.scrap-text-content--overlay.scrap-md h2,
+.scrap-text-content--overlay.scrap-md h3,
+.scrap-text-content--overlay.scrap-md h4,
+.scrap-text-content--overlay.scrap-md h5,
+.scrap-text-content--overlay.scrap-md h6 { color: #fff; }
 /* Markdown rendu à font-size 14px (posée en JS) dans un wrapper 400×400 px,
    puis scalé via transform. Styles redeviennent « normaux » (plus de bugs
    sub-pixel). text-size-adjust:none neutralise le font-boosting Android. */
