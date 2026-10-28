@@ -1,5 +1,5 @@
 :root {
-  --css-version: "62";
+  --css-version: "63";
   --bg: #faf7f0;
   --ink: #1a1a1a;
   --line-strong: #333;
@@ -572,6 +572,66 @@ h1 {
   -webkit-tap-highlight-color: transparent;
 }
 .scrap-handle { touch-action: none; }
+
+/* Items scrapbook vidéo : poster rendu comme <image> SVG + picto play superposé
+   (cercle + triangle). Tap simple hors mode édition → openVideoFullscreen. */
+.scrap-video-item {
+  image-rendering: auto;
+  pointer-events: auto;
+  cursor: pointer;
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.scrap-video-play-bg {
+  fill: rgba(0, 0, 0, 0.55);
+  stroke: rgba(255, 255, 255, 0.85);
+  stroke-width: 0.08;
+  vector-effect: non-scaling-stroke;
+}
+.scrap-video-play-tri {
+  fill: #fff;
+}
+
+/* Overlay plein-écran pour lire une vidéo (tap simple sur item vidéo). */
+.scrap-video-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.94);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.scrap-video-overlay video {
+  max-width: 100vw;
+  max-height: 100vh;
+  width: auto;
+  height: auto;
+  background: #000;
+}
+.scrap-video-close {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  width: 44px;
+  height: 44px;
+  border-radius: 22px;
+  border: none;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.scrap-video-close:active { background: rgba(255, 255, 255, 0.28); }
 
 /* Items scrapbook texte : foreignObject contenant du markdown rendu HTML.
    « Pas de cadre » (fiche objets_scrapbook_esthetique 2026-10-21) — fond

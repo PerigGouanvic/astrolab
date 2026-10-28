@@ -708,6 +708,78 @@ async function prepareScrapImageVariants(file) {
   return { thumb, full, mimeType: type };
 }
 
+// ---------- Scrapbook : variantes vidéo (poster frame + blob vidéo) ----------
+// Étape 3 chantier composition riche. Un item vidéo stocke 2 fichiers Drive :
+//   - un poster extrait par canvas à l'upload (sert à la vignette sur le cercle)
+//   - le blob vidéo brut (chargé seulement sur tap plein-écran)
+// Pas de variante inline — la vidéo exige Drive (trop gros pour localStorage).
+const SCRAP_VIDEO_POSTER_PX      = 512;
+const SCRAP_VIDEO_POSTER_QUALITY = 0.80;
+const SCRAP_VIDEO_MAX_BYTES      = 50 * 1024 * 1024;  // 50 Mo : garde-fou upload
+
+async function extractVideoPoster(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const video = document.createElement('video');
+    video.src = url;
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = 'auto';
+    video.crossOrigin = 'anonymous';
+    await new Promise((resolve, reject) => {
+      const onLoaded = () => { cleanup(); resolve(); };
+      const onError  = () => { cleanup(); reject(new Error('métadonnées illisibles')); };
+      const cleanup  = () => {
+        video.removeEventListener('loadedmetadata', onLoaded);
+        video.removeEventListener('error', onError);
+      };
+      video.addEventListener('loadedmetadata', onLoaded, { once: true });
+      video.addEventListener('error', onError, { once: true });
+    });
+    const vw  = video.videoWidth  || 320;
+    const vh  = video.videoHeight || 240;
+    const dur = isFinite(video.duration) ? video.duration : 0;
+    const seekTo = Math.min(Math.max(0.3, dur * 0.1), 2.0);
+    await new Promise((resolve, reject) => {
+      const onSeeked = () => { cleanup(); resolve(); };
+      const onError  = () => { cleanup(); reject(new Error('seek vidéo échoué')); };
+      const cleanup  = () => {
+        video.removeEventListener('seeked', onSeeked);
+        video.removeEventListener('error', onError);
+      };
+      video.addEventListener('seeked', onSeeked, { once: true });
+      video.addEventListener('error', onError, { once: true });
+      try { video.currentTime = seekTo; } catch (e) { cleanup(); reject(e); }
+    });
+    const scale = Math.min(1, SCRAP_VIDEO_POSTER_PX / Math.max(vw, vh));
+    const w = Math.max(1, Math.round(vw * scale));
+    const h = Math.max(1, Math.round(vh * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(video, 0, 0, w, h);
+    const mimeType = webpSupported() ? 'image/webp' : 'image/jpeg';
+    const blob = await encodeCanvasToBlob(canvas, mimeType, SCRAP_VIDEO_POSTER_QUALITY);
+    return { blob, width: w, height: h, mime: mimeType, videoWidth: vw, videoHeight: vh, duration: dur };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function prepareScrapVideoVariants(file) {
+  if (file.size > SCRAP_VIDEO_MAX_BYTES) {
+    throw new Error(`fichier > ${Math.round(SCRAP_VIDEO_MAX_BYTES / 1024 / 1024)} Mo`);
+  }
+  const poster = await extractVideoPoster(file);
+  return {
+    poster,
+    videoBlob:   file,
+    videoMime:   file.type || 'video/mp4',
+    videoWidth:  poster.videoWidth,
+    videoHeight: poster.videoHeight,
+    duration:    poster.duration,
+  };
+}
+
 // Recompression one-shot des items déjà stockés (2026-10-23). Les images
 // importées avant le redimensionnement pèsent plusieurs Mo chacune et saturent
 // le quota : le scrapbook devient inutilisable (plus aucun ajout possible).
@@ -884,6 +956,10 @@ function drawScrapItem(container, it) {
       const href = resolveImageHref(b);
       if (!href) continue;  // chargement en cours ou source manquante
       drawImageBlock(container, it, href, cell.x, cell.y, cell.w, cell.h);
+    } else if (b.type === 'video') {
+      const posterHref = resolveVideoPosterHref(b);
+      if (!posterHref) continue;  // poster en cours de fetch
+      drawVideoBlock(container, it, posterHref, cell.x, cell.y, cell.w, cell.h);
     }
   }
 
@@ -897,10 +973,10 @@ function drawScrapItem(container, it) {
 //     texte seul)
 function computeItemBBox(blocks, scale) {
   const base = SCRAP_IMG_BASE * scale;
-  const firstImg = blocks.find(b => b.type === 'image');
-  if (firstImg) {
-    const iw = firstImg.width || 100;
-    const ih = firstImg.height || 100;
+  const firstVisual = blocks.find(b => b.type === 'image' || b.type === 'video');
+  if (firstVisual) {
+    const iw = firstVisual.width || 100;
+    const ih = firstVisual.height || 100;
     if (iw >= ih) return { w: base,            h: base * ih / iw };
     else          return { w: base * iw / ih,  h: base            };
   }
@@ -1006,6 +1082,47 @@ function drawImageBlock(container, it, href, x, y, w, h) {
     draggable: 'false',
   });
   container.appendChild(img);
+}
+
+// Résout l'href du poster d'un bloc vidéo. Même mécanique LOD-aware que l'image
+// (drive = fetch blob caché), inline = dataUrl (non utilisé en v1 vidéo).
+function resolveVideoPosterHref(block) {
+  if (block.src === 'drive') {
+    if (!block.posterFileId) return null;
+    return getScrapBlobUrl(block.posterFileId);
+  }
+  if (block.src === 'inline' && block.posterDataUrl) return block.posterDataUrl;
+  return null;
+}
+
+// Vignette vidéo : poster + picto play (cercle + triangle) centré. Le tap simple
+// hors mode édition est intercepté par wireScrapItemGestures et ouvre la vidéo
+// en plein écran.
+function drawVideoBlock(container, it, posterHref, x, y, w, h) {
+  const img = svg('image', {
+    x, y, width: w, height: h,
+    href: posterHref,
+    class: 'scrap-video-item',
+    'data-id': it.id,
+    draggable: 'false',
+  });
+  container.appendChild(img);
+  const cx = x + w / 2, cy = y + h / 2;
+  const r  = Math.min(w, h) * 0.18;
+  container.appendChild(svg('circle', {
+    cx, cy, r,
+    class: 'scrap-video-play-bg',
+    'data-id': it.id,
+    'pointer-events': 'none',
+  }));
+  const t = r * 0.55;
+  const d = `M ${cx - t * 0.6} ${cy - t} L ${cx + t} ${cy} L ${cx - t * 0.6} ${cy + t} Z`;
+  container.appendChild(svg('path', {
+    d,
+    class: 'scrap-video-play-tri',
+    'data-id': it.id,
+    'pointer-events': 'none',
+  }));
 }
 
 // Overlay commun du mode édition (rect pointillé + poignée resize + × remove)
@@ -2913,8 +3030,9 @@ function createScrapItemAt(x, y) {
   const stamp  = state.chartTime != null ? state.chartTime : Date.now();
 
   openScrapChooser(x, y, {
-    onText: () => createTextScrapAt(lon, radius, stamp, x, y),
+    onText:  () => createTextScrapAt(lon, radius, stamp, x, y),
     onImage: () => createImageScrapAt(lon, radius, stamp),
+    onVideo: () => createVideoScrapAt(lon, radius, stamp),
   });
 }
 
@@ -2926,7 +3044,7 @@ function createScrapItemAt(x, y) {
 // pour sortir de la zone du pouce.
 const SCRAP_CHOOSER_ARM_MS   = 220;
 const SCRAP_CHOOSER_Y_OFFSET = 44;  // px, remonté au-dessus du point de tap
-function openScrapChooser(vbX, vbY, { onText, onImage }) {
+function openScrapChooser(vbX, vbY, { onText, onImage, onVideo }) {
   const svgEl = document.getElementById('chart');
   const containerEl = svgEl ? svgEl.closest('#chart-container') || svgEl.parentElement : null;
   if (!containerEl) { onText(); return; }  // fallback silencieux : texte par défaut
@@ -2963,7 +3081,11 @@ function openScrapChooser(vbX, vbY, { onText, onImage }) {
   btnImg.type = 'button';
   btnImg.className = 'scrap-chooser-opt';
   btnImg.textContent = '📷 image';
-  chooser.append(btnText, btnImg);
+  const btnVid = document.createElement('button');
+  btnVid.type = 'button';
+  btnVid.className = 'scrap-chooser-opt';
+  btnVid.textContent = '🎬 vidéo';
+  chooser.append(btnText, btnImg, btnVid);
   containerEl.appendChild(chooser);
 
   const close = () => {
@@ -2977,6 +3099,7 @@ function openScrapChooser(vbX, vbY, { onText, onImage }) {
   const onKey = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); close(); } };
   btnText.addEventListener('click', (ev) => { ev.stopPropagation(); close(); onText(); });
   btnImg .addEventListener('click', (ev) => { ev.stopPropagation(); close(); onImage(); });
+  btnVid .addEventListener('click', (ev) => { ev.stopPropagation(); close(); onVideo && onVideo(); });
   // Arming : fenêtre où le chooser est visible mais ignore les clics
   // (CSS pointer-events: none). Au bout de SCRAP_CHOOSER_ARM_MS, on
   // réactive et on écoute l'outside-tap pour fermer.
@@ -3100,6 +3223,125 @@ function createImageScrapAt(lon, radius, stamp) {
     render().catch(e => showError('render error: ' + e.message));
   });
   input.click();
+}
+
+// Étape 3 chantier composition riche : création d'un item vidéo. Drive requis
+// (fichier trop volumineux pour localStorage). Poster extrait côté client,
+// vidéo + poster uploadés en parallèle. L'item ne porte PAS de champs legacy
+// (pas de rétrocompat à préserver — la vidéo est une nouveauté).
+function createVideoScrapAt(lon, radius, stamp) {
+  if (!Drive.isAuthenticated()) {
+    showError('Connecte-toi à Google Drive pour ajouter une vidéo (trop volumineuse pour le stockage local).');
+    return;
+  }
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'video/*';
+  input.addEventListener('change', async () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    let variants;
+    try {
+      variants = await prepareScrapVideoVariants(file);
+    } catch (e) {
+      showError(`Vidéo « ${file.name} » illisible : ${e.message}`);
+      return;
+    }
+    const itemId = genId();
+    const posterExt = variants.poster.mime === 'image/webp' ? 'webp' : 'jpg';
+    const videoExtMatch = /\/([a-z0-9]+)/.exec(variants.videoMime || '');
+    const videoExt = videoExtMatch ? videoExtMatch[1] : 'mp4';
+    try {
+      const nid = nativesState.currentId;
+      const [posterFileId, videoFileId] = await Promise.all([
+        Drive.uploadScrapBlob(nid, `${itemId}-poster.${posterExt}`, variants.poster.blob, variants.poster.mime),
+        Drive.uploadScrapBlob(nid, `${itemId}-video.${videoExt}`,   variants.videoBlob,   variants.videoMime),
+      ]);
+      const item = {
+        id: itemId,
+        lon, radius,
+        blocks: [{
+          type: 'video', src: 'drive',
+          posterFileId, videoFileId,
+          posterMime: variants.poster.mime,
+          videoMime:  variants.videoMime,
+          width:      variants.videoWidth,
+          height:     variants.videoHeight,
+          duration:   variants.duration,
+        }],
+        layout: 'stack',
+        createdAt: stamp,
+        scope: 'timed',
+      };
+      preloadThumbBlob(posterFileId, variants.poster.blob);
+      state.scrapbook.push(item);
+      saveScrapbook();
+      render().catch(e => showError('render error: ' + e.message));
+    } catch (e) {
+      showError(`Upload Drive vidéo échoué : ${e.message}`);
+    }
+  });
+  input.click();
+}
+
+// Lecteur plein-écran d'un item vidéo. Overlay DOM par-dessus toute l'app
+// (z au-dessus du SVG), <video controls> natif + bouton de fermeture. Pas de
+// controls custom en v1. Fermeture : bouton ×, tap sur le fond noir, Escape,
+// ou fin de la vidéo.
+async function openVideoFullscreen(it, block) {
+  const prev = document.querySelector('.scrap-video-overlay');
+  if (prev) prev.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'scrap-video-overlay';
+  const videoEl = document.createElement('video');
+  videoEl.className = 'scrap-video-fullscreen';
+  videoEl.setAttribute('controls', '');
+  videoEl.setAttribute('playsinline', '');
+  videoEl.setAttribute('autoplay', '');
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'scrap-video-close';
+  closeBtn.setAttribute('aria-label', 'Fermer');
+  closeBtn.textContent = '×';
+  overlay.append(videoEl, closeBtn);
+  document.body.appendChild(overlay);
+
+  let srcUrl = null;
+  let revokeOnClose = false;
+  const close = () => {
+    try { videoEl.pause(); } catch (e) {}
+    videoEl.removeAttribute('src');
+    try { videoEl.load(); } catch (e) {}
+    if (revokeOnClose && srcUrl) {
+      try { URL.revokeObjectURL(srcUrl); } catch (e) {}
+    }
+    overlay.remove();
+    document.removeEventListener('keydown', onKey, true);
+  };
+  const onKey = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); close(); } };
+  document.addEventListener('keydown', onKey, true);
+  closeBtn.addEventListener('click', (ev) => { ev.stopPropagation(); close(); });
+  overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(); });
+  videoEl.addEventListener('ended', () => close(), { once: true });
+
+  // Résolution de la source : drive = fetch blob + objectURL (révoqué à la
+  // fermeture), inline = videoDataUrl (non implémenté en v1).
+  if (block.src === 'drive' && block.videoFileId) {
+    try {
+      const blob = await Drive.loadBlobFromDrive(block.videoFileId);
+      srcUrl = URL.createObjectURL(blob);
+      revokeOnClose = true;
+      videoEl.src = srcUrl;
+    } catch (e) {
+      showError(`Chargement vidéo échoué : ${e.message}`);
+      close();
+    }
+  } else if (block.src === 'inline' && block.videoDataUrl) {
+    videoEl.src = block.videoDataUrl;
+  } else {
+    showError('Source vidéo manquante.');
+    close();
+  }
 }
 
 // Overlay DOM textarea posé par-dessus le SVG chart, à la position
@@ -3319,7 +3561,7 @@ function wireChartInteraction() {
     if (ev.pointerType === 'mouse') return;           // desktop : molette + clic milieu
     if (multiTouchActive) return;                     // pinch en cours ou en relâchement
     if (oneFingerPan != null) return;                 // déjà en cours
-    if (ev.target.closest('.scrap-img-item, .scrap-text-item, .planet-symbol, [data-scrap-handle]')) return;
+    if (ev.target.closest('.scrap-img-item, .scrap-text-item, .scrap-video-item, .planet-symbol, [data-scrap-handle]')) return;
     oneFingerPan = { id: ev.pointerId, startX: ev.clientX, startY: ev.clientY,
                      startCx: state.chart.cx || 0, startCy: state.chart.cy || 0, armed: false };
   });
@@ -3426,7 +3668,7 @@ function wireScrapbookGestures() {
 
     // Ignorer si sur un item scrapbook image existant, un handle d'édition,
     // ou un glyphe planétaire (les glyphes tombent dans la bande zodiacale : r=315).
-    if (ev.target.closest && ev.target.closest('.scrap-img-item, .scrap-text-item, .planet-symbol, [data-scrap-handle]')) return;
+    if (ev.target.closest && ev.target.closest('.scrap-img-item, .scrap-text-item, .scrap-video-item, .planet-symbol, [data-scrap-handle]')) return;
 
     const pt = screenToSvg(svgEl, ev.clientX, ev.clientY);
     // Création uniquement si le tap tombe dans la bande zodiacale.
@@ -3523,6 +3765,60 @@ function zoomChartToItem(id) {
   animateChartViewport(center.x, center.y, 100);
 }
 
+// Plein-écran vidéo (étape 3 chantier composition riche). Pas d'inline — tap
+// simple sur item vidéo → overlay noir plein-écran + <video controls> natif.
+// Esc ou tap sur le bouton × ferme et révoque l'objectURL fetché depuis Drive.
+function openVideoFullscreen(it, block) {
+  if (!block || !block.videoFileId) return;
+  const existing = document.querySelector('.scrap-video-overlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'scrap-video-overlay';
+  overlay.setAttribute('data-id', it.id);
+
+  const btnClose = document.createElement('button');
+  btnClose.type = 'button';
+  btnClose.className = 'scrap-video-close';
+  btnClose.setAttribute('aria-label', 'Fermer');
+  btnClose.textContent = '×';
+
+  const video = document.createElement('video');
+  video.controls = true;
+  video.playsInline = true;
+  video.autoplay = true;
+  video.setAttribute('preload', 'metadata');
+
+  overlay.append(video, btnClose);
+  document.body.appendChild(overlay);
+
+  let objectUrl = null;
+  const cleanup = () => {
+    document.removeEventListener('keydown', onKey, true);
+    try { video.pause(); } catch (e) {}
+    video.removeAttribute('src');
+    try { video.load(); } catch (e) {}
+    if (objectUrl) { URL.revokeObjectURL(objectUrl); objectUrl = null; }
+    overlay.remove();
+  };
+  const onKey = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); cleanup(); } };
+  document.addEventListener('keydown', onKey, true);
+  btnClose.addEventListener('click', (ev) => { ev.stopPropagation(); cleanup(); });
+  overlay.addEventListener('click', (ev) => { if (ev.target === overlay) cleanup(); });
+
+  // Fetch le blob vidéo depuis Drive (pas de cache mémoire pour les vidéos :
+  // trop lourd ; on refetch à chaque ouverture, l'HTTP cache fait le travail).
+  Drive.loadBlobFromDrive(block.videoFileId)
+    .then(blob => {
+      objectUrl = URL.createObjectURL(blob);
+      video.src = objectUrl;
+    })
+    .catch(e => {
+      showError(`Lecture vidéo échouée : ${e.message}`);
+      cleanup();
+    });
+}
+
 function wireScrapItemGestures() {
   const svgEl = document.getElementById('chart');
   if (!svgEl) return;
@@ -3533,7 +3829,7 @@ function wireScrapItemGestures() {
   // Bloque le menu contextuel système (long-press WebView Android →
   // « Enregistrer l'image ») qui intercepterait notre press long.
   svgEl.addEventListener('contextmenu', ev => {
-    if (ev.target.closest && ev.target.closest('.scrap-img-item, .scrap-text-item, [data-scrap-handle]')) {
+    if (ev.target.closest && ev.target.closest('.scrap-img-item, .scrap-text-item, .scrap-video-item, [data-scrap-handle]')) {
       ev.preventDefault();
     }
   });
@@ -3547,7 +3843,7 @@ function wireScrapItemGestures() {
   svgEl.addEventListener('touchstart', ev => {
     if (!ev.target || !ev.target.closest) return;
     if (ev.target.closest('.scrap-text-content')) return;
-    if (ev.target.closest('.scrap-img-item, .scrap-text-item, [data-scrap-handle]')) {
+    if (ev.target.closest('.scrap-img-item, .scrap-text-item, .scrap-video-item, [data-scrap-handle]')) {
       ev.preventDefault();
     }
   }, { passive: false });
@@ -3559,7 +3855,9 @@ function wireScrapItemGestures() {
   svgEl.addEventListener('pointerdown', ev => {
     if (ev.button !== 0 || !ev.isPrimary) return;
     const img = ev.target.closest
-      && (ev.target.closest('.scrap-img-item') || ev.target.closest('.scrap-text-item'));
+      && (ev.target.closest('.scrap-img-item')
+          || ev.target.closest('.scrap-text-item')
+          || ev.target.closest('.scrap-video-item'));
     if (!img) return;
     // Les handles (resize/×) ont leur propre handler ; ne pas les intercepter ici.
     if (ev.target.closest('[data-scrap-handle]')) return;
@@ -3642,8 +3940,11 @@ function wireScrapItemGestures() {
         exitScrapEditMode();
         return;
       }
-      // Sinon : zoom sur l'item
+      // Sinon : item vidéo → plein-écran ; autre → zoom sur l'item.
       if (editingScrapId != null) exitScrapEditMode();
+      const it = state.scrapbook.find(x => x.id === id);
+      const videoBlock = it && getItemBlocks(it).find(b => b.type === 'video');
+      if (videoBlock) { openVideoFullscreen(it, videoBlock); return; }
       zoomChartToItem(id);
     }, SCRAP_DOUBLE_TAP_MS);
   };
@@ -3716,7 +4017,7 @@ function wireScrapEditExitOnBlankTap() {
   svgEl.addEventListener('pointerdown', ev => {
     if (editingScrapId == null) return;
     if (!ev.isPrimary) return;
-    if (ev.target.closest && ev.target.closest('.scrap-img-item, .scrap-text-item, [data-scrap-handle]')) return;
+    if (ev.target.closest && ev.target.closest('.scrap-img-item, .scrap-text-item, .scrap-video-item, [data-scrap-handle]')) return;
     down = { x: ev.clientX, y: ev.clientY, pid: ev.pointerId };
   });
   svgEl.addEventListener('pointerup', ev => {
@@ -5510,7 +5811,7 @@ async function main() {
     // Transforme le probe en badge version permanent (coin bas-droit).
     // Affiche à la fois la version JS et CSS pour détecter les désynchros
     // de cache (Brave en particulier cache le CSS indépendamment du JS).
-    const CSS_EXPECTED = 62;
+    const CSS_EXPECTED = 63;
     const cssVRaw = getComputedStyle(document.documentElement)
       .getPropertyValue('--css-version').trim().replace(/^"|"$/g, '');
     const cssV = cssVRaw || '?';
