@@ -811,6 +811,46 @@ function pickScrapVariant(it) {
 // re-render pas tout seul — l'appelant doit lancer render().
 let editingScrapId = null;
 
+// ---------- Scrapbook : modèle `blocks` (chantier composition riche, étape 1) ----------
+// Un item scrapbook migre vers { blocks: [{type, ...}], layout }. Pendant la
+// transition, les items legacy (type:'text' + text, ou imgSrc:'drive', ou
+// imgDataUrl) sont normalisés in-place et CONSERVENT leurs champs legacy — le
+// renderer actuel continue de les lire. Les étapes 2+ liront getItemBlocks() et
+// getItemLayout(). Objectif étape 1 : aucun changement visible.
+function getItemBlocks(it) {
+  if (Array.isArray(it.blocks) && it.blocks.length) return it.blocks;
+  if (it.type === 'text' && typeof it.text === 'string') {
+    return [{ type: 'text', text: it.text }];
+  }
+  if (it.imgSrc === 'drive') {
+    return [{
+      type: 'image', src: 'drive',
+      thumbFileId: it.thumbFileId, fullFileId: it.fullFileId,
+      mime: it.imgMime, width: it.imgWidth, height: it.imgHeight,
+    }];
+  }
+  if (it.imgDataUrl) {
+    return [{
+      type: 'image', src: 'inline',
+      dataUrl: it.imgDataUrl, width: it.imgWidth, height: it.imgHeight,
+      v: it.imgV,
+    }];
+  }
+  return [];
+}
+
+function getItemLayout(it) { return it.layout || 'stack'; }
+
+// Pendant la transition legacy ↔ blocks, les éditeurs texte mutent toujours
+// `item.text` (comportement actuel). On propage à `item.blocks[0]` si c'est un
+// bloc texte, pour garder les deux représentations synchrones. No-op si l'item
+// n'a pas de blocs (sécurité).
+function syncLegacyTextToBlocks(it) {
+  if (!Array.isArray(it.blocks) || !it.blocks.length) return;
+  const b0 = it.blocks[0];
+  if (b0 && b0.type === 'text') b0.text = it.text || '';
+}
+
 function drawScrapItem(container, it) {
   const ascLon = state.currentAscLon != null ? state.currentAscLon : 0;
   const rawR   = it.radius != null ? it.radius : (R_ZODIAC_IN + R_ZODIAC_OUT) / 2;
@@ -2488,6 +2528,7 @@ function openTimelineEditor(item, clientX, clientY) {
       state.scrapbook = state.scrapbook.filter(x => x.id !== item.id);
     } else {
       item.text = text;
+      syncLegacyTextToBlocks(item);
       item.updatedAt = Date.now();
     }
     saveScrapbook();
@@ -2516,8 +2557,28 @@ function migrateScrapbookItems() {
     it.imgDataUrl
     || it.imgSrc === 'drive'
     || (it.type === 'text' && typeof it.text === 'string' && it.text.trim())
+    || (Array.isArray(it.blocks) && it.blocks.length)
   );
   if (state.scrapbook.length !== before) saveScrapbook();
+}
+
+// Migration vers le modèle `blocks` (chantier composition riche, étape 1).
+// Normalise chaque item in-place : items legacy reçoivent un champ `blocks`
+// synthétisé depuis leurs champs existants + `layout:'stack'` par défaut. Les
+// champs legacy ne sont PAS retirés — le renderer étape 1 les lit toujours.
+// Idempotent : items déjà munis d'un blocks non vide sont ignorés.
+function migrateScrapbookToBlocks() {
+  let changed = false;
+  for (const it of state.scrapbook) {
+    if (Array.isArray(it.blocks) && it.blocks.length) continue;
+    const blocks = getItemBlocks(it);
+    if (blocks.length) {
+      it.blocks = blocks;
+      if (!it.layout) it.layout = 'stack';
+      changed = true;
+    }
+  }
+  if (changed) saveScrapbook();
 }
 
 // Migration des items existants : calcule it.lon à partir de (x+w/2, y+h/2)
@@ -2861,6 +2922,8 @@ function createTextScrapAt(lon, radius, stamp, vbX, vbY) {
     id: genId(),
     type: 'text',
     text: '',
+    blocks: [{ type: 'text', text: '' }],
+    layout: 'stack',
     lon, radius,
     scale: 1,
     createdAt: stamp,
@@ -2908,6 +2971,14 @@ function createImageScrapAt(lon, radius, stamp) {
           imgMime: variants.mimeType,
           imgWidth:  variants.full.width,
           imgHeight: variants.full.height,
+          blocks: [{
+            type: 'image', src: 'drive',
+            thumbFileId, fullFileId,
+            mime: variants.mimeType,
+            width: variants.full.width,
+            height: variants.full.height,
+          }],
+          layout: 'stack',
           createdAt: stamp,
           scope: 'timed',
         };
@@ -2938,6 +3009,14 @@ function createImageScrapAt(lon, radius, stamp) {
       imgWidth: prepared.width,
       imgHeight: prepared.height,
       imgV: SCRAP_IMG_VERSION,
+      blocks: [{
+        type: 'image', src: 'inline',
+        dataUrl: prepared.dataUrl,
+        width: prepared.width,
+        height: prepared.height,
+        v: SCRAP_IMG_VERSION,
+      }],
+      layout: 'stack',
       createdAt: stamp,
       scope: 'timed',
     };
@@ -3002,6 +3081,7 @@ function openScrapTextEditor(item, vbX, vbY, opts = {}) {
       state.scrapbook = state.scrapbook.filter(x => x.id !== item.id);
     } else if (text) {
       item.text = text;
+      syncLegacyTextToBlocks(item);
       item.updatedAt = Date.now();
     }
     saveScrapbook();
@@ -4433,7 +4513,8 @@ async function syncFromDriveOnBoot() {
       const remoteSavedAt = Number(remote.savedAt) || 0;
       if (remoteSavedAt > localSavedAt) {
         state.scrapbook = remote.items;
-        localStorage.setItem(scrapbookKey(), JSON.stringify(remote.items));
+        migrateScrapbookToBlocks();
+        localStorage.setItem(scrapbookKey(), JSON.stringify(state.scrapbook));
         localStorage.setItem(scrapbookSavedAtKey(nid), String(remoteSavedAt));
         needRender = true;
       } else if (remoteSavedAt < localSavedAt && state.scrapbook.length) {
@@ -5107,6 +5188,7 @@ async function switchNative(id) {
   // Les migrations de scrapbook sont scopées sur state.scrapbook ; sûres à
   // re-exécuter sur un nouveau tableau.
   migrateScrapbookItems();
+  migrateScrapbookToBlocks();
   migrateScrapbookLon();
   await render();
   // Pull Drive en arrière-plan pour le scrapbook du nouveau natif (si plus
@@ -5127,7 +5209,8 @@ async function syncScrapbookForCurrentNative() {
     const remoteSavedAt = Number(remote.savedAt) || 0;
     if (remoteSavedAt > localSavedAt && nid === nativesState.currentId) {
       state.scrapbook = remote.items;
-      localStorage.setItem(scrapbookKey(), JSON.stringify(remote.items));
+      migrateScrapbookToBlocks();
+      localStorage.setItem(scrapbookKey(), JSON.stringify(state.scrapbook));
       localStorage.setItem(scrapbookSavedAtKey(nid), String(remoteSavedAt));
       await render();
     }
@@ -5287,6 +5370,7 @@ function wireNatives() {
       state.scrapbook = JSON.parse(localStorage.getItem(scrapbookKey()) || '[]');
       loadPlanetNotes();
       migrateScrapbookItems();
+      migrateScrapbookToBlocks();
       migrateScrapbookLon();
       await render();
       syncScrapbookForCurrentNative();
@@ -5340,6 +5424,7 @@ async function main() {
   loadPlanetScales();
   loadPlanetNotes();
   migrateScrapbookItems();
+  migrateScrapbookToBlocks();
   migrateScrapbookLon();
   wireControls();
   await loadJalons();
