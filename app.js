@@ -715,7 +715,9 @@ async function prepareScrapImageVariants(file) {
 // Pas de variante inline — la vidéo exige Drive (trop gros pour localStorage).
 const SCRAP_VIDEO_POSTER_PX      = 512;
 const SCRAP_VIDEO_POSTER_QUALITY = 0.80;
-const SCRAP_VIDEO_MAX_BYTES      = 50 * 1024 * 1024;  // 50 Mo : garde-fou upload
+// Google Drive `uploadType=multipart` plafonne à 5 Mo. Au-dessus il faudrait
+// basculer en upload resumable (chantier séparé). En v1 : refus clair au-delà.
+const SCRAP_VIDEO_MAX_BYTES      = 5 * 1024 * 1024;
 
 async function extractVideoPoster(file) {
   const url = URL.createObjectURL(file);
@@ -3282,66 +3284,6 @@ function createVideoScrapAt(lon, radius, stamp) {
     }
   });
   input.click();
-}
-
-// Lecteur plein-écran d'un item vidéo. Overlay DOM par-dessus toute l'app
-// (z au-dessus du SVG), <video controls> natif + bouton de fermeture. Pas de
-// controls custom en v1. Fermeture : bouton ×, tap sur le fond noir, Escape,
-// ou fin de la vidéo.
-async function openVideoFullscreen(it, block) {
-  const prev = document.querySelector('.scrap-video-overlay');
-  if (prev) prev.remove();
-  const overlay = document.createElement('div');
-  overlay.className = 'scrap-video-overlay';
-  const videoEl = document.createElement('video');
-  videoEl.className = 'scrap-video-fullscreen';
-  videoEl.setAttribute('controls', '');
-  videoEl.setAttribute('playsinline', '');
-  videoEl.setAttribute('autoplay', '');
-  const closeBtn = document.createElement('button');
-  closeBtn.type = 'button';
-  closeBtn.className = 'scrap-video-close';
-  closeBtn.setAttribute('aria-label', 'Fermer');
-  closeBtn.textContent = '×';
-  overlay.append(videoEl, closeBtn);
-  document.body.appendChild(overlay);
-
-  let srcUrl = null;
-  let revokeOnClose = false;
-  const close = () => {
-    try { videoEl.pause(); } catch (e) {}
-    videoEl.removeAttribute('src');
-    try { videoEl.load(); } catch (e) {}
-    if (revokeOnClose && srcUrl) {
-      try { URL.revokeObjectURL(srcUrl); } catch (e) {}
-    }
-    overlay.remove();
-    document.removeEventListener('keydown', onKey, true);
-  };
-  const onKey = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); close(); } };
-  document.addEventListener('keydown', onKey, true);
-  closeBtn.addEventListener('click', (ev) => { ev.stopPropagation(); close(); });
-  overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(); });
-  videoEl.addEventListener('ended', () => close(), { once: true });
-
-  // Résolution de la source : drive = fetch blob + objectURL (révoqué à la
-  // fermeture), inline = videoDataUrl (non implémenté en v1).
-  if (block.src === 'drive' && block.videoFileId) {
-    try {
-      const blob = await Drive.loadBlobFromDrive(block.videoFileId);
-      srcUrl = URL.createObjectURL(blob);
-      revokeOnClose = true;
-      videoEl.src = srcUrl;
-    } catch (e) {
-      showError(`Chargement vidéo échoué : ${e.message}`);
-      close();
-    }
-  } else if (block.src === 'inline' && block.videoDataUrl) {
-    videoEl.src = block.videoDataUrl;
-  } else {
-    showError('Source vidéo manquante.');
-    close();
-  }
 }
 
 // Overlay DOM textarea posé par-dessus le SVG chart, à la position
