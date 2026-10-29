@@ -1,5 +1,5 @@
 :root {
-  --css-version: "63";
+  --css-version: "64";
   --bg: #faf7f0;
   --ink: #1a1a1a;
   --line-strong: #333;
@@ -611,6 +611,14 @@ h1 {
   max-height: 100vh;
   width: auto;
   height: auto;
+  background: #000;
+}
+/* Vidéo externe (TikTok etc.) : iframe plein-écran. Dimensions proches du
+   ratio portrait TikTok (9:16) tout en restant contraintes au viewport. */
+.scrap-video-overlay iframe.scrap-video-embed {
+  width: min(100vw, calc(100vh * 9 / 16));
+  height: min(100vh, calc(100vw * 16 / 9));
+  border: 0;
   background: #000;
 }
 .scrap-video-close {

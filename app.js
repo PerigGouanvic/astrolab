@@ -1086,14 +1086,25 @@ function drawImageBlock(container, it, href, x, y, w, h) {
   container.appendChild(img);
 }
 
-// Résout l'href du poster d'un bloc vidéo. Même mécanique LOD-aware que l'image
-// (drive = fetch blob caché), inline = dataUrl (non utilisé en v1 vidéo).
+// Résout l'href du poster d'un bloc vidéo. drive = blob caché, embed = URL
+// externe (ex. oEmbed TikTok thumbnail), inline = dataUrl (pas utilisé en v1).
 function resolveVideoPosterHref(block) {
   if (block.src === 'drive') {
     if (!block.posterFileId) return null;
     return getScrapBlobUrl(block.posterFileId);
   }
+  if (block.src === 'embed') {
+    return block.posterUrl || null;
+  }
   if (block.src === 'inline' && block.posterDataUrl) return block.posterDataUrl;
+  return null;
+}
+
+// Construit l'URL d'embed iframe plein-écran pour une vidéo externe. Pour
+// l'instant : TikTok seulement (test de faisabilité WebView Android). YouTube
+// et Vimeo à venir une fois TikTok confirmé.
+function resolveVideoEmbedSrc(block) {
+  if (block.provider === 'tiktok') return `https://www.tiktok.com/embed/v2/${block.videoId}`;
   return null;
 }
 
@@ -3227,63 +3238,76 @@ function createImageScrapAt(lon, radius, stamp) {
   input.click();
 }
 
-// Étape 3 chantier composition riche : création d'un item vidéo. Drive requis
-// (fichier trop volumineux pour localStorage). Poster extrait côté client,
-// vidéo + poster uploadés en parallèle. L'item ne porte PAS de champs legacy
-// (pas de rétrocompat à préserver — la vidéo est une nouveauté).
+// Chantier composition riche étape 3bis (2026-10-29) : vidéo par référence,
+// pas par upload. L'utilisateur colle une URL TikTok (prioritaire — test de
+// faisabilité embed WebView Android), le bloc stocke url + videoId + poster
+// externe (oEmbed thumbnail). Pas d'upload binaire → pas de limite 5 Mo.
+// L'ancien flow upload Drive (prepareScrapVideoVariants, SCRAP_VIDEO_MAX_BYTES,
+// branche src:'drive') reste en place pour l'instant, dormant. Il sera démoli
+// en 3bis-A une fois le flow embed confirmé.
 function createVideoScrapAt(lon, radius, stamp) {
-  if (!Drive.isAuthenticated()) {
-    showError('Connecte-toi à Google Drive pour ajouter une vidéo (trop volumineuse pour le stockage local).');
+  const url = (prompt('Colle une URL TikTok (support YouTube/Vimeo à venir)') || '').trim();
+  if (!url) return;
+  const info = parseVideoEmbedUrl(url);
+  if (!info) {
+    showError('URL non reconnue. Formats acceptés : https://www.tiktok.com/@user/video/NNNNNN');
     return;
   }
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = 'video/*';
-  input.addEventListener('change', async () => {
-    const file = input.files && input.files[0];
-    if (!file) return;
-    let variants;
-    try {
-      variants = await prepareScrapVideoVariants(file);
-    } catch (e) {
-      showError(`Vidéo « ${file.name} » illisible : ${e.message}`);
-      return;
+  createVideoEmbedItem(info, url, lon, radius, stamp);
+}
+
+async function createVideoEmbedItem(info, url, lon, radius, stamp) {
+  let posterUrl = null, posterW = 540, posterH = 960;
+  try {
+    const oe = await fetchVideoOEmbed(info.provider, url);
+    if (oe) {
+      if (oe.thumbnail_url)    posterUrl = oe.thumbnail_url;
+      if (oe.thumbnail_width)  posterW   = oe.thumbnail_width;
+      if (oe.thumbnail_height) posterH   = oe.thumbnail_height;
     }
-    const itemId = genId();
-    const posterExt = variants.poster.mime === 'image/webp' ? 'webp' : 'jpg';
-    const videoExtMatch = /\/([a-z0-9]+)/.exec(variants.videoMime || '');
-    const videoExt = videoExtMatch ? videoExtMatch[1] : 'mp4';
-    try {
-      const nid = nativesState.currentId;
-      const [posterFileId, videoFileId] = await Promise.all([
-        Drive.uploadScrapBlob(nid, `${itemId}-poster.${posterExt}`, variants.poster.blob, variants.poster.mime),
-        Drive.uploadScrapBlob(nid, `${itemId}-video.${videoExt}`,   variants.videoBlob,   variants.videoMime),
-      ]);
-      const item = {
-        id: itemId,
-        lon, radius,
-        blocks: [{
-          type: 'video', src: 'drive',
-          posterFileId, videoFileId,
-          posterMime: variants.poster.mime,
-          videoMime:  variants.videoMime,
-          width:      variants.videoWidth,
-          height:     variants.videoHeight,
-          duration:   variants.duration,
-        }],
-        layout: 'stack',
-        createdAt: stamp,
-        scope: 'timed',
-      };
-      preloadThumbBlob(posterFileId, variants.poster.blob);
-      state.scrapbook.push(item);
-      saveScrapbook();
-      render().catch(e => showError('render error: ' + e.message));
-    } catch (e) {
-      showError(`Upload Drive vidéo échoué : ${e.message}`);
-    }
-  });
-  input.click();
+  } catch (e) {
+    // Non bloquant : on crée quand même l'item, picto play seul si poster manquant.
+    console.warn('oEmbed échec', e);
+  }
+  const item = {
+    id: genId(),
+    lon, radius,
+    blocks: [{
+      type: 'video',
+      src: 'embed',
+      provider: info.provider,
+      url,
+      videoId: info.videoId,
+      posterUrl,
+      width:  posterW,
+      height: posterH,
+    }],
+    layout: 'stack',
+    createdAt: stamp,
+    scope: 'timed',
+  };
+  state.scrapbook.push(item);
+  if (!saveScrapbook()) {
+    state.scrapbook = state.scrapbook.filter(x => x.id !== item.id);
+    return;
+  }
+  render().catch(e => showError('render error: ' + e.message));
+}
+
+function parseVideoEmbedUrl(url) {
+  // TikTok : https://www.tiktok.com/@user/video/1234567890 ou /v/1234567890
+  const mTk = /tiktok\.com\/(?:@[^/]+\/)?(?:video|v)\/(\d+)/.exec(url);
+  if (mTk) return { provider: 'tiktok', videoId: mTk[1] };
+  return null;
+}
+
+async function fetchVideoOEmbed(provider, url) {
+  if (provider === 'tiktok') {
+    const r = await fetch(`https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`);
+    if (!r.ok) throw new Error(`tiktok oembed ${r.status}`);
+    return r.json();
+  }
+  return null;
 }
 
 // Overlay DOM textarea posé par-dessus le SVG chart, à la position
@@ -3711,7 +3735,7 @@ function zoomChartToItem(id) {
 // simple sur item vidéo → overlay noir plein-écran + <video controls> natif.
 // Esc ou tap sur le bouton × ferme et révoque l'objectURL fetché depuis Drive.
 function openVideoFullscreen(it, block) {
-  if (!block || !block.videoFileId) return;
+  if (!block) return;
   const existing = document.querySelector('.scrap-video-overlay');
   if (existing) existing.remove();
 
@@ -3725,21 +3749,40 @@ function openVideoFullscreen(it, block) {
   btnClose.setAttribute('aria-label', 'Fermer');
   btnClose.textContent = '×';
 
-  const video = document.createElement('video');
-  video.controls = true;
-  video.playsInline = true;
-  video.autoplay = true;
-  video.setAttribute('preload', 'metadata');
+  let media;
+  let objectUrl = null;
 
-  overlay.append(video, btnClose);
+  if (block.src === 'embed') {
+    const embedSrc = resolveVideoEmbedSrc(block);
+    if (!embedSrc) { showError('Fournisseur vidéo inconnu.'); return; }
+    media = document.createElement('iframe');
+    media.className = 'scrap-video-embed';
+    media.src = embedSrc;
+    media.setAttribute('allow', 'autoplay; encrypted-media; fullscreen; picture-in-picture');
+    media.setAttribute('allowfullscreen', '');
+    media.setAttribute('frameborder', '0');
+    media.setAttribute('scrolling', 'no');
+  } else {
+    if (!block.videoFileId) return;
+    media = document.createElement('video');
+    media.controls = true;
+    media.playsInline = true;
+    media.autoplay = true;
+    media.setAttribute('preload', 'metadata');
+  }
+
+  overlay.append(media, btnClose);
   document.body.appendChild(overlay);
 
-  let objectUrl = null;
   const cleanup = () => {
     document.removeEventListener('keydown', onKey, true);
-    try { video.pause(); } catch (e) {}
-    video.removeAttribute('src');
-    try { video.load(); } catch (e) {}
+    if (block.src === 'embed') {
+      try { media.src = 'about:blank'; } catch (e) {}
+    } else {
+      try { media.pause(); } catch (e) {}
+      media.removeAttribute('src');
+      try { media.load(); } catch (e) {}
+    }
     if (objectUrl) { URL.revokeObjectURL(objectUrl); objectUrl = null; }
     overlay.remove();
   };
@@ -3748,17 +3791,17 @@ function openVideoFullscreen(it, block) {
   btnClose.addEventListener('click', (ev) => { ev.stopPropagation(); cleanup(); });
   overlay.addEventListener('click', (ev) => { if (ev.target === overlay) cleanup(); });
 
-  // Fetch le blob vidéo depuis Drive (pas de cache mémoire pour les vidéos :
-  // trop lourd ; on refetch à chaque ouverture, l'HTTP cache fait le travail).
-  Drive.loadBlobFromDrive(block.videoFileId)
-    .then(blob => {
-      objectUrl = URL.createObjectURL(blob);
-      video.src = objectUrl;
-    })
-    .catch(e => {
-      showError(`Lecture vidéo échouée : ${e.message}`);
-      cleanup();
-    });
+  if (block.src !== 'embed') {
+    Drive.loadBlobFromDrive(block.videoFileId)
+      .then(blob => {
+        objectUrl = URL.createObjectURL(blob);
+        media.src = objectUrl;
+      })
+      .catch(e => {
+        showError(`Lecture vidéo échouée : ${e.message}`);
+        cleanup();
+      });
+  }
 }
 
 function wireScrapItemGestures() {
@@ -5753,7 +5796,7 @@ async function main() {
     // Transforme le probe en badge version permanent (coin bas-droit).
     // Affiche à la fois la version JS et CSS pour détecter les désynchros
     // de cache (Brave en particulier cache le CSS indépendamment du JS).
-    const CSS_EXPECTED = 63;
+    const CSS_EXPECTED = 64;
     const cssVRaw = getComputedStyle(document.documentElement)
       .getPropertyValue('--css-version').trim().replace(/^"|"$/g, '');
     const cssV = cssVRaw || '?';
