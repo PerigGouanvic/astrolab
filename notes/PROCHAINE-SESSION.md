@@ -1,46 +1,48 @@
 # Prochaine session astrolab — à ouvrir en premier
 
-**Contexte** : la session précédente (nuit du 2026-10-24 au 2026-10-25, 12h30 → 00h14) a été ouverte sur un fix mi-points raté de DeepSeek et s'est déplacée vers une pensée ouverte sur l'articulation cercle↔frise + la durée des scraps. **Lecture obligatoire** avant toute suite : `./memory/project_articulation_cercle_frise.md`.
+**Contexte** : session 2026-10-28 interrompue en soirée (20h43) après livraison de l'**étape 3 (bloc vidéo)** du chantier scrapbook composition riche. Perig n'a pas encore re-testé l'étape 3 nettoyée (commit `6753ea8`) sur APK.
 
 ## État du code à l'ouverture
 
-- Working tree **propre**, poussé sur `origin/astrolab-2d`.
-- Dernier commit : `509e18f [2D] mi-points : revert anti-collision — la superposition est significative`.
-- Les mi-points sont revenus à leur état avant `725e391` : ticks identiques, labels superposés sur clusters denses — c'est voulu.
+- Branche `astrolab-2d`, working tree **propre**, poussé sur `origin/astrolab-2d`.
+- HEAD : `6753ea8 [2D] scrapbook vidéo : nettoyage post-étape 3`
+- Cache-bust courant : `style.css?v=69`, `app.js?v=103` (`--css-version: "63"`, `CSS_EXPECTED = 63`).
 
-## Ce qui a été acté dans la nuit du 24→25
+## Chantier en cours — scrapbook composition riche
 
-- Les patchs anti-collision mi-points (de DeepSeek `725e391`, puis mitigation `aeaf0cd`) sont tous les deux **rejetés**. Revert complet appliqué.
-- Diagnostic : la densité ~45 mi-points en 360° est intrinsèque. Étaler trahit la concentration réelle sur 1-2°. Les clusters sont des micro-univers de sens.
-- Les mi-points n'étaient qu'un révélateur d'un problème plus large qui concernera aussi les aspects serrés et les scraps externes.
+Fiche mère : `./memory/project_scrapbook_composition_riche.md` (plan 5 étapes A/C/A, choix tranchés par Perig 2026-10-26).
 
-## Ce qui a été ouvert mais pas tranché
+**Étapes faites, pushées, commitées** :
+- Étape 1 — modèle `blocks[]` + migration invisible (`d62429b`)
+- Étape 2 — renderer compositif stack/overlay/mosaic (`c491d6d`)
+- Étape 3 — bloc vidéo poster+Drive+tap plein-écran (`dfe0557`), + nettoyage (`6753ea8`)
 
-Voir fiche `project_articulation_cercle_frise.md` pour le détail. Résumé des pivots :
+**Étape 3 — ce que le nettoyage a fait** (commit `6753ea8`) :
+- Supprime un **doublon** de `openVideoFullscreen` (deux définitions se chevauchaient dans `dfe0557` — la seconde gagnait au hoisting, la première async était orpheline).
+- Ramène `SCRAP_VIDEO_MAX_BYTES` de **50 Mo → 5 Mo**. Raison : Google Drive `uploadType=multipart` plafonne à 5 Mo. Au-delà, il faut basculer en upload resumable — chantier séparé.
 
-1. **Invariant 1° écliptique = 4 min temps terrestre** — zoom cercle et palier frise sont la même grandeur en deux unités.
-2. **Deux régimes de cercle** (ASC-global vs sidéral-zoomé-fixe).
-3. **Scraps = marqueurs lieu-moment** (coordonnée écliptique × date).
-4. **Durée scraps = gestes utilisateur** (ne rien faire → atténuation / relâcher / sacrer) + vibration par rappels futurs des transits.
-5. **Zoom out années/décennies** = seuls sacrés subsistent (« en arrière de la tête »).
+**Attendu au prochain tour** : Perig re-teste étape 3 sur APK fraîche (après fetch du v=103). Protocole :
+1. Se connecter à Drive dans l'app.
+2. Double-tap zone zodiacale vide → chooser 3 options (texte / image / 🎬 vidéo).
+3. Choisir vidéo < 5 Mo (clip court — ~5-10 s en qualité normale rentre).
+4. Vérifier : vignette = poster frame + picto play ; tap simple → plein-écran avec contrôles vidéo natifs ; × ou tap backdrop ou Escape ferment.
 
-**Apories ouvertes** (à ne pas trancher prématurément) : seuil de bascule entre régimes de cercle, comportement du cercle en vue années, pondération des rappels, couplage auto zoom↔palier ou non.
+**Si régression** (vignette manquante, play ne s'ouvre pas, poster noir, upload échoue à 5 Mo pile) : fix d'abord, étape 4 ensuite.
 
-## Première chose à faire à l'ouverture
+**Si OK** : passer à **étape 4 — éditeur in-situ compositif**. Barre d'outils flottante au-dessus de l'item en mode édition (+ texte, + image, + vidéo, choisir layout stack/overlay/mosaic), blocs internes tap-éditables, commit par tap hors item. Le gros morceau du plan.
 
-**NE PAS commencer par du code.** Perig a demandé explicitement « on recommence demain soir » et la session a été close sur « pas de code tant que l'usage n'a pas tranché les apories ».
+## Étapes restantes
 
-À l'ouverture :
-1. Lire `memory/project_articulation_cercle_frise.md` en entier.
-2. Demander à Perig où il en est de la pensée (a-t-elle incubé pendant la nuit ? un angle s'est-il précisé ?).
-3. Si Perig veut avancer sur un sous-chantier concret (ex. prototyper une maquette statique d'un cercle sidéral-fixe pour voir, ou implémenter le geste de « sacrer » manuel), tracer un plan court. Sinon, continuer à penser.
+- **Étape 4** — Éditeur in-situ compositif (voir fiche mère).
+- **Étape 5** — Polish esthétique (guingois ±2-3°, ombre douce, fonds papier, polices serif/script).
 
-## Ne pas confondre avec les chantiers antérieurs encore vivants
+## Pointeurs mémoire
 
-Le `project_refondation_plan_v1.md` du 2026-10-21 reste la boussole pour la refondation frise + scrapbook si on y retourne sans passer par les pivots du 24. Les deux ne sont pas incompatibles — la pensée du 24 vient compléter, pas remplacer.
+- `./memory/project_scrapbook_composition_riche.md` — fiche mère chantier (plan 5 étapes, choix A/C/A).
+- `./memory/project_objets_scrapbook_esthetique.md` — principe « pas de cadre ».
+- `./memory/project_pattern_messager_du_ciel.md` — cas d'usage legitimant la co-évolution.
+- `MEMORY.md` en haut : pointeur ⚡⚡ vers la fiche mère.
 
-## Antidrift
+## Note de fin de journée
 
-- Ne pas lancer de web search auto-correctif sur l'astrologie, Scira/Perplexity sont le canal de Perig si besoin.
-- Pas de modif de code sans plan validé.
-- Si Perig dit « rien n'avance », rappel : c'est le domaine du 3e canal (consultation spirituelle), pas une invitation à produire des options.
+Journée dense : les trois premières étapes du plan 5-étapes ont été livrées en une journée (26 oct : fiche + étape 1 ; 28 oct matin+midi : étapes 2 et 3). Rythme à ne pas sur-interpréter — les étapes 1-3 étaient techniques et bien cadrées ; étape 4 (éditeur in-situ) est le gros morceau pensé-non-pensé, elle peut prendre plusieurs sessions.
