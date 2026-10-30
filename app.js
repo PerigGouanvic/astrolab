@@ -960,7 +960,8 @@ function drawScrapItem(container, it) {
       drawImageBlock(container, it, href, cell.x, cell.y, cell.w, cell.h);
     } else if (b.type === 'video') {
       const posterHref = resolveVideoPosterHref(b);
-      if (!posterHref) continue;  // poster en cours de fetch
+      // posterHref peut être null (embed sans oEmbed, poster Drive pas encore
+      // chargé) — drawVideoBlock gère le fallback rectangle sombre.
       drawVideoBlock(container, it, posterHref, cell.x, cell.y, cell.w, cell.h);
     }
   }
@@ -3257,13 +3258,12 @@ function createImageScrapAt(lon, radius, stamp) {
 // en 3bis-A une fois le flow embed confirmé.
 function createVideoScrapAt(lon, radius, stamp) {
   const url = (prompt('Colle une URL TikTok (support YouTube/Vimeo à venir)') || '').trim();
-  if (!url) { showError('DEBUG: prompt vide ou annulé'); return; }
+  if (!url) return;
   const info = parseVideoEmbedUrl(url);
   if (!info) {
     showError('URL non reconnue. Formats acceptés : https://www.tiktok.com/@user/video/NNNNNN');
     return;
   }
-  showError(`DEBUG A: provider=${info.provider} videoId=${info.videoId}`);
   createVideoEmbedItem(info, url, lon, radius, stamp);
 }
 
@@ -3276,11 +3276,9 @@ async function createVideoEmbedItem(info, url, lon, radius, stamp) {
       if (oe.thumbnail_width)  posterW   = oe.thumbnail_width;
       if (oe.thumbnail_height) posterH   = oe.thumbnail_height;
     }
-    showError(`DEBUG oE OK: poster=${posterUrl ? 'yes' : 'no'}`);
   } catch (e) {
-    showError(`DEBUG oE catch: ${e && (e.name || e.message)}`);
+    console.warn('oEmbed échec', e);
   }
-  showError(`DEBUG B: lon=${lon?.toFixed?.(1)} radius=${radius?.toFixed?.(0)} stamp=${stamp}`);
   const item = {
     id: genId(),
     lon, radius,
@@ -3301,12 +3299,9 @@ async function createVideoEmbedItem(info, url, lon, radius, stamp) {
   state.scrapbook.push(item);
   if (!saveScrapbook()) {
     state.scrapbook = state.scrapbook.filter(x => x.id !== item.id);
-    showError('DEBUG: saveScrapbook a renvoyé false');
     return;
   }
-  showError('DEBUG C: push+save OK, render…');
-  render().then(() => showError('DEBUG D: render terminé'))
-    .catch(e => showError('render error: ' + e.message));
+  render().catch(e => showError('render error: ' + e.message));
 }
 
 function parseVideoEmbedUrl(url) {
