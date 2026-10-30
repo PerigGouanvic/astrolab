@@ -1112,14 +1112,24 @@ function resolveVideoEmbedSrc(block) {
 // hors mode édition est intercepté par wireScrapItemGestures et ouvre la vidéo
 // en plein écran.
 function drawVideoBlock(container, it, posterHref, x, y, w, h) {
-  const img = svg('image', {
-    x, y, width: w, height: h,
-    href: posterHref,
-    class: 'scrap-video-item',
-    'data-id': it.id,
-    draggable: 'false',
-  });
-  container.appendChild(img);
+  if (posterHref) {
+    const img = svg('image', {
+      x, y, width: w, height: h,
+      href: posterHref,
+      class: 'scrap-video-item',
+      'data-id': it.id,
+      draggable: 'false',
+    });
+    container.appendChild(img);
+  } else {
+    // Fallback : rectangle sombre comme fond du picto play (poster indisponible,
+    // ex. oEmbed CORS refusé). L'item reste visible et tap-able.
+    container.appendChild(svg('rect', {
+      x, y, width: w, height: h,
+      class: 'scrap-video-item scrap-video-noposter',
+      'data-id': it.id,
+    }));
+  }
   const cx = x + w / 2, cy = y + h / 2;
   const r  = Math.min(w, h) * 0.18;
   container.appendChild(svg('circle', {
@@ -3302,12 +3312,21 @@ function parseVideoEmbedUrl(url) {
 }
 
 async function fetchVideoOEmbed(provider, url) {
-  if (provider === 'tiktok') {
-    const r = await fetch(`https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`);
-    if (!r.ok) throw new Error(`tiktok oembed ${r.status}`);
-    return r.json();
+  // Timeout dur : certains WebView Android peuvent hang silencieusement sur
+  // un fetch cross-origin si le serveur ne répond pas de CORS correct.
+  // Au-delà de 4s, on abandonne le poster et on crée l'item quand même.
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 4000);
+  try {
+    if (provider === 'tiktok') {
+      const r = await fetch(`https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`, { signal: ctrl.signal });
+      if (!r.ok) throw new Error(`tiktok oembed ${r.status}`);
+      return await r.json();
+    }
+    return null;
+  } finally {
+    clearTimeout(timer);
   }
-  return null;
 }
 
 // Overlay DOM textarea posé par-dessus le SVG chart, à la position
@@ -5796,7 +5815,7 @@ async function main() {
     // Transforme le probe en badge version permanent (coin bas-droit).
     // Affiche à la fois la version JS et CSS pour détecter les désynchros
     // de cache (Brave en particulier cache le CSS indépendamment du JS).
-    const CSS_EXPECTED = 64;
+    const CSS_EXPECTED = 65;
     const cssVRaw = getComputedStyle(document.documentElement)
       .getPropertyValue('--css-version').trim().replace(/^"|"$/g, '');
     const cssV = cssVRaw || '?';
