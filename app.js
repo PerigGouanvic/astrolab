@@ -3257,12 +3257,13 @@ function createImageScrapAt(lon, radius, stamp) {
 // en 3bis-A une fois le flow embed confirmé.
 function createVideoScrapAt(lon, radius, stamp) {
   const url = (prompt('Colle une URL TikTok (support YouTube/Vimeo à venir)') || '').trim();
-  if (!url) return;
+  if (!url) { showError('DEBUG: prompt vide ou annulé'); return; }
   const info = parseVideoEmbedUrl(url);
   if (!info) {
     showError('URL non reconnue. Formats acceptés : https://www.tiktok.com/@user/video/NNNNNN');
     return;
   }
+  showError(`DEBUG A: provider=${info.provider} videoId=${info.videoId}`);
   createVideoEmbedItem(info, url, lon, radius, stamp);
 }
 
@@ -3275,10 +3276,11 @@ async function createVideoEmbedItem(info, url, lon, radius, stamp) {
       if (oe.thumbnail_width)  posterW   = oe.thumbnail_width;
       if (oe.thumbnail_height) posterH   = oe.thumbnail_height;
     }
+    showError(`DEBUG oE OK: poster=${posterUrl ? 'yes' : 'no'}`);
   } catch (e) {
-    // Non bloquant : on crée quand même l'item, picto play seul si poster manquant.
-    console.warn('oEmbed échec', e);
+    showError(`DEBUG oE catch: ${e && (e.name || e.message)}`);
   }
+  showError(`DEBUG B: lon=${lon?.toFixed?.(1)} radius=${radius?.toFixed?.(0)} stamp=${stamp}`);
   const item = {
     id: genId(),
     lon, radius,
@@ -3299,9 +3301,12 @@ async function createVideoEmbedItem(info, url, lon, radius, stamp) {
   state.scrapbook.push(item);
   if (!saveScrapbook()) {
     state.scrapbook = state.scrapbook.filter(x => x.id !== item.id);
+    showError('DEBUG: saveScrapbook a renvoyé false');
     return;
   }
-  render().catch(e => showError('render error: ' + e.message));
+  showError('DEBUG C: push+save OK, render…');
+  render().then(() => showError('DEBUG D: render terminé'))
+    .catch(e => showError('render error: ' + e.message));
 }
 
 function parseVideoEmbedUrl(url) {
