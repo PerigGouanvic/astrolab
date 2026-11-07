@@ -1469,6 +1469,47 @@ body.timeline-fullscreen .timeline-expand-btn {
   dominant-baseline: hanging;
 }
 
+/* Lignes natales horizontales + marqueurs d'intersection. Étape 4 de la
+   feature phare : le natif se lit comme ligne horizontale dans la carte
+   mondiale de l'astre, pas comme centre de gravité. Discrètes par nature
+   — elles indexent, elles ne déclarent pas. */
+#timeline .tl-natal-line,
+#timeline .tl-natal-glyph,
+#timeline .tl-natal-hit,
+#timeline .tl-natal-hit-date {
+  pointer-events: none;
+}
+.tl-natal-line {
+  stroke: #c05a3a;
+  stroke-width: 0.5;
+  stroke-dasharray: 2 3;
+  opacity: 0.5;
+}
+.tl-natal-glyph {
+  fill: #c05a3a;
+  font-family: var(--font-serif);
+  font-size: 11px;
+  font-weight: 600;
+  text-anchor: start;
+  dominant-baseline: central;
+  font-variant-emoji: text;
+  opacity: 0.85;
+}
+.tl-natal-hit {
+  fill: #c05a3a;
+  stroke: #c05a3a;
+  stroke-width: 0.5;
+  opacity: 0.9;
+}
+.tl-natal-hit-date {
+  fill: #c05a3a;
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  text-anchor: start;
+  dominant-baseline: alphabetic;
+  opacity: 0.85;
+}
+
 .tl-sign-sep {
   stroke: var(--line-weak);
   stroke-width: 0.4;

@@ -1629,6 +1629,83 @@ function studyBandsForBody(bodyIdx) {
   return bands;
 }
 
+// Longitudes natales à afficher comme lignes horizontales quand un astre
+// d'étude est sélectionné. Point de départ v1 : Soleil, Lune, Nœud Nord
+// (mean, idx 10). Extensible via append ici. Cache sur jd natal.
+const NATAL_LINE_BODIES = [
+  { key: 'sun',  idx: 0,  glyph: '☉' + VS15 },
+  { key: 'moon', idx: 1,  glyph: '☽' + VS15 },
+  { key: 'node', idx: 10, glyph: '☊' + VS15 },
+];
+let _natalLinesCache = null;
+function natalLineLongitudes() {
+  const cfg = natalConfig();
+  if (_natalLinesCache && _natalLinesCache.jd === cfg.jd) {
+    return _natalLinesCache.lines;
+  }
+  const lines = [];
+  for (const b of NATAL_LINE_BODIES) {
+    try {
+      const r = swe.calc(cfg.jd, b.idx);
+      lines.push({ key: b.key, glyph: b.glyph, lon: normDeg(r.longitude) });
+    } catch (e) {}
+  }
+  _natalLinesCache = { jd: cfg.jd, lines };
+  return lines;
+}
+
+// Détection des JD où la longitude d'un corps croise une longitude cible.
+// Scan de paires consécutives de la courbe ; sur un intervalle [p0, p1] qui
+// enjambe la cible (différence angulaire change de signe, en tenant compte du
+// wrap), bissection jusqu'à < 1h d'orbe. Un même passage peut être détecté
+// plusieurs fois en rétrogradation : c'est voulu, chaque exactitude = un
+// évènement distinct.
+function _signedDiff(a, b) {
+  let d = normDeg(a) - normDeg(b);
+  if (d > 180) d -= 360;
+  else if (d < -180) d += 360;
+  return d;
+}
+function findConjunctionsOnLon(bodyIdx, points, targetLon) {
+  const out = [];
+  if (points.length < 2) return out;
+  const ORB_DAYS = 1 / 24;
+  let prev = points[0];
+  let prevDiff = _signedDiff(prev.lon, targetLon);
+  for (let i = 1; i < points.length; i++) {
+    const cur = points[i];
+    const curDiff = _signedDiff(cur.lon, targetLon);
+    // Évite les faux-positifs dus au wrap : si l'écart angulaire entre les
+    // deux longitudes des samples dépasse 60°, on considère qu'un "saut" a
+    // eu lieu (changement de signe sans vraie traversée locale).
+    const samplesClose = Math.abs(_signedDiff(prev.lon, cur.lon)) < 60;
+    if (samplesClose && prevDiff * curDiff < 0) {
+      // Bissection sur [prev.jd, cur.jd]
+      let lo = prev.jd, hi = cur.jd;
+      let loDiff = prevDiff;
+      let midLon;
+      while (hi - lo > ORB_DAYS) {
+        const mid = (lo + hi) / 2;
+        try {
+          const r = swe.calc(mid, bodyIdx);
+          midLon = r.longitude;
+          const midDiff = _signedDiff(midLon, targetLon);
+          if (midDiff * loDiff < 0) {
+            hi = mid;
+          } else {
+            lo = mid;
+            loDiff = midDiff;
+          }
+        } catch (e) { break; }
+      }
+      out.push({ jd: (lo + hi) / 2, lon: midLon != null ? normDeg(midLon) : targetLon });
+    }
+    prev = cur;
+    prevDiff = curDiff;
+  }
+  return out;
+}
+
 // Classes CSS d'élément par signe (0=♈ … 11=♓) : feu/terre/air/eau.
 // Palette discrète : les bandes donnent un fond, pas un drapeau.
 function _signElementClass(sign) {
@@ -1951,6 +2028,47 @@ function drawTimeline() {
       }
     }
     svgEl.appendChild(bg);
+
+    // Lignes horizontales natales + marqueurs d'intersection.
+    // Étape 4 de la fiche project_fonctionnalite_phare_bandes_ingress.md :
+    // "Permet au natif de se lire comme ligne horizontale dans la carte
+    // mondiale de l'astre, pas comme centre de gravité." Le natif n'apparaît
+    // qu'une fois l'astre d'étude posé — sinon il resterait centre de gravité.
+    const sb = state.timeline.studyBody;
+    const isSlowPlanet = SLOW_PLANETS.some(p => p.key === sb.key);
+    const studyPoints = isSlowPlanet
+      ? (sampleSlowCurves().find(c => c.key === sb.key)?.points || [])
+      : sampleStudyCurve(sb.idx);
+    const natalLines = natalLineLongitudes();
+    const ng = svg('g', { id: 'natal-lines' });
+    for (const nl of natalLines) {
+      if (nl.lon < lr.startLon || nl.lon > lr.endLon) continue;
+      const y = tlY(nl.lon);
+      ng.appendChild(svg('line', {
+        x1: TL_MARGIN_L, y1: y, x2: TL_MARGIN_L + TL_PLOT_W, y2: y,
+        class: 'tl-natal-line',
+      }));
+      // Glyphe à droite de la frise.
+      ng.appendChild(svg('text', {
+        x: TL_MARGIN_L + TL_PLOT_W + 2, y,
+        class: 'tl-natal-glyph',
+      }, nl.glyph));
+      // Intersections avec la courbe de l'astre d'étude.
+      const hits = findConjunctionsOnLon(sb.idx, studyPoints, nl.lon);
+      for (const h of hits) {
+        const hms = jdToMs(h.jd);
+        if (hms < range.startMs || hms > range.endMs) continue;
+        const cx = tlX(hms, range);
+        ng.appendChild(svg('circle', {
+          cx, cy: y, r: 2.5, class: 'tl-natal-hit',
+        }));
+        ng.appendChild(svg('text', {
+          x: cx + 3, y: y - 4,
+          class: 'tl-natal-hit-date',
+        }, _fmtBandDate(h.jd, palier)));
+      }
+    }
+    svgEl.appendChild(ng);
   }
 
   // Courbes des planètes lentes. Path coupé à chaque saut > 180°
