@@ -1422,6 +1422,42 @@ body.timeline-fullscreen .timeline-expand-btn {
   opacity: 0.04;
 }
 
+/* ─── Bandes d'ingress de l'astre d'étude ──────────────────────────────────
+   Fiche : memory/project_fonctionnalite_phare_bandes_ingress.md
+   Une bande = un séjour continu d'un corps dans un signe. Fond coloré doux
+   par élément (feu/terre/air/eau), glyphe du signe pâle au centre, date
+   d'ingress verticale sur la bordure gauche. */
+#timeline .study-band,
+#timeline .study-band-glyph,
+#timeline .study-band-date {
+  pointer-events: none;
+}
+.study-band {
+  opacity: 0.12;
+}
+.study-band-fire  { fill: #c05a3a; }
+.study-band-earth { fill: #8a6a3a; }
+.study-band-air   { fill: #5a7aa0; }
+.study-band-water { fill: #3a8a7a; }
+.study-band-glyph {
+  fill: #2a2a2a;
+  font-family: var(--font-serif);
+  font-size: 28px;
+  font-weight: 400;
+  text-anchor: middle;
+  dominant-baseline: central;
+  font-variant-emoji: text;
+  opacity: 0.22;
+}
+.study-band-date {
+  fill: #3a3a3a;
+  font-family: var(--font-sans, sans-serif);
+  font-size: 8px;
+  opacity: 0.55;
+  text-anchor: start;
+  dominant-baseline: hanging;
+}
+
 .tl-sign-sep {
   stroke: var(--line-weak);
   stroke-width: 0.4;

@@ -1477,6 +1477,149 @@ function sampleSlowCurves() {
   return curves;
 }
 
+// ─── Astre d'étude : bandes verticales d'ingress ────────────────────────────
+// Fiche : memory/project_fonctionnalite_phare_bandes_ingress.md
+// Règle directrice : trans-saturniens (et centaures/trans-neptuniens) se lisent
+// d'abord comme faits mondiaux. Les bandes rendent visible leur voyage
+// signe-par-signe indépendamment du natif.
+
+// Pas de sampling adaptés par vitesse. Jupiter ≈ 1 signe/an → 7j suffit.
+// Saturne/Uranus ≈ 2-7 ans/signe → 14j. Lentes (Neptune/Pluton/Chariklo) → 14j.
+// Pour la bissection on arrive vite à < 1h d'orbe de toute façon.
+function _studyStepDays(bodyIdx) {
+  if (bodyIdx === 5) return 7;  // Jupiter
+  return 14;                    // reste (y compris centaures)
+}
+
+// Résolution par bissection : on sait qu'un ingress est entre jd1 et jd2 ;
+// on resserre jusqu'à 1h d'orbe.
+function _bisectIngress(bodyIdx, jd1, jd2, sign1, sign2) {
+  const ORB_DAYS = 1 / 24;
+  let lo = jd1, hi = jd2;
+  let sLo = sign1;
+  let r;
+  while (hi - lo > ORB_DAYS) {
+    const mid = (lo + hi) / 2;
+    try {
+      r = swe.calc(mid, bodyIdx);
+    } catch (e) {
+      break;
+    }
+    const sMid = Math.floor(normDeg(r.longitude) / 30);
+    if (sMid === sLo) {
+      lo = mid;
+    } else {
+      hi = mid;
+    }
+  }
+  const jd = (lo + hi) / 2;
+  let lon = null, speed = null;
+  try {
+    const rr = swe.calc(jd, bodyIdx);
+    lon = rr.longitude;
+    speed = rr.longitudeSpeed;
+  } catch (e) {}
+  // Signe entrant = signe « côté hi »
+  let sign;
+  try {
+    const rHi = swe.calc(hi, bodyIdx);
+    sign = Math.floor(normDeg(rHi.longitude) / 30);
+  } catch (e) {
+    sign = sign2;
+  }
+  return { jd, lon, sign, direction: speed != null && speed < 0 ? 'R' : 'D' };
+}
+
+// Scan de la fenêtre [startJd, endJd] à la recherche de tous les passages
+// de frontière de signe pour un corps. Rétrogradations → plusieurs ingress
+// successifs dans le même signe, c'est normal.
+function findSignIngresses(bodyIdx, startJd, endJd) {
+  const step = _studyStepDays(bodyIdx);
+  const ingresses = [];
+  let prevJd = startJd, prevSign;
+  try {
+    prevSign = Math.floor(normDeg(swe.calc(prevJd, bodyIdx).longitude) / 30);
+  } catch (e) {
+    return ingresses;
+  }
+  for (let jd = startJd + step; jd <= endJd; jd += step) {
+    let sign;
+    try {
+      sign = Math.floor(normDeg(swe.calc(jd, bodyIdx).longitude) / 30);
+    } catch (e) {
+      continue;
+    }
+    if (sign !== prevSign) {
+      ingresses.push(_bisectIngress(bodyIdx, prevJd, jd, prevSign, sign));
+    }
+    prevJd = jd;
+    prevSign = sign;
+  }
+  return ingresses;
+}
+
+// Un séjour = intervalle [startJd, endJd] dans un signe donné. Si la fenêtre
+// coupe un séjour, on borne à startJd/endJd avec un pseudo-ingress initial/final.
+function buildSignBands(bodyIdx, ingresses, startJd, endJd) {
+  const bands = [];
+  let initialSign;
+  try {
+    initialSign = Math.floor(normDeg(swe.calc(startJd, bodyIdx).longitude) / 30);
+  } catch (e) {
+    return bands;
+  }
+  let cursorJd = startJd;
+  let cursorSign = initialSign;
+  for (const ing of ingresses) {
+    bands.push({
+      sign: cursorSign,
+      startJd: cursorJd,
+      endJd: ing.jd,
+      direction: null,
+    });
+    cursorJd = ing.jd;
+    cursorSign = ing.sign;
+  }
+  bands.push({ sign: cursorSign, startJd: cursorJd, endJd, direction: null });
+  return bands;
+}
+
+// Cache des bandes pour l'astre d'étude courant, clé par (bodyIdx, fenêtre vie).
+let _studyBandsCache = null;
+function studyBandsForBody(bodyIdx) {
+  const { startJd, endJd } = fullTimelineRange();
+  const dayKey = Math.floor(endJd);
+  if (_studyBandsCache
+      && _studyBandsCache.bodyIdx === bodyIdx
+      && _studyBandsCache.startJd === startJd
+      && _studyBandsCache.dayKey === dayKey) {
+    return _studyBandsCache.bands;
+  }
+  const ingresses = findSignIngresses(bodyIdx, startJd, endJd);
+  const bands = buildSignBands(bodyIdx, ingresses, startJd, endJd);
+  _studyBandsCache = { bodyIdx, startJd, dayKey, bands };
+  return bands;
+}
+
+// Classes CSS d'élément par signe (0=♈ … 11=♓) : feu/terre/air/eau.
+// Palette discrète : les bandes donnent un fond, pas un drapeau.
+function _signElementClass(sign) {
+  const el = sign % 4; // 0 feu, 1 terre, 2 air, 3 eau
+  return ['study-band-fire', 'study-band-earth', 'study-band-air', 'study-band-water'][el];
+}
+
+// Format date lisible selon palier.
+function _fmtBandDate(jd, palier) {
+  const ms = jdToMs(jd);
+  const d = new Date(ms);
+  const Y = d.getUTCFullYear();
+  const M = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const D = String(d.getUTCDate()).padStart(2, '0');
+  if (palier === 'century') return String(Y);
+  if (palier === 'decade')  return `${Y}-${M}`;
+  return `${Y}-${M}-${D}`;
+}
+
 function tlX(ms, range) {
   const { startMs, endMs } = range;
   return TL_MARGIN_L + ((ms - startMs) / (endMs - startMs)) * TL_PLOT_W;
@@ -1740,6 +1883,48 @@ function drawTimeline() {
   // graduation varie ontologiquement avec le palier, pas en continu.
   drawPalierGrid(svgEl, range, currentPalier());
 
+  // Astre d'étude : bandes verticales d'ingress. Fiche
+  // project_fonctionnalite_phare_bandes_ingress.md. Rendu AVANT les courbes
+  // pour que la planète passe par-dessus ses propres séjours.
+  if (state.timeline.studyBody) {
+    const { idx: studyIdx, key: studyKey } = state.timeline.studyBody;
+    const bands = studyBandsForBody(studyIdx);
+    const bg = svg('g', { id: 'study-bands' });
+    const palier = currentPalier();
+    for (const band of bands) {
+      const startMs = jdToMs(band.startJd);
+      const endMs   = jdToMs(band.endJd);
+      if (endMs < range.startMs || startMs > range.endMs) continue;
+      const vStart = Math.max(startMs, range.startMs);
+      const vEnd   = Math.min(endMs,   range.endMs);
+      const x1 = tlX(vStart, range);
+      const x2 = tlX(vEnd,   range);
+      const w  = Math.max(1, x2 - x1);
+      const cls = `study-band ${_signElementClass(band.sign)}`;
+      bg.appendChild(svg('rect', {
+        x: x1, y: TL_MARGIN_T, width: w, height: TL_PLOT_H, class: cls,
+      }));
+      // Glyphe signe au centre du rectangle visible, pâle.
+      if (w > 14) {
+        const gx = (x1 + x2) / 2;
+        bg.appendChild(svg('text', {
+          x: gx, y: TL_MARGIN_T + TL_PLOT_H / 2,
+          class: 'study-band-glyph',
+        }, SIGN_GLYPHS[band.sign]));
+      }
+      // Date d'ingress sur la bordure gauche si cette bordure est à l'intérieur
+      // de la fenêtre visible (pas une coupe de fenêtre).
+      if (startMs >= range.startMs && w > 8) {
+        bg.appendChild(svg('text', {
+          x: x1 + 2, y: TL_MARGIN_T + 4,
+          class: 'study-band-date',
+          transform: `rotate(90 ${x1 + 2} ${TL_MARGIN_T + 4})`,
+        }, _fmtBandDate(band.startJd, palier)));
+      }
+    }
+    svgEl.appendChild(bg);
+  }
+
   // Courbes des planètes lentes. Path coupé à chaque saut > 180°
   // (traversée 0°/360°) pour éviter les cordes qui traversent le plot.
   // Glyphes masqués par défaut, apparaissent au clic sur la courbe (toggle via
@@ -1774,10 +1959,19 @@ function drawTimeline() {
     const hit = svg('path', { d, class: 'tl-curve-hit' });
     hit.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (state.timeline.visibleGlyphs.has(c.key)) {
+      const already = state.timeline.visibleGlyphs.has(c.key);
+      if (already) {
         state.timeline.visibleGlyphs.delete(c.key);
+        // Si on masquait l'astre d'étude courant, le désélectionner aussi.
+        if (state.timeline.studyBody && state.timeline.studyBody.key === c.key) {
+          state.timeline.studyBody = null;
+        }
       } else {
         state.timeline.visibleGlyphs.add(c.key);
+        // L'astre dont on vient d'activer le glyphe devient l'astre d'étude.
+        // Un seul astre d'étude à la fois : les autres glyphes peuvent rester
+        // affichés, mais seul le dernier activé porte les bandes d'ingress.
+        state.timeline.studyBody = { key: c.key, idx: c.idx };
       }
       drawTimeline();
     });
