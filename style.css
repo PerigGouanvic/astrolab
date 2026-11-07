@@ -2355,6 +2355,28 @@ body.planet-info-open { overflow: hidden; }
   min-height: 0;
 }
 
+/* Action bar en haut du body : point d'entrée direct vers une exploration
+   dédiée (astre d'étude dans la frise). Un bouton = un geste. */
+.pi-action-bar {
+  margin: 0 0 1.2rem;
+  display: flex;
+  justify-content: flex-start;
+}
+.pi-study-btn {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: rgba(122, 74, 42, 0.08);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.pi-study-btn:hover {
+  background: rgba(122, 74, 42, 0.18);
+}
+
 .pi-section {
   margin: 0 0 1.4rem;
 }

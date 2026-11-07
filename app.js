@@ -4954,6 +4954,50 @@ async function openPlanetInfo(planetKey, ring = 'natal') {
     return s;
   };
 
+  // Action : « Explorer dans la frise » — sélectionne cette planète comme
+  // astre d'étude et passe au palier adapté. Étape 5 de la fiche
+  // memory/project_fonctionnalite_phare_bandes_ingress.md.
+  // Scope : corps dont les séjours signe-par-signe sont lisibles à l'échelle
+  // d'une vie (Jupiter et au-delà + extended). Les rapides (sun/moon/mercury/
+  // venus/mars) sont exclues — leurs ingress annuels/mensuels saturent.
+  const STUDY_SUPPORTED = {
+    jupiter: { idx: 5,  palier: 'decade'  },
+    saturn:  { idx: 6,  palier: 'decade'  },
+    uranus:  { idx: 7,  palier: 'century' },
+    neptune: { idx: 8,  palier: 'century' },
+    pluto:   { idx: 9,  palier: 'century' },
+    node:    { idx: 10, palier: 'decade'  },
+    chiron:  { idx: 15, palier: 'century' },
+    ceres:   { idx: 17, palier: 'decade'  },
+    pallas:  { idx: 18, palier: 'decade'  },
+    juno:    { idx: 19, palier: 'decade'  },
+    vesta:   { idx: 20, palier: 'decade'  },
+  };
+  if (STUDY_SUPPORTED[planetKey]) {
+    const act = document.createElement('div');
+    act.className = 'pi-action-bar';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pi-study-btn';
+    btn.textContent = `Explorer ${label} dans la frise`;
+    btn.addEventListener('click', () => {
+      const { idx, palier } = STUDY_SUPPORTED[planetKey];
+      if (!state.timeline) state.timeline = { palier };
+      state.timeline.studyBody = { key: planetKey, idx, label: data.glyph || planetKey };
+      state.timeline.palier = palier;
+      state.timeline.vCenter = null;
+      if (!state.timeline.visibleGlyphs) state.timeline.visibleGlyphs = new Set();
+      state.timeline.visibleGlyphs.add(planetKey);
+      closePlanetInfo();
+      updatePalierLabel();
+      try { drawTimeline(); } catch (err) { showError('timeline error: ' + err.message); }
+      const tl = document.getElementById('timeline-container');
+      if (tl && tl.scrollIntoView) tl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+    act.appendChild(btn);
+    body.appendChild(act);
+  }
+
   // 1 · Archétype
   {
     const sec = addSection('Archétype');
