@@ -8,7 +8,7 @@ Ce fichier oriente les sessions Claude ouvertes **depuis ce dossier**, **sur la 
 
 ## Intention (rappel)
 
-Logiciel d'astrologie épuré, **mobile-first**, pour **consultations co-évolutives** entre Perig et des consultés. Pas d'oracle génératif : la valeur vient de la soustraction, du journal partagé (scrapbook) et de la relation dans la durée.
+Logiciel d'astrologie épuré, **mobile-first**, distribué en **application Android publique**. Pas d'oracle génératif : la valeur vient de la soustraction, du journal (scrapbook) et de la capacité à retrouver une planète muette par son réseau d'aspects. La **consultation co-évolutive** (dossier Drive partagé entre Perig et un consulté nommé) reste un usage possible parmi d'autres, plus le cœur exclusif — virage posé le 2026-11-07.
 
 ## Décisions structurantes (branche 2D v1)
 
@@ -61,7 +61,8 @@ Validé en fin de session fondatrice, à poursuivre dans cet ordre :
 - Pas de LLM analytique/interprétatif (pas d'oracle astrologique génératif).
 - Pas d'auto-expiration de cycle, pas de scoring d'engagement, pas de mécaniques SaaS (voir `project_fin_de_cycle_conjointe.md`).
 - Pas de bundler lourd (pas de Vite dans cette branche). On reste sur ESM via jsDelivr.
-- Pas de Capacitor/Play Store en v1 — reporté à v2 si la traction le justifie.
+
+> **Virage 2026-11-07 — Capacitor + distribution Android entrent dans v1.** L'ancienne ligne « Pas de Capacitor/Play Store en v1 — reporté à v2 » est caduque. Destinataire v1 = n'importe qui installe l'APK (canal direct hors store ou Play Store, à trancher plus tard dans la roadmap). Voir `memory/project_circuit_retour_au_monde.md` révisé. Cinq étapes de roadmap-distribution à sédimenter dans une fiche dédiée.
 
 ## Questions ouvertes
 
