@@ -1144,6 +1144,17 @@ h1 {
   color: var(--accent);
 }
 
+.asteroid-chips .chip .chip-label {
+  cursor: pointer;
+  user-select: none;
+}
+
+.asteroid-chips .chip.chip-study {
+  border-color: var(--accent);
+  background: rgba(122, 74, 42, 0.14);
+  color: var(--text);
+}
+
 .chart-data {
   margin-top: 0.8rem;
   font-family: var(--font-mono);
@@ -1609,6 +1620,7 @@ body.timeline-fullscreen .timeline-expand-btn {
 .tl-curve-uranus  { stroke: #1e5b8f; }   /* bleu */
 .tl-curve-neptune { stroke: #2a7a3a; }   /* vert */
 .tl-curve-pluto   { stroke: #6a2a7a; }   /* violet */
+.tl-curve-study   { stroke: #c05a3a; stroke-dasharray: 3 2; }  /* astre d'étude non-lent (centaure/astéroïde) */
 
 /* Hit-path transparent plus large par-dessus chaque courbe : facilite le
    tap tactile pour toggler l'affichage du glyphe. */
@@ -1632,6 +1644,20 @@ body.timeline-fullscreen .timeline-expand-btn {
 .tl-curve-glyph.tl-curve-uranus  { fill: #1e5b8f; }
 .tl-curve-glyph.tl-curve-neptune { fill: #2a7a3a; }
 .tl-curve-glyph.tl-curve-pluto   { fill: #6a2a7a; }
+.tl-curve-glyph.tl-curve-study   { fill: #c05a3a; font-size: 11px; }
+
+/* Badge discret en haut à droite de la frise : rappelle quel astre est
+   actuellement « astre d'étude » (celui dont les bandes d'ingress sont
+   affichées). Posé dans la viewBox SVG, pas dans le HTML. */
+#timeline .tl-study-badge {
+  pointer-events: none;
+  fill: #c05a3a;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-anchor: end;
+  dominant-baseline: hanging;
+  opacity: 0.8;
+}
 
 /* Curseur temporel : trait vertical qui marque chartTime (ou maintenant).
    Même couleur accent que les angles ASC/MC pour signaler "point focal". */

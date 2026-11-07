@@ -1584,6 +1584,34 @@ function buildSignBands(bodyIdx, ingresses, startJd, endJd) {
   return bands;
 }
 
+// Courbe de l'astre d'étude quand ce n'est pas une SLOW_PLANETS (centaure,
+// astéroïde…). Même pas de 14 jours que `sampleSlowCurves`, même fenêtre
+// complète. Cache séparé pour ne pas interférer avec le cache des lentes.
+let _studyCurveCache = null;
+function sampleStudyCurve(bodyIdx) {
+  const { startJd, endJd } = fullTimelineRange();
+  const dayKey = Math.floor(endJd);
+  if (_studyCurveCache
+      && _studyCurveCache.bodyIdx === bodyIdx
+      && _studyCurveCache.startJd === startJd
+      && _studyCurveCache.dayKey === dayKey) {
+    return _studyCurveCache.points;
+  }
+  const points = [];
+  for (let jd = startJd; jd <= endJd; jd += TL_STEP_DAYS) {
+    try {
+      const r = swe.calc(jd, bodyIdx);
+      points.push({ jd, lon: r.longitude, retro: r.longitudeSpeed < 0 });
+    } catch (e) {}
+  }
+  try {
+    const r = swe.calc(endJd, bodyIdx);
+    points.push({ jd: endJd, lon: r.longitude, retro: r.longitudeSpeed < 0 });
+  } catch (e) {}
+  _studyCurveCache = { bodyIdx, startJd, dayKey, points };
+  return points;
+}
+
 // Cache des bandes pour l'astre d'étude courant, clé par (bodyIdx, fenêtre vie).
 let _studyBandsCache = null;
 function studyBandsForBody(bodyIdx) {
@@ -1971,7 +1999,7 @@ function drawTimeline() {
         // L'astre dont on vient d'activer le glyphe devient l'astre d'étude.
         // Un seul astre d'étude à la fois : les autres glyphes peuvent rester
         // affichés, mais seul le dernier activé porte les bandes d'ingress.
-        state.timeline.studyBody = { key: c.key, idx: c.idx };
+        state.timeline.studyBody = { key: c.key, idx: c.idx, label: c.glyph };
       }
       drawTimeline();
     });
@@ -1994,6 +2022,60 @@ function drawTimeline() {
         }, c.glyph));
       }
     }
+  }
+
+  // Courbe de l'astre d'étude s'il n'est PAS déjà dans SLOW_PLANETS
+  // (centaure, astéroïde). Même pas de sampling, trait distinct (classe
+  // .tl-curve-study, défini en CSS).
+  if (state.timeline.studyBody) {
+    const sb = state.timeline.studyBody;
+    const isSlowPlanet = SLOW_PLANETS.some(p => p.key === sb.key);
+    if (!isSlowPlanet) {
+      const pts = sampleStudyCurve(sb.idx);
+      let d = '';
+      let prevLon = null;
+      let prevInside = false;
+      for (const pt of pts) {
+        const lonN = normDeg(pt.lon);
+        const inside = (lonN >= lr.startLon && lonN <= lr.endLon);
+        if (!inside) { prevLon = pt.lon; prevInside = false; continue; }
+        const x = tlX(jdToMs(pt.jd), range);
+        const y = tlY(pt.lon);
+        if (!prevInside || prevLon == null || Math.abs(pt.lon - prevLon) > 180) {
+          d += `M${x.toFixed(1)},${y.toFixed(1)} `;
+        } else {
+          d += `L${x.toFixed(1)},${y.toFixed(1)} `;
+        }
+        prevLon = pt.lon;
+        prevInside = true;
+      }
+      if (d) {
+        svgEl.appendChild(svg('path', { d, class: 'tl-curve tl-curve-study' }));
+        // Glyphe/étiquette au point le plus proche du curseur temporel.
+        const cursorMs = state.chartTime != null ? state.chartTime : Date.now();
+        const targetJd = msToJd(cursorMs);
+        let anchor = null;
+        let bestDt = Infinity;
+        for (const pt of pts) {
+          const lonN = normDeg(pt.lon);
+          if (lonN < lr.startLon || lonN > lr.endLon) continue;
+          const dt = Math.abs(pt.jd - targetJd);
+          if (dt < bestDt) { bestDt = dt; anchor = pt; }
+        }
+        if (anchor) {
+          svgEl.appendChild(svg('text', {
+            x: tlX(jdToMs(anchor.jd), range) + 2, y: tlY(anchor.lon),
+            class: 'tl-curve-glyph tl-curve-study',
+          }, sb.label || '●'));
+        }
+      }
+    }
+    // Badge « étude : <nom> » discret en haut à droite de la frise.
+    const label = sb.label || sb.key;
+    svgEl.appendChild(svg('text', {
+      x: TL_MARGIN_L + TL_PLOT_W - 4, y: TL_MARGIN_T + 10,
+      class: 'tl-study-badge',
+    }, `étude · ${label}`));
   }
 
   // Items scrapbook : segments horizontaux de createdAt à retiredAt (ou
@@ -4233,11 +4315,37 @@ function renderAsteroidChips() {
   const box = document.getElementById('asteroid-chips');
   if (!box) return;
   box.innerHTML = '';
+  const studyKey = state.timeline?.studyBody?.key;
   for (const [mpc, name] of state.asteroids) {
     const chip = document.createElement('span');
     chip.className = 'chip';
-    chip.innerHTML = `<span>(${mpc}) ${name}</span><button title="Retirer" data-mpc="${mpc}">×</button>`;
-    chip.querySelector('button').addEventListener('click', () => removeAsteroid(mpc));
+    const key = `ast-${mpc}`;
+    if (studyKey === key) chip.classList.add('chip-study');
+    chip.innerHTML = `<span class="chip-label">(${mpc}) ${name}</span><button title="Retirer" data-mpc="${mpc}">×</button>`;
+    chip.querySelector('button').addEventListener('click', (e) => {
+      e.stopPropagation();
+      removeAsteroid(mpc);
+    });
+    // Tap sur le libellé (pas sur le × bouton) → sélectionner comme astre
+    // d'étude (toggle). Fiche
+    // memory/project_fonctionnalite_phare_bandes_ingress.md.
+    chip.querySelector('.chip-label').addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!state.timeline) state.timeline = { palier: 'day' };
+      const cur = state.timeline.studyBody;
+      if (cur && cur.key === key) {
+        state.timeline.studyBody = null;
+      } else {
+        state.timeline.studyBody = {
+          key,
+          idx: sweMod.asteroidBody(mpc),
+          label: name,
+          mpc,
+        };
+      }
+      renderAsteroidChips();
+      try { drawTimeline(); } catch (err) { showError('timeline error: ' + err.message); }
+    });
     box.appendChild(chip);
   }
 }
