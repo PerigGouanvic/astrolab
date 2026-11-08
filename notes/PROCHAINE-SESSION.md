@@ -1,48 +1,49 @@
 # Prochaine session astrolab — à ouvrir en premier
 
-**Contexte** : session 2026-10-28 interrompue en soirée (20h43) après livraison de l'**étape 3 (bloc vidéo)** du chantier scrapbook composition riche. Perig n'a pas encore re-testé l'étape 3 nettoyée (commit `6753ea8`) sur APK.
+**Contexte** : session 2026-11-07 soir — la feature phare « bandes d'ingress » a été livrée (étapes 2→5), poussée (commits 5ab45a7, 2271c25, 3a1c212, b656b35) et re-sanitisée en cache-bust (commit 3856a1a : `app.js?v=111` + boot-probe `astrolab v111`). Test d'acceptation passé : Perig a reconstitué à l'œil nu Chariklo ♒ 2021-24 sur son Soleil et son NN. Mais le trajet UX pour y arriver a été poussif, et Perig nomme : *« cette fonctionnalité révèle à quel point c'est mal foutu — un des meilleurs tests pour la refonte UX, pas le test ultime »*.
 
 ## État du code à l'ouverture
 
-- Branche `astrolab-2d`, working tree **propre**, poussé sur `origin/astrolab-2d`.
-- HEAD : `6753ea8 [2D] scrapbook vidéo : nettoyage post-étape 3`
-- Cache-bust courant : `style.css?v=69`, `app.js?v=103` (`--css-version: "63"`, `CSS_EXPECTED = 63`).
+- Branche `astrolab-2d`, working tree **propre** côté dépôt. Commit `c45a6e6` (virage destinataire) pas encore poussé — le vérifier à l'ouverture (`git log origin/astrolab-2d..HEAD`).
+- HEAD : `3856a1a [2D] cache-bust rattrapage : app.js v=107→111 + boot-probe v80→111`
+- Cache-bust courant : `app.js?v=111`, boot-probe `astrolab v111`. **Tout nouveau commit touchant app.js doit continuer à bumper** (voir `feedback_bump_cache_bust_obligatoire.md`).
 
-## Chantier en cours — scrapbook composition riche
+## Chantier à ouvrir — refonte UX guidée par la feature-révélateur
 
-Fiche mère : `./memory/project_scrapbook_composition_riche.md` (plan 5 étapes A/C/A, choix tranchés par Perig 2026-10-26).
+Fiche mère : **`./memory/project_chantier_ux_refonte.md`** (posée à la clôture de la session 2026-11-07 soir).
 
-**Étapes faites, pushées, commitées** :
-- Étape 1 — modèle `blocks[]` + migration invisible (`d62429b`)
-- Étape 2 — renderer compositif stack/overlay/mosaic (`c491d6d`)
-- Étape 3 — bloc vidéo poster+Drive+tap plein-écran (`dfe0557`), + nettoyage (`6753ea8`)
+Elle contient :
+- Pourquoi ce chantier (déclencheur du 2026-11-07 et ses mots)
+- Les 6 ruptures UX rendues visibles par la feature d'ingress
+- Un détail de plomberie (glyphes lents masqués par défaut au boot) à régler au passage
+- La posture attendue (pas de code tout de suite, cartographier d'abord AVEC Perig)
+- La liste des fiches à (re)charger — en particulier `project_bottom_sheet_mobile_v1.md` qui a laissé la refonte interne de la hiérarchie des contrôles **explicitement en attente** depuis le 2026-10-07. C'est le moment.
+- Les anti-scopes
+- Un critère de clôture possible (boussole, pas livrable)
 
-**Étape 3 — ce que le nettoyage a fait** (commit `6753ea8`) :
-- Supprime un **doublon** de `openVideoFullscreen` (deux définitions se chevauchaient dans `dfe0557` — la seconde gagnait au hoisting, la première async était orpheline).
-- Ramène `SCRAP_VIDEO_MAX_BYTES` de **50 Mo → 5 Mo**. Raison : Google Drive `uploadType=multipart` plafonne à 5 Mo. Au-delà, il faut basculer en upload resumable — chantier séparé.
+## Comment ouvrir
 
-**Attendu au prochain tour** : Perig re-teste étape 3 sur APK fraîche (après fetch du v=103). Protocole :
-1. Se connecter à Drive dans l'app.
-2. Double-tap zone zodiacale vide → chooser 3 options (texte / image / 🎬 vidéo).
-3. Choisir vidéo < 5 Mo (clip court — ~5-10 s en qualité normale rentre).
-4. Vérifier : vignette = poster frame + picto play ; tap simple → plein-écran avec contrôles vidéo natifs ; × ou tap backdrop ou Escape ferment.
+1. Lire la fiche mère en entier.
+2. Lire les 2 gisements : `project_frustrations_apps_astro.md` et `project_exigences_killer_app.md`.
+3. Relire `project_bottom_sheet_mobile_v1.md` (défer explicite de la refonte interne).
+4. **Ne pas foncer en code.** Demander à Perig de raconter un trajet mental concret (« quand je veux savoir où est passé X à l'époque Y, qu'est-ce que j'aimerais faire ? »), puis comparer à l'actuel.
+5. Si Perig propose une piste, ancrer dans un cas concret tiré de sa pratique (ex. Chariklo sur NN, ou le cas « messager du ciel » → relancer un consulté).
 
-**Si régression** (vignette manquante, play ne s'ouvre pas, poster noir, upload échoue à 5 Mo pile) : fix d'abord, étape 4 ensuite.
+## Suite possible
 
-**Si OK** : passer à **étape 4 — éditeur in-situ compositif**. Barre d'outils flottante au-dessus de l'item en mode édition (+ texte, + image, + vidéo, choisir layout stack/overlay/mosaic), blocs internes tap-éditables, commit par tap hors item. Le gros morceau du plan.
+- Une ou plusieurs sessions sur le chantier, livrables commitables par étapes.
+- Le chantier n'est pas obligé de s'achever vite. Fiche vivante.
 
-## Étapes restantes
+## Pointeurs mémoire essentiels
 
-- **Étape 4** — Éditeur in-situ compositif (voir fiche mère).
-- **Étape 5** — Polish esthétique (guingois ±2-3°, ombre douce, fonds papier, polices serif/script).
+- ⚡⚡ `./memory/project_chantier_ux_refonte.md` — fiche mère (nouvelle)
+- ⚡⚡ `./memory/project_bottom_sheet_mobile_v1.md` — sheet v1 + refonte interne déférée
+- ⚡⚡ `./memory/project_fonctionnalite_phare_bandes_ingress.md` — fiche phare qui a servi de révélateur
+- ⚡⚡ `./memory/project_frustrations_apps_astro.md` — gisement négatif à rejouer contre chaque proposition
+- ⚡⚡ `./memory/project_exigences_killer_app.md` — gisement positif à rejouer contre chaque proposition
+- `./memory/project_articulation_cercle_frise.md` — invariant roue↔frise
+- `./memory/project_pattern_messager_du_ciel.md` — cas d'usage légitimant la co-évolution
 
-## Pointeurs mémoire
+## Note de fin de journée (2026-11-07 soir)
 
-- `./memory/project_scrapbook_composition_riche.md` — fiche mère chantier (plan 5 étapes, choix A/C/A).
-- `./memory/project_objets_scrapbook_esthetique.md` — principe « pas de cadre ».
-- `./memory/project_pattern_messager_du_ciel.md` — cas d'usage legitimant la co-évolution.
-- `MEMORY.md` en haut : pointeur ⚡⚡ vers la fiche mère.
-
-## Note de fin de journée
-
-Journée dense : les trois premières étapes du plan 5-étapes ont été livrées en une journée (26 oct : fiche + étape 1 ; 28 oct matin+midi : étapes 2 et 3). Rythme à ne pas sur-interpréter — les étapes 1-3 étaient techniques et bien cadrées ; étape 4 (éditeur in-situ) est le gros morceau pensé-non-pensé, elle peut prendre plusieurs sessions.
+Feature d'ingress livrée + poussée + testée. Cache-bust rattrapé. Virage destinataire posé ce matin (`c45a6e6`). Et maintenant : Perig lui-même nomme le besoin de session UX dédiée, pas moi qui le propose. C'est la bonne entrée : l'app est utilisable et exigeante au bon niveau pour que ses défauts se voient.
