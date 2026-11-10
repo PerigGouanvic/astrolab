@@ -303,6 +303,46 @@ function svg(tag, attrs = {}, text = null) {
   return el;
 }
 
+// Pinceau-loupe : quand actif, les glyphes dont la longitude tombe dans
+// ±BRUSH_RADIUS_DEG autour de state.brush.lon sont redéployés en éventail
+// depuis le point exact de leur longitude sur la bande zodiacale (ligne-leader
+// qui pointe vers la position réelle, glyphes rayonnant en éventail).
+// Scope v1 : objets déjà affichés seulement (planètes + mi-points + astéroïdes
+// ajoutés). Révélation d'astéroïdes non-chargés viendra en v2.
+const BRUSH_RADIUS_DEG   = 5;    // ±5° autour du point touché
+const BRUSH_FAN_HALF_DEG = 12;   // demi-angle de l'éventail en degrés
+const BRUSH_FAN_OFFSET   = 50;   // décalage radial de l'éventail (vb-units)
+function brushAffects(lon) {
+  if (!state.brush || !state.brush.active || state.brush.lon == null) return false;
+  let d = Math.abs(normDeg(lon - state.brush.lon));
+  if (d > 180) d = 360 - d;
+  return d <= BRUSH_RADIUS_DEG;
+}
+// Place N éléments en éventail autour de centerLon, triés par leur lon
+// d'origine. Renvoie une Map lon→angleFan. Pour N=1 l'angle = centerLon
+// (pas de décalage angulaire, mais rayon décalé pour marquer le mode).
+function fanAngles(items, centerLon) {
+  const sorted = [...items].map((x, i) => ({ ...x, _origIdx: i }))
+    .sort((a, b) => {
+      let da = normDeg(a.lon - centerLon); if (da > 180) da -= 360;
+      let db = normDeg(b.lon - centerLon); if (db > 180) db -= 360;
+      return da - db;
+    });
+  const N = sorted.length;
+  if (N === 0) return new Map();
+  const map = new Map();
+  if (N === 1) {
+    map.set(sorted[0]._origIdx, centerLon);
+    return map;
+  }
+  for (let i = 0; i < N; i++) {
+    const t = i / (N - 1);                              // 0..1
+    const ang = centerLon - BRUSH_FAN_HALF_DEG + t * 2 * BRUSH_FAN_HALF_DEG;
+    map.set(sorted[i]._origIdx, normDeg(ang));
+  }
+  return map;
+}
+
 // ---------- Mi-points (uniquement entre planètes majeures) ----------
 function midpoint(lonA, lonB) {
   const a = normDeg(lonA);
@@ -391,10 +431,15 @@ function drawPlanetRing(container, bodies, asteroids, ascLon, layers, params) {
   const { rGlyph, rDeg, rTick, rTickEnd,
           rAstTick, rAstTickEnd, rAstDot, rAstLbl,
           ringClass } = params;
+  const outward = ringClass === 'ring-transit' ? +1 : -1;
   // Astéroïdes de cet anneau — tick sur la bande + dot/label décalés vers
-  // le centre (natal) ou vers l'extérieur du viewBox (transit).
+  // le centre (natal) ou vers l'extérieur du viewBox (transit). En mode
+  // pinceau, les astéroïdes affectés sont déployés en éventail autour du
+  // point du pinceau.
   if (layers.asteroids) {
-    for (const a of asteroids) {
+    const brushed = asteroids.filter(a => brushAffects(a.lon));
+    const normal  = asteroids.filter(a => !brushAffects(a.lon));
+    for (const a of normal) {
       const tk1 = project(a.lon, ascLon, rAstTick);
       const tk2 = project(a.lon, ascLon, rAstTickEnd);
       container.appendChild(svg('line', { x1: tk1.x, y1: tk1.y, x2: tk2.x, y2: tk2.y, class: 'asteroid-tick ' + ringClass }));
@@ -403,14 +448,40 @@ function drawPlanetRing(container, bodies, asteroids, ascLon, layers, params) {
       const lp = project(a.lon, ascLon, rAstLbl);
       container.appendChild(svg('text', { x: lp.x, y: lp.y, class: 'asteroid-label ' + ringClass }, a.name.slice(0, 8)));
     }
+    if (brushed.length > 0) {
+      const fan = fanAngles(brushed, state.brush.lon);
+      brushed.forEach((a, i) => {
+        const fanLon = fan.get(i);
+        // Tick reste sur la position réelle (marque d'ancrage).
+        const tk1 = project(a.lon, ascLon, rAstTick);
+        const tk2 = project(a.lon, ascLon, rAstTickEnd);
+        container.appendChild(svg('line', { x1: tk1.x, y1: tk1.y, x2: tk2.x, y2: tk2.y, class: 'asteroid-tick ' + ringClass }));
+        // Dot + label repositionnés en éventail, rayon décalé pour sortir du cluster.
+        const rDotFan = rAstDot + outward * BRUSH_FAN_OFFSET;
+        const rLblFan = rAstLbl + outward * BRUSH_FAN_OFFSET;
+        const dotPt = project(fanLon, ascLon, rDotFan);
+        const lblPt = project(fanLon, ascLon, rLblFan);
+        // Leader : du bout du tick vers le dot éventail.
+        const leadFrom = project(a.lon, ascLon, rAstTickEnd);
+        container.appendChild(svg('line', {
+          x1: leadFrom.x, y1: leadFrom.y, x2: dotPt.x, y2: dotPt.y,
+          class: 'brush-leader ' + ringClass,
+        }));
+        container.appendChild(svg('circle', { cx: dotPt.x, cy: dotPt.y, r: 3, class: 'asteroid-dot ' + ringClass }));
+        container.appendChild(svg('text', { x: lblPt.x, y: lblPt.y, class: 'asteroid-label ' + ringClass }, a.name.slice(0, 8)));
+      });
+    }
   }
   // Planètes — tri par longitude relative à ASC, décalage radial si collées.
   // Côté natal (intérieur) le décalage pousse vers le centre ; côté transit
   // (extérieur) il pousse vers l'extérieur, pour que les grappes restent dans
   // leur demi-plan respectif sans mordre la bande.
+  // En mode pinceau, les planètes dans la zone du pinceau sont déployées en
+  // éventail au lieu du décalage radial anti-collision classique.
   if (layers.planets) {
-    const outward = ringClass === 'ring-transit' ? +1 : -1;
-    const sorted = [...bodies].sort((a, b) => normDeg(a.lon - ascLon) - normDeg(b.lon - ascLon));
+    const brushedBodies = bodies.filter(p => brushAffects(p.lon));
+    const normalBodies  = bodies.filter(p => !brushAffects(p.lon));
+    const sorted = [...normalBodies].sort((a, b) => normDeg(a.lon - ascLon) - normDeg(b.lon - ascLon));
     const MIN_SEP = 8;
     let lastLon = -999, ringOffset = 0;
     for (const p of sorted) {
@@ -432,6 +503,30 @@ function drawPlanetRing(container, bodies, asteroids, ascLon, layers, params) {
       const dp = project(p.lon, ascLon, rD);
       container.appendChild(svg('text', { x: dp.x, y: dp.y, class: 'planet-degree ' + ringClass }, degInSign + '°' + (p.retro ? ' ℞' : '')));
       lastLon = p.lon;
+    }
+    if (brushedBodies.length > 0) {
+      const fan = fanAngles(brushedBodies, state.brush.lon);
+      const rGlyphFan = rGlyph + outward * BRUSH_FAN_OFFSET;
+      brushedBodies.forEach((p, i) => {
+        const fanLon = fan.get(i);
+        // Tick ancré sur position réelle.
+        const tk1 = project(p.lon, ascLon, rTick);
+        const tk2 = project(p.lon, ascLon, rTickEnd);
+        container.appendChild(svg('line', { x1: tk1.x, y1: tk1.y, x2: tk2.x, y2: tk2.y, class: 'planet-tick ' + ringClass }));
+        const glyphPt = project(fanLon, ascLon, rGlyphFan);
+        const leadFrom = project(p.lon, ascLon, rTickEnd);
+        container.appendChild(svg('line', {
+          x1: leadFrom.x, y1: leadFrom.y, x2: glyphPt.x, y2: glyphPt.y,
+          class: 'brush-leader ' + ringClass,
+        }));
+        container.appendChild(svg('text', {
+          x: glyphPt.x, y: glyphPt.y, class: 'planet-symbol ' + ringClass,
+          'data-planet': p.key,
+          'data-ring': ringClass === 'ring-transit' ? 'transit' : 'natal',
+          style: `--planet-scale: ${PLANET_SCALES[p.key] || 1}`
+        }, p.glyph));
+        // Pas de label de degré en mode fan (évite surcharge).
+      });
     }
   }
 }
@@ -507,27 +602,53 @@ function drawChart({ natal, transit }, layers) {
   }
 
   // Mi-points natal — tick radial + label « ♀|♂ » côté intérieur.
-  // Superposition assumée : les clusters denses sont significatifs (micro-univers
-  // de sens sur 1-2°). L'anti-collision radiale les étalerait et trahirait la
-  // concentration réelle. Lisibilité → affaire du zoom (à venir).
+  // Superposition assumée par défaut : les clusters denses sont significatifs
+  // (micro-univers de sens sur 1-2°). Lisibilité locale → pinceau-loupe qui
+  // redéploie les mi-points dans la zone en éventail vers le centre.
   if (layers.midpoints && layers.planets) {
-    for (const m of computeMidpoints(natal.bodies)) {
+    const allMidpoints = computeMidpoints(natal.bodies);
+    const brushedMp = allMidpoints.filter(m => brushAffects(m.lon));
+    const normalMp  = allMidpoints.filter(m => !brushAffects(m.lon));
+    const R_MP_LABEL = R_MIDPOINT_IN - 6;
+    const drawMpLabel = (lon, ga, gb, radiusLbl) => {
+      const p = project(lon, ascLon, radiusLbl);
+      const radAngle = Math.atan2(p.y, p.x) * 180 / Math.PI;
+      const rot = p.x < 0 ? radAngle + 180 : radAngle;
+      container.appendChild(svg('text', {
+        x: p.x, y: p.y,
+        class: 'midpoint-glyph',
+        transform: `rotate(${rot.toFixed(1)}, ${p.x.toFixed(1)}, ${p.y.toFixed(1)})`
+      }, `${ga}|${gb}`));
+    };
+    for (const m of normalMp) {
       const t1 = project(m.lon, ascLon, R_ZODIAC_IN);
       const t2 = project(m.lon, ascLon, R_MIDPOINT_IN);
       container.appendChild(svg('line', { x1: t1.x, y1: t1.y, x2: t2.x, y2: t2.y, class: 'midpoint-tick' }));
       const ga = BODY_GLYPH[m.a];
       const gb = BODY_GLYPH[m.b];
-      if (ga && gb) {
-        const p = project(m.lon, ascLon, R_MIDPOINT_IN - 6);
-        const radAngle = Math.atan2(p.y, p.x) * 180 / Math.PI;
-        // Moitié gauche : pivoter de 180° pour ne pas écrire tête en bas.
-        const rot = p.x < 0 ? radAngle + 180 : radAngle;
-        container.appendChild(svg('text', {
-          x: p.x, y: p.y,
-          class: 'midpoint-glyph',
-          transform: `rotate(${rot.toFixed(1)}, ${p.x.toFixed(1)}, ${p.y.toFixed(1)})`
-        }, `${ga}|${gb}`));
-      }
+      if (ga && gb) drawMpLabel(m.lon, ga, gb, R_MP_LABEL);
+    }
+    if (brushedMp.length > 0) {
+      const fan = fanAngles(brushedMp, state.brush.lon);
+      // Mi-points vivent côté interne (bande zodiacale → vers centre) → outward négatif.
+      const rMpFan = R_MP_LABEL - BRUSH_FAN_OFFSET;
+      brushedMp.forEach((m, i) => {
+        const fanLon = fan.get(i);
+        const t1 = project(m.lon, ascLon, R_ZODIAC_IN);
+        const t2 = project(m.lon, ascLon, R_MIDPOINT_IN);
+        container.appendChild(svg('line', { x1: t1.x, y1: t1.y, x2: t2.x, y2: t2.y, class: 'midpoint-tick' }));
+        const ga = BODY_GLYPH[m.a];
+        const gb = BODY_GLYPH[m.b];
+        if (ga && gb) {
+          const leadFrom = project(m.lon, ascLon, R_MIDPOINT_IN);
+          const leadTo   = project(fanLon, ascLon, rMpFan);
+          container.appendChild(svg('line', {
+            x1: leadFrom.x, y1: leadFrom.y, x2: leadTo.x, y2: leadTo.y,
+            class: 'brush-leader ring-natal',
+          }));
+          drawMpLabel(fanLon, ga, gb, rMpFan);
+        }
+      });
     }
   }
 
@@ -3264,6 +3385,7 @@ let state = {
   chartTime: null,  // null = temps réel ; sinon ms epoch (slider temporel) — pilote l'anneau transit
   timeline: { palier: 'day' },  // zoom frise par paliers discrets (P1 2026-10-22) — v. TL_PALIER_SPEC
   chart: { zoom: 1.0, cx: 0, cy: 0 },  // zoom cercle via viewBox ; cx/cy = centre visible (viewBox initial = -520..520)
+  brush: { active: false, cx: null, cy: null, lon: null, suppressClickUntil: 0 },  // pinceau-loupe (long-press + drag) — v1 2026-11-10
 };
 
 // Charge le répertoire de jalons depuis content/jalons.json. Chaque entrée
@@ -4024,19 +4146,61 @@ function wireScrapbookGestures() {
   const TAP_SLOP_PX     = 10;   // au-delà : c'est un pan, pas un tap
   const DOUBLE_TAP_MS   = 400;
   const DOUBLE_TAP_DIST = 40;   // unités viewBox
+  // Pinceau-loupe : 200ms sans mouvement sur la roue (hors bande zodiacale
+  // réservée au scrapbook) → bascule en mode pinceau. Le doigt bouge ensuite
+  // → la tête de loupe suit à BRUSH_OFFSET_PX AU-DESSUS du contact (loupe
+  // tenue par le manche, tête dégagée du doigt, ni gauche ni droite pour
+  // rester gaucher-droitier agnostique). pointerup éteint le mode.
+  const BRUSH_LONG_PRESS_MS = 200;
+  const BRUSH_OFFSET_PX     = 60;
   let lastTap = 0;
   let lastPt  = null;
   let lastTouchPointerAt = 0;
-  let down = null;              // { clientX, clientY, vbX, vbY, moved }
+  let down = null;              // { clientX, clientY, vbX, vbY, moved, brushTimer, brushActive, pointerId }
 
   const inZodiacBand = (pt) => {
     const r = Math.hypot(pt.x, pt.y);
     return r >= R_ZODIAC_IN && r <= R_ZODIAC_OUT;
   };
 
+  const brushPointFromClient = (clientX, clientY) => {
+    // Loupe au-dessus du doigt : offset vertical en pixels écran.
+    const pt = screenToSvg(svgEl, clientX, clientY - BRUSH_OFFSET_PX);
+    const ascLon = state.currentAscLon != null ? state.currentAscLon : 0;
+    return { cx: pt.x, cy: pt.y, lon: xyToLon(pt.x, pt.y, ascLon) };
+  };
+  const activateBrush = (clientX, clientY) => {
+    const b = brushPointFromClient(clientX, clientY);
+    state.brush.active = true;
+    state.brush.cx = b.cx;
+    state.brush.cy = b.cy;
+    state.brush.lon = b.lon;
+    render().catch(e => showError('render error: ' + e.message));
+  };
+  const updateBrush = (clientX, clientY) => {
+    const b = brushPointFromClient(clientX, clientY);
+    state.brush.cx = b.cx;
+    state.brush.cy = b.cy;
+    state.brush.lon = b.lon;
+    render().catch(e => showError('render error: ' + e.message));
+  };
+  const deactivateBrush = () => {
+    if (!state.brush.active) return;
+    state.brush.active = false;
+    state.brush.cx = null;
+    state.brush.cy = null;
+    state.brush.lon = null;
+    // Le click synthétique arrive après pointerup — si on a brushé sur un
+    // glyphe, il ne doit pas ouvrir la modale planète.
+    state.brush.suppressClickUntil = Date.now() + 400;
+    render().catch(e => showError('render error: ' + e.message));
+  };
+
   svgEl.addEventListener('pointerdown', ev => {
     if (ev.button !== 0) return;                      // contact / bouton gauche
     if (!ev.isPrimary) {                              // 2e doigt : pinch, pas tap
+      if (down && down.brushTimer) clearTimeout(down.brushTimer);
+      if (state.brush.active) deactivateBrush();
       down    = null;
       lastTap = 0;
       lastPt  = null;
@@ -4045,26 +4209,46 @@ function wireScrapbookGestures() {
     if (ev.pointerType === 'mouse' && Date.now() - lastTouchPointerAt < 600) return;
     if (ev.pointerType === 'touch') lastTouchPointerAt = Date.now();
 
-    // Ignorer si sur un item scrapbook image existant, un handle d'édition,
-    // ou un glyphe planétaire (les glyphes tombent dans la bande zodiacale : r=315).
-    if (ev.target.closest && ev.target.closest('.scrap-img-item, .scrap-text-item, .scrap-video-item, .planet-symbol, [data-scrap-handle]')) return;
+    // Ignorer si sur un item scrapbook image existant ou un handle d'édition.
+    // Les glyphes planétaires restent captés : un long-press sur un glyphe
+    // doit pouvoir déclencher le pinceau-loupe ; le click synthétique qui
+    // suit pointerup est intercepté via state.brush.suppressClickUntil.
+    if (ev.target.closest && ev.target.closest('.scrap-img-item, .scrap-text-item, .scrap-video-item, [data-scrap-handle]')) return;
 
     const pt = screenToSvg(svgEl, ev.clientX, ev.clientY);
-    // Création uniquement si le tap tombe dans la bande zodiacale.
+    down = {
+      clientX: ev.clientX, clientY: ev.clientY,
+      vbX: pt.x, vbY: pt.y, moved: false,
+      brushActive: false, pointerId: ev.pointerId,
+      brushTimer: null,
+    };
+    // Si on tombe dans la bande zodiacale, c'est peut-être un (double-)tap
+    // scrapbook — pas de long-press ici pour ne pas interférer. Ailleurs,
+    // on arme le long-press pinceau.
     if (!inZodiacBand(pt)) {
       lastTap = 0;
       lastPt  = null;
-      down    = null;
-      return;
+      down.brushTimer = setTimeout(() => {
+        if (down && !down.moved && !down.brushActive) {
+          down.brushActive = true;
+          activateBrush(down.clientX, down.clientY);
+        }
+      }, BRUSH_LONG_PRESS_MS);
     }
-    down = { clientX: ev.clientX, clientY: ev.clientY, vbX: pt.x, vbY: pt.y, moved: false };
   });
 
-  // Tout déplacement au-delà du seuil annule la séquence : c'est un pan.
+  // Tout déplacement au-delà du seuil annule la séquence tap : c'est un pan,
+  // sauf si le pinceau est actif — alors le mouvement met à jour la tête.
   svgEl.addEventListener('pointermove', ev => {
-    if (!down || down.moved) return;
+    if (!down) return;
+    if (down.brushActive) {
+      updateBrush(ev.clientX, ev.clientY);
+      return;
+    }
+    if (down.moved) return;
     if (Math.hypot(ev.clientX - down.clientX, ev.clientY - down.clientY) > TAP_SLOP_PX) {
       down.moved = true;
+      if (down.brushTimer) { clearTimeout(down.brushTimer); down.brushTimer = null; }
       lastTap = 0;
       lastPt  = null;
     }
@@ -4072,10 +4256,18 @@ function wireScrapbookGestures() {
 
   const endTap = () => {
     if (!down) return;
+    if (down.brushTimer) { clearTimeout(down.brushTimer); down.brushTimer = null; }
+    if (down.brushActive) {
+      deactivateBrush();
+      down = null;
+      return;
+    }
     const wasTap = !down.moved;
+    const wasInZodiac = inZodiacBand({ x: down.vbX, y: down.vbY });
     const vbX = down.vbX, vbY = down.vbY;
     down = null;
     if (!wasTap) return;
+    if (!wasInZodiac) return;                  // tap hors bande : rien (évite création scrap)
     const now = Date.now();
     if (now - lastTap < DOUBLE_TAP_MS && lastPt
         && Math.hypot(vbX - lastPt.x, vbY - lastPt.y) < DOUBLE_TAP_DIST) {
@@ -4090,7 +4282,11 @@ function wireScrapbookGestures() {
     }
   };
   svgEl.addEventListener('pointerup', endTap);
-  svgEl.addEventListener('pointercancel', () => { down = null; });
+  svgEl.addEventListener('pointercancel', () => {
+    if (down && down.brushTimer) clearTimeout(down.brushTimer);
+    if (state.brush.active) deactivateBrush();
+    down = null;
+  });
 }
 
 // ---------- Scrapbook : gestes sur items existants ----------
@@ -5121,6 +5317,9 @@ function wirePlanetInfo() {
   const svgEl = document.getElementById('chart');
   if (!svgEl) return;
   svgEl.addEventListener('click', ev => {
+    // Si un pinceau vient d'être désactivé, le click synthétique suit le
+    // pointerup — l'ignorer pour éviter l'ouverture inopinée de modale.
+    if (state.brush && Date.now() < (state.brush.suppressClickUntil || 0)) return;
     const target = ev.target.closest('.planet-symbol');
     if (!target) return;
     const key  = target.getAttribute('data-planet');
