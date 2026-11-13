@@ -242,14 +242,62 @@ function asteroidFileName(mpc) {
   return { folder: `ast${Math.floor(mpc / 1000)}`, file: `se${String(mpc).padStart(5, '0')}s.se1` };
 }
 
+// ---------- Cache IndexedDB des .se1 (2026-11-12) ----------
+// Au premier fetch, on stocke les bytes du .se1 ; aux runs suivants, lecture
+// locale = pas de réseau. Bénéfice collatéral : les chips d'astéroïdes
+// persistés rechargent instantanément. Store unique, keyé par mpc (number).
+const EPHE_DB_NAME = 'astrolab-ephe';
+const EPHE_STORE   = 'asteroid-se1';
+let ephDbPromise;
+function openEpheDb() {
+  if (ephDbPromise) return ephDbPromise;
+  ephDbPromise = new Promise((resolve, reject) => {
+    const req = indexedDB.open(EPHE_DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(EPHE_STORE)) db.createObjectStore(EPHE_STORE);
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  return ephDbPromise;
+}
+async function cachedAsteroidBytes(mpc) {
+  try {
+    const db = await openEpheDb();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(EPHE_STORE, 'readonly');
+      const req = tx.objectStore(EPHE_STORE).get(mpc);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  } catch { return null; }
+}
+async function putAsteroidBytes(mpc, bytes) {
+  try {
+    const db = await openEpheDb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(EPHE_STORE, 'readwrite');
+      tx.objectStore(EPHE_STORE).put(bytes, mpc);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch {}
+}
+
 async function mountAsteroid(mpc) {
   if (mountedAsteroids.has(mpc)) return true;
-  const { folder, file } = asteroidFileName(mpc);
-  const upstream = `${UPSTREAM}/${folder}/${file}`;
-  const url = PROXY_URL + upstream;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Astéroïde ${mpc} : HTTP ${res.status} via proxy ${PROXY_URL}`);
-  const bytes = new Uint8Array(await res.arrayBuffer());
+  const { file } = asteroidFileName(mpc);
+  let bytes = await cachedAsteroidBytes(mpc);
+  if (!bytes) {
+    const { folder } = asteroidFileName(mpc);
+    const upstream = `${UPSTREAM}/${folder}/${file}`;
+    const url = PROXY_URL + upstream;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Astéroïde ${mpc} : HTTP ${res.status} via proxy ${PROXY_URL}`);
+    bytes = new Uint8Array(await res.arrayBuffer());
+    putAsteroidBytes(mpc, bytes);
+  }
   swe.mountEphemeris({ [file]: bytes });
   mountedAsteroids.add(mpc);
   return true;
@@ -5342,6 +5390,7 @@ function wireControls() {
   wireAspectsMenu();
   wireAsteroidSearch();
   wireProxySettings();
+  wireProbeButton();
   wireScrapbookGestures();
   wireScrapItemGestures();
   wireScrapEditHandles();
@@ -6191,6 +6240,141 @@ async function remountSavedAsteroids() {
   await Promise.all(state.asteroids.map(([mpc, name]) =>
     mountAsteroid(mpc).catch(e => console.warn(`skip (${mpc}) ${name}:`, e.message))
   ));
+}
+
+// ---------- Probe du ciel (2026-11-12) ----------
+// Feature « qu'y a-t-il ici » — indépendante de la loupe. Télécharge tous les
+// astéroïdes MPC 1..PROBE_MAX via le proxy (avec cache IndexedDB), calcule
+// leur longitude à la date de la frise (state.chartTime), et dresse une
+// liste triée par longitude écliptique. v0 : brute force, aucun rendu sur la
+// roue. Raffinement UX après premier run d'usage.
+const PROBE_MAX         = 1000;
+const PROBE_CONCURRENCY = 20;
+
+const probeState = {
+  busy: false,
+  results: [],   // [{ mpc, name, lon, retro }]
+  jdAt: null,    // jd utilisé pour le calcul
+  dateLabel: '', // humain-lisible
+  errors: 0,
+};
+
+async function probeSky({ onProgress } = {}) {
+  if (probeState.busy) return;
+  probeState.busy = true;
+  probeState.errors = 0;
+  try {
+    const catalog = await loadCatalog();
+    const want = catalog.filter(([mpc]) => mpc >= 1 && mpc <= PROBE_MAX);
+    const total = want.length;
+    let done = 0;
+    let idx = 0;
+    const worker = async () => {
+      while (idx < want.length) {
+        const i = idx++;
+        const [mpc, name] = want[i];
+        try { await mountAsteroid(mpc); }
+        catch (e) { probeState.errors++; console.warn(`probe skip (${mpc}) ${name}:`, e.message); }
+        done++;
+        if (onProgress) onProgress(done, total);
+      }
+    };
+    await Promise.all(Array.from({ length: PROBE_CONCURRENCY }, worker));
+
+    const cfg = nowConfig(MONTREAL, state.chartTime);
+    probeState.jdAt      = cfg.jd;
+    probeState.dateLabel = cfg.info;
+    const out = [];
+    for (const [mpc, name] of want) {
+      if (!mountedAsteroids.has(mpc)) continue;
+      try {
+        const r = swe.calc(cfg.jd, sweMod.asteroidBody(mpc));
+        out.push({ mpc, name, lon: normDeg(r.longitude), retro: r.longitudeSpeed < 0 });
+      } catch (e) {
+        probeState.errors++;
+        console.warn(`probe calc (${mpc}) ${name}:`, e.message);
+      }
+    }
+    out.sort((a, b) => a.lon - b.lon);
+    probeState.results = out;
+    return out;
+  } finally {
+    probeState.busy = false;
+  }
+}
+
+function openProbeModal() {
+  const modal   = document.getElementById('probe-modal');
+  const listEl  = document.getElementById('probe-list');
+  const metaEl  = document.getElementById('probe-meta');
+  const startBtn= document.getElementById('probe-start');
+  const recBtn  = document.getElementById('probe-recompute');
+  if (!modal) return;
+  modal.hidden = false;
+  modal.setAttribute('aria-hidden', 'false');
+  renderProbeList();
+  function renderProbeList() {
+    if (probeState.results.length === 0) {
+      listEl.innerHTML = '<p class="probe-empty">Aucun résultat pour l\'instant. Clique « ☍ sonder le ciel » pour télécharger et calculer les 1000 premiers astéroïdes.</p>';
+      metaEl.textContent = '';
+      recBtn.hidden = true;
+      return;
+    }
+    metaEl.textContent = `${probeState.results.length} astéroïdes · ${probeState.dateLabel}` + (probeState.errors ? ` · ${probeState.errors} erreurs` : '');
+    recBtn.hidden = false;
+    let lastSign = -1;
+    const parts = [];
+    for (const a of probeState.results) {
+      const sign = Math.floor(a.lon / 30);
+      if (sign !== lastSign) {
+        parts.push(`<li class="probe-sign-row">${SIGN_GLYPHS[sign]}</li>`);
+        lastSign = sign;
+      }
+      parts.push(`<li class="probe-row" data-mpc="${a.mpc}"><span class="probe-lon">${formatSign(a.lon)}</span>${a.retro ? ' <span class="probe-retro">℞</span>' : ''} <span class="probe-name"><b>(${a.mpc})</b> ${a.name}</span></li>`);
+    }
+    listEl.innerHTML = `<ul class="probe-ul">${parts.join('')}</ul>`;
+  }
+  startBtn.onclick = async () => {
+    if (probeState.busy) return;
+    startBtn.disabled = true;
+    startBtn.textContent = 'téléchargement… 0/' + PROBE_MAX;
+    try {
+      await probeSky({ onProgress: (d, t) => {
+        startBtn.textContent = `téléchargement… ${d}/${t}`;
+      }});
+      startBtn.textContent = '☍ sonder le ciel (1-1000)';
+      renderProbeList();
+    } catch (e) {
+      showError('probe: ' + (e.message || e));
+      startBtn.textContent = '☍ réessayer';
+    } finally {
+      startBtn.disabled = false;
+    }
+  };
+  recBtn.onclick = () => {
+    const cfg = nowConfig(MONTREAL, state.chartTime);
+    probeState.jdAt      = cfg.jd;
+    probeState.dateLabel = cfg.info;
+    const out = [];
+    for (const a of probeState.results) {
+      try {
+        const r = swe.calc(cfg.jd, sweMod.asteroidBody(a.mpc));
+        out.push({ mpc: a.mpc, name: a.name, lon: normDeg(r.longitude), retro: r.longitudeSpeed < 0 });
+      } catch {}
+    }
+    out.sort((a, b) => a.lon - b.lon);
+    probeState.results = out;
+    renderProbeList();
+  };
+  modal.querySelectorAll('[data-close-probe]').forEach(el => {
+    el.onclick = () => { modal.hidden = true; modal.setAttribute('aria-hidden', 'true'); };
+  });
+}
+
+function wireProbeButton() {
+  const btn = document.getElementById('probe-open');
+  if (!btn) return;
+  btn.addEventListener('click', openProbeModal);
 }
 
 function wireProxySettings() {

@@ -2925,3 +2925,140 @@ body.natives-modal-open { overflow: hidden; }
 @media (min-width: 700px) {
   .natives-panel { margin-top: 4vh; margin-bottom: 4vh; max-height: 92vh; border-radius: 4px; }
 }
+
+/* ─── Interroger le ciel (probe, 2026-11-12) ────────────────────────────
+   Feature indépendante de la loupe. Bouton sous la zone astéroïdes du
+   sheet, ouvre une modale plein écran avec liste triée par longitude. */
+.probe-open-btn {
+  display: block;
+  width: 100%;
+  margin: 0.6rem 0 0;
+  padding: 0.55rem 0.8rem;
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line-medium);
+  border-radius: 3px;
+  font: inherit;
+  font-size: 0.9rem;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+.probe-open-btn:hover { background: var(--bg-raised, rgba(255,255,255,0.03)); }
+
+.probe-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(26, 26, 26, 0.55);
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: 0;
+}
+.probe-panel {
+  background: var(--bg);
+  color: var(--ink);
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 4px 32px rgba(0, 0, 0, 0.25);
+}
+.probe-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.2rem 0.5rem;
+  border-bottom: 1px solid var(--line-weak);
+}
+.probe-header h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 400;
+  letter-spacing: 0.03em;
+}
+.probe-close {
+  background: transparent;
+  border: none;
+  font-size: 1.4rem;
+  color: var(--line-medium);
+  cursor: pointer;
+  padding: 0.1rem 0.4rem;
+  line-height: 1;
+}
+.probe-close:hover { color: var(--ink); }
+.probe-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.8rem 1.2rem 0.4rem;
+}
+.probe-start-btn,
+.probe-recompute-btn {
+  padding: 0.6rem 0.8rem;
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line-medium);
+  border-radius: 3px;
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.probe-start-btn:disabled { opacity: 0.6; cursor: wait; }
+.probe-meta {
+  margin: 0;
+  padding: 0 1.2rem 0.4rem;
+  font-size: 0.78rem;
+  color: var(--line-medium);
+  letter-spacing: 0.01em;
+}
+.probe-list {
+  padding: 0 1.2rem 1.4rem;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  flex: 1;
+}
+.probe-empty {
+  margin: 1rem 0;
+  font-size: 0.85rem;
+  color: var(--line-medium);
+  line-height: 1.5;
+}
+.probe-ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.probe-sign-row {
+  font-size: 1.4rem;
+  padding: 0.6rem 0 0.3rem;
+  color: var(--ink);
+  border-bottom: 1px solid var(--line-weak);
+  margin-top: 0.2rem;
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 1;
+}
+.probe-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+  font-size: 0.88rem;
+  border-bottom: 1px dotted var(--line-weak);
+}
+.probe-lon {
+  min-width: 5.5rem;
+  color: var(--line-medium);
+  font-variant-numeric: tabular-nums;
+}
+.probe-retro { color: var(--line-medium); font-size: 0.8rem; }
+.probe-name { flex: 1; }
+.probe-name b { font-weight: 500; color: var(--line-medium); margin-right: 0.3rem; }
+
+@media (min-width: 700px) {
+  .probe-panel { margin-top: 4vh; margin-bottom: 4vh; max-height: 92vh; border-radius: 4px; }
+}
