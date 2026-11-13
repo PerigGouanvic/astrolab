@@ -6303,25 +6303,51 @@ async function probeSky({ onProgress } = {}) {
   }
 }
 
+// Recalcul des 1000 positions à un cfg donné (nowConfig frise OU natalConfig),
+// sans re-télécharger — les .se1 restent montés dans swe pour la session.
+function recomputeProbeAt(cfg) {
+  const out = [];
+  for (const a of probeState.results) {
+    try {
+      const r = swe.calc(cfg.jd, sweMod.asteroidBody(a.mpc));
+      out.push({ mpc: a.mpc, name: a.name, lon: normDeg(r.longitude), retro: r.longitudeSpeed < 0 });
+    } catch {}
+  }
+  out.sort((a, b) => a.lon - b.lon);
+  probeState.results   = out;
+  probeState.jdAt      = cfg.jd;
+  probeState.dateLabel = cfg.info;
+}
+
 function openProbeModal() {
-  const modal   = document.getElementById('probe-modal');
-  const listEl  = document.getElementById('probe-list');
-  const metaEl  = document.getElementById('probe-meta');
-  const startBtn= document.getElementById('probe-start');
-  const recBtn  = document.getElementById('probe-recompute');
+  const modal       = document.getElementById('probe-modal');
+  const listEl      = document.getElementById('probe-list');
+  const metaEl      = document.getElementById('probe-meta');
+  const startBtn    = document.getElementById('probe-start');
+  const recBtn      = document.getElementById('probe-recompute');
+  const recNatalBtn = document.getElementById('probe-recompute-natal');
   if (!modal) return;
   modal.hidden = false;
   modal.setAttribute('aria-hidden', 'false');
+  // Label dynamique du bouton natal (nom du natif courant)
+  try {
+    const nName = currentNative()?.name || 'natif';
+    recNatalBtn.textContent = `↻ natal (${nName})`;
+  } catch {
+    recNatalBtn.textContent = '↻ natal';
+  }
   renderProbeList();
   function renderProbeList() {
     if (probeState.results.length === 0) {
       listEl.innerHTML = '<p class="probe-empty">Aucun résultat pour l\'instant. Clique « ☍ sonder le ciel » pour télécharger et calculer les 1000 premiers astéroïdes.</p>';
       metaEl.textContent = '';
       recBtn.hidden = true;
+      recNatalBtn.hidden = true;
       return;
     }
     metaEl.textContent = `${probeState.results.length} astéroïdes · ${probeState.dateLabel}` + (probeState.errors ? ` · ${probeState.errors} erreurs` : '');
     recBtn.hidden = false;
+    recNatalBtn.hidden = false;
     let lastSign = -1;
     const parts = [];
     for (const a of probeState.results) {
@@ -6352,19 +6378,16 @@ function openProbeModal() {
     }
   };
   recBtn.onclick = () => {
-    const cfg = nowConfig(MONTREAL, state.chartTime);
-    probeState.jdAt      = cfg.jd;
-    probeState.dateLabel = cfg.info;
-    const out = [];
-    for (const a of probeState.results) {
-      try {
-        const r = swe.calc(cfg.jd, sweMod.asteroidBody(a.mpc));
-        out.push({ mpc: a.mpc, name: a.name, lon: normDeg(r.longitude), retro: r.longitudeSpeed < 0 });
-      } catch {}
-    }
-    out.sort((a, b) => a.lon - b.lon);
-    probeState.results = out;
+    recomputeProbeAt(nowConfig(MONTREAL, state.chartTime));
     renderProbeList();
+  };
+  recNatalBtn.onclick = () => {
+    try {
+      recomputeProbeAt(natalConfig());
+      renderProbeList();
+    } catch (e) {
+      showError('probe natal: ' + (e.message || e));
+    }
   };
   modal.querySelectorAll('[data-close-probe]').forEach(el => {
     el.onclick = () => { modal.hidden = true; modal.setAttribute('aria-hidden', 'true'); };

@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>astrolab — carte natale</title>
-  <link rel="stylesheet" href="style.css?v=73">
+  <link rel="stylesheet" href="style.css?v=74">
   <style>
     html, body { overscroll-behavior-y: contain; }
     .ptr-indicator {
@@ -129,7 +129,7 @@
     </div>
     <!-- Sonde temporaire : bannière visible au boot, cachée dès que render() a eu lieu.
          Permet de confirmer que la version v63 du JS tourne (sinon la bannière reste). -->
-    <div id="boot-probe" style="position:fixed;top:0;left:0;right:0;z-index:9999;background:#ffe08a;color:#4a3400;padding:6px 10px;font-family:ui-monospace,monospace;font-size:12px;text-align:center;">astrolab v113 — booting… (si cette ligne reste, le JS ne finit pas d'init)</div>
+    <div id="boot-probe" style="position:fixed;top:0;left:0;right:0;z-index:9999;background:#ffe08a;color:#4a3400;padding:6px 10px;font-family:ui-monospace,monospace;font-size:12px;text-align:center;">astrolab v114 — booting… (si cette ligne reste, le JS ne finit pas d'init)</div>
     <pre id="error-box" class="error-box" hidden></pre>
     <aside id="controls-sheet" class="sheet sheet-peek" aria-label="Contrôles">
       <button type="button" class="sheet-handle" aria-label="Déplier ou replier les contrôles" aria-expanded="false"></button>
@@ -233,7 +233,10 @@
         </header>
         <div class="probe-actions">
           <button type="button" id="probe-start" class="probe-start-btn">☍ sonder le ciel (1-1000)</button>
-          <button type="button" id="probe-recompute" class="probe-recompute-btn" hidden>↻ recalculer à la date de la frise</button>
+          <div class="probe-recompute-row">
+            <button type="button" id="probe-recompute" class="probe-recompute-btn" hidden>↻ frise</button>
+            <button type="button" id="probe-recompute-natal" class="probe-recompute-btn" hidden>↻ natal</button>
+          </div>
         </div>
         <p id="probe-meta" class="probe-meta"></p>
         <section id="probe-list" class="probe-list"></section>
@@ -304,7 +307,7 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=113"></script>
+  <script type="module" src="app.js?v=114"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {

@@ -3007,6 +3007,11 @@ body.natives-modal-open { overflow: hidden; }
   cursor: pointer;
 }
 .probe-start-btn:disabled { opacity: 0.6; cursor: wait; }
+.probe-recompute-row {
+  display: flex;
+  gap: 0.4rem;
+}
+.probe-recompute-row .probe-recompute-btn { flex: 1; }
 .probe-meta {
   margin: 0;
   padding: 0 1.2rem 0.4rem;
